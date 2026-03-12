@@ -1,0 +1,43 @@
+# TODO
+- Documenter les programmes déjà fait avec des petit readme
+- Mettre les shapes locust dans le dossier trafic, partagés entres les différents script de traffics
+- Ajouter la possibilité de gérer des **fichiers de configuration** pour `run_test.sh`
+  - Exemple : `run_test.sh -f basic.test`
+  - Le fichier pourrait définir env, stack, trafic, optimizer, seed, output_dir, et paramètres spécifiques
+- Implémenter `collect_logs` de kink (et/ou dans utils) dans pour récupérer :
+  - Logs et métriques de la stack
+  - Logs et métriques du cluster
+  - Dans le but de pouvoir analyser la qualité de l'optimiseur après coup
+- Implémenter les envs :
+  - clusterAPI
+  - AWS, Azure, GCP, OVH (si non pris en charge par clusterAPI)
+- Implementer des stacks :
+  - Sock Shop (Final ✅)
+  - Online Boutique (Final ✅)
+  - BookInfo (Final ✅)
+  - Mattermost (Final ✅)
+  - Saleor (Final ✅)
+  - OpenTelemetry
+  - Argo workflow :
+    - https://github.com/akuity/awesome-argo?tab=readme-ov-file#ecosystem-projects
+    - https://github.com/argoproj/argo-workflows/tree/main/examples
+    - https://github.com/topics/argo-workflows
+    - kubeflow
+    - tekton
+    - airbyte
+    - SQLFlow
+  - Kafka :
+    - Quarkus Superheroes (Final ✅)
+  - Flink
+  - Spark
+- Implementer les trafics :
+  - Locust ?
+  - K6 ?
+  - Vegeta ?
+- Implementer les optimizers :
+  - Aucun (Pour point de comparaisons)
+  - Hots
+  - Karpenter
+  - Koordinator
+  - Volcano
+  - YuniKorn

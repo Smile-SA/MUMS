@@ -1,0 +1,4 @@
+# Valeurs Helm pour Online Boutique dans le contexte des tests d'intégration.
+# Ajouter ici les surcharges si nécessaire.
+loadGenerator:
+  create: false
