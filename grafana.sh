@@ -1,54 +1,32 @@
 #!/bin/bash
-# Ouvre le port-forward vers Prometheus et provisionne la datasource + dashboard dans Grafana.
-# Usage: ./grafana.sh <seed>
+# Provisions Prometheus datasource in Grafana.
+# Usage: ./grafana.sh <prometheus_url> [grafana_url]
+#
+# Defaults:
+#   grafana_url : http://localhost:3000
 
-SEED=$1
+PROMETHEUS_URL=$1
+GRAFANA_URL=${2:-http://localhost:3000}
 
-if [ -z "$SEED" ]; then
-    echo "Usage: $0 <seed>" >&2
+if [ -z "$PROMETHEUS_URL" ]; then
+    echo "Usage: $0 <prometheus_url> [grafana_url]" >&2
     exit 1
 fi
 
-KUBECONFIG="/tmp/kubeconfig-kind-test-${SEED}"
-
-if [ ! -f "$KUBECONFIG" ]; then
-    echo "ERREUR: kubeconfig '$KUBECONFIG' introuvable — cluster démarré ?" >&2
-    exit 1
-fi
-
-# Lance le port-forward en arrière-plan
-kubectl --kubeconfig "$KUBECONFIG" \
-    port-forward -n monitoring svc/prometheus-server 9090:80 &
-PF_PID=$!
-trap "kill $PF_PID 2>/dev/null" EXIT
-
-# Attend que le port soit prêt
-echo "=== Attente du port-forward..." >&2
-for i in $(seq 1 10); do
-    if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
-        break
-    fi
-    sleep 1
-done
-
-# Provisionne la datasource Prometheus
-echo "=== Provisionnement datasource Prometheus..." >&2
-curl -s -X POST http://admin:admin@localhost:3000/api/datasources \
+echo "=== Provisioning Prometheus datasource..." >&2
+curl -s -X POST "${GRAFANA_URL}/api/datasources" \
+    -u admin:admin \
     -H "Content-Type: application/json" \
-    -d '{
-        "name": "Prometheus",
-        "type": "prometheus",
-        "url": "http://127.0.0.1:9090",
-        "access": "proxy",
-        "isDefault": true
-    }' > /dev/null
+    -d "{
+        \"name\": \"Prometheus\",
+        \"type\": \"prometheus\",
+        \"url\": \"${PROMETHEUS_URL}\",
+        \"access\": \"proxy\",
+        \"isDefault\": true
+    }" > /dev/null
 
-echo ""
-echo "=== Prêt ==="
-echo "    Grafana UI : http://localhost:3000"
-echo "    Dashboard  : Dashboards → Kubernetes cluster monitoring"
-echo ""
-echo "    Ctrl+C pour fermer le tunnel"
-echo ""
-
-wait $PF_PID
+echo "" >&2
+echo "=== Ready ===" >&2
+echo "    Grafana  : ${GRAFANA_URL}" >&2
+echo "    Prometheus datasource : ${PROMETHEUS_URL}" >&2
+echo "    Dashboard : Dashboards → Kubernetes cluster monitoring" >&2

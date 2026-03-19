@@ -41,3 +41,10 @@
   - Koordinator
   - Volcano
   - YuniKorn
+- destroy avec le kubeconfig (et non la seed) et avoir des noms de cluster permetant plusieurs cluster de la même seed simultanément
+- Assurer la reproductibilité en mettant les images en local et en gerant la digestion :
+  - Mettre en place un registry interne isolé (ex: Docker Registry)
+  - Pousser toutes les images nécessaires dedans
+  - Référencer les images par **digest SHA256** (pas `:latest`)
+  - Bloquer l’accès aux registries externes pendant les tests
+  - `imagePullPolicy: IfNotPresent` dans les manifests

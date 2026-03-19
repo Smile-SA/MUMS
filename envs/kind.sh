@@ -1,6 +1,11 @@
 #!/bin/bash
-# Usage: ./kind.sh <action> <seed> [--workers "<list>"]
-# Actions: create, destroy, collect_logs
+# Usage: ./kind.sh <action> <seed> [options]
+# Actions: create, destroy
+#
+# Options:
+#   --workers "<list>"      Worker nodes configuration
+#   --output-dir <path>     Output directory for metrics (default: ./output)
+#   --frequency <seconds>   Scraping frequency in seconds (default: 15)
 #
 # --workers format : "count=N,cpu=X,memory=YGi;count=M,cpu=A,memory=BGi;..."
 #   Les ressources cpu/memory définissent ce que le worker expose dans le champ
@@ -19,17 +24,17 @@ shift 2
 CLUSTER_NAME="kind-test-${SEED}"
 KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
 METALLB_IP_RANGE="172.18.240.0-172.18.255.254"
+
 WORKERS_PARAM=""
+OUTPUT_DIR="./output"
+FREQUENCY=15
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --workers)
-            WORKERS_PARAM="$2"
-            shift 2
-            ;;
-        *)
-            shift
-            ;;
+        --workers)    WORKERS_PARAM="$2"; shift 2 ;;
+        --output-dir) OUTPUT_DIR="$2";    shift 2 ;;
+        --frequency)  FREQUENCY="$2";     shift 2 ;;
+        *)            shift ;;
     esac
 done
 
@@ -46,7 +51,7 @@ cpu_to_milli() {
     elif [[ $cpu =~ ^([0-9]+)$ ]]; then
         echo $(( ${BASH_REMATCH[1]} * 1000 ))
     else
-        echo "ERREUR: format CPU non reconnu: '$1' (attendu: entier ou millicores ex: 2 ou 500m)" >&2
+        echo "ERROR: unrecognized CPU format: '$1' (expected: integer or millicores e.g. 2 or 500m)" >&2
         exit 1
     fi
 }
@@ -62,7 +67,7 @@ mem_to_mi() {
     elif [[ $mem =~ ^([0-9]+)M$ ]]; then
         echo "${BASH_REMATCH[1]}"
     else
-        echo "ERREUR: format mémoire non reconnu: '$1' (attendu: Gi, Mi, G, M)" >&2
+        echo "ERROR: unrecognized memory format: '$1' (expected: Gi, Mi, G, M)" >&2
         exit 1
     fi
 }
@@ -76,7 +81,6 @@ apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
 "
-
     if [ -z "$WORKERS_PARAM" ]; then
         echo -e "$yaml"
         return
@@ -104,17 +108,18 @@ nodes:
             desired_milli=$(cpu_to_milli "$CPU")
             local reserved_milli=$(( HOST_CPU_MILLI - desired_milli ))
             if [ "$reserved_milli" -lt 0 ]; then
-                echo "ERREUR: cpu=$CPU demandé mais le host n'a que ${HOST_CPU_MILLI}m CPUs" >&2
+                echo "ERROR: cpu=$CPU requested but host only has ${HOST_CPU_MILLI}m CPUs" >&2
                 exit 1
             fi
             reserved_parts+=("cpu=${reserved_milli}m")
         fi
+
         if [ -n "$MEM" ]; then
             local desired_mi
             desired_mi=$(mem_to_mi "$MEM")
             local reserved_mi=$(( HOST_MEM_MI - desired_mi ))
             if [ "$reserved_mi" -lt 0 ]; then
-                echo "ERREUR: memory=$MEM demandé mais le host n'a que ${HOST_MEM_MI}Mi" >&2
+                echo "ERROR: memory=$MEM requested but host only has ${HOST_MEM_MI}Mi" >&2
                 exit 1
             fi
             reserved_parts+=("memory=${reserved_mi}Mi")
@@ -142,7 +147,7 @@ nodes:
 
 case "$ACTION" in
     create)
-        echo "=== Création du cluster Kind: $CLUSTER_NAME ===" >&2
+        echo "=== Creating Kind cluster: $CLUSTER_NAME ===" >&2
         echo "    Host: ${HOST_CPU} CPUs (${HOST_CPU_MILLI}m), ${HOST_MEM_MI}Mi RAM" >&2
 
         TEMP_YAML=$(mktemp)
@@ -158,27 +163,41 @@ case "$ACTION" in
             --name "$CLUSTER_NAME" \
             --kubeconfig "$KUBECONFIG_PATH" \
             --config "$TEMP_YAML"
-
         rm "$TEMP_YAML"
 
         "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE"
-        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" 
+        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH"
+        "$UTILS_DIR/prometheus/port-forward.sh" "$KUBECONFIG_PATH" "$CLUSTER_NAME"
+
+        mkdir -p "$OUTPUT_DIR"
+        python3 "$UTILS_DIR/scraper/scraper.py" \
+            http://127.0.0.1:9090 "$FREQUENCY" "$OUTPUT_DIR" \
+            > "/tmp/scraper-${CLUSTER_NAME}.log" 2>&1 &
+        echo $! > "/tmp/scraper-${CLUSTER_NAME}.pid"
+        echo "=== Scraper started (PID $(cat /tmp/scraper-${CLUSTER_NAME}.pid))" >&2
 
         echo "$KUBECONFIG_PATH"
         ;;
 
     destroy)
-        echo "=== Destruction du cluster Kind: $CLUSTER_NAME ===" >&2
+        echo "=== Destroying Kind cluster: $CLUSTER_NAME ===" >&2
+
+        # Kill scraper
+        PID_FILE="/tmp/scraper-${CLUSTER_NAME}.pid"
+        if [ -f "$PID_FILE" ]; then
+            kill "$(cat "$PID_FILE")" 2>/dev/null && echo "=== Scraper stopped" >&2
+            rm "$PID_FILE"
+        fi
+
+        # Kill port-forward
+        "$UTILS_DIR/prometheus/port-forward-stop.sh" "$CLUSTER_NAME"
+
         kind delete cluster --name "$CLUSTER_NAME"
         [ -f "$KUBECONFIG_PATH" ] && rm "$KUBECONFIG_PATH"
         ;;
 
-    collect_logs)
-        echo "Collecte de logs non implémentée." >&2
-        ;;
-
     *)
-        echo "Usage: $0 <create|destroy|collect_logs> <seed> [--workers \"count=N,cpu=X,memory=YGi;...\"]" >&2
+        echo "Usage: $0 <create|destroy> <seed> [--workers \"count=N,cpu=X,memory=YGi;...\"] [--output-dir <path>] [--frequency <seconds>]" >&2
         exit 1
         ;;
 esac

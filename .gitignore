@@ -1,0 +1,4 @@
+output/
+*.om
+*.pid
+*.log

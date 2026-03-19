@@ -1,65 +1,76 @@
-# Tests d'intégration
+# Integration Tests
 
-Ce dépôt contient une architecture modulaire pour déployer des stacks Kubernetes distribuées, générer du trafic et tester des algorithmes d'optimisation.
+This repository contains a modular architecture to deploy distributed Kubernetes stacks, generate traffic, and test scheduling optimization algorithms.
 
-## Dépendances
+## Dependencies
 
-**Système :**
+**System:**
 - `kind`
 - `kubectl`
 - `helm`
 - `docker`
 - `git`
 
-**Python (hôte) :**
+**Python (host):**
 - `locust`
 - `faker`
+- `requests`
 
-**Optionnel :**
-- Grafana (local, pour visualiser les métriques)
+**Optional:**
+- Grafana (local, to visualize metrics)
 
 ## Structure
 ```
 tests/
-├─ envs/           # Création/destruction de clusters, monitoring et collecte de logs
-├─ utils/          # Utilitaires partagés (helm, metallb, prometheus)
-├─ stacks/         # Stacks distribuées (déploiement)
-├─ traffic/        # Scripts de génération de trafic
-├─ optimizers/     # Algorithmes de placement / optimisation
-├─ grafana.sh      # Port-forward Prometheus + provisionnement datasource Grafana
-└─ run_test.sh     # Orchestrateur principal
+├─ envs/           # Cluster creation/destruction, monitoring and log collection
+├─ utils/          # Shared utilities (helm, metallb, prometheus, scraper)
+├─ stacks/         # Distributed stacks (deployment)
+├─ traffic/        # Traffic generation scripts
+│   └─ shapes/     # Reusable load shapes
+├─ optimizers/     # Scheduling / optimization algorithms
+├─ grafana.sh      # Provision Prometheus datasource in Grafana
+└─ run_test.sh     # Main orchestrator
 ```
 
-- Chaque dossier de stack contient : `prepare.sh` (téléchargement des charts) et `deploy.sh` (déploiement sur le cluster).
-- Chaque dossier de traffic contient : `run.sh` (génération de trafic depuis la machine hôte).
-- Les stacks "ready" sont directement utilisables pour générer du trafic et collecter des métriques.
-- Les stacks "frameworks" nécessitent une configuration supplémentaire pour produire du trafic réel (Kafka, Flink, Spark).
+- Each stack folder contains: `prepare.sh` (chart download) and `deploy.sh` (cluster deployment).
+- Each traffic folder contains: `run.sh` (traffic generation from the host machine).
+- "Ready" stacks are directly usable for traffic generation and metrics collection.
+- "Framework" stacks require additional configuration to produce real traffic (Kafka, Flink, Spark).
 
-## Types de scripts et spécifications
+## Script types and specifications
 
-| Type de script | Description                                                    | Paramètres attendus |
-|----------------|----------------------------------------------------------------|---------------------|
-| **env**        | Créer/détruire un cluster, collecter les logs                  | `create <seed>` → retourne KUBECONFIG <br> `destroy <seed>` <br> `collect_logs <seed> <output_dir>` |
-| **stack**      | Déployer une application distribuée sur le cluster             | `<KUBECONFIG> <SEED>` |
-| **traffic**    | Générer du trafic réaliste depuis la machine hôte              | `<KUBECONFIG> <SEED>` |
-| **optimizer**  | Déployer et exécuter un algorithme de placement/optimisation   | `<KUBECONFIG> <SEED>` |
+| Script type    | Description                                                   | Expected parameters |
+|----------------|---------------------------------------------------------------|---------------------|
+| **env**        | Create/destroy a cluster, collect logs                        | `create <seed>` → returns KUBECONFIG <br> `destroy <seed>` |
+| **stack**      | Deploy a distributed application on the cluster               | `<KUBECONFIG> <SEED>` |
+| **traffic**    | Generate realistic traffic from the host machine              | `<KUBECONFIG> <SEED>` |
+| **optimizer**  | Deploy and run a scheduling/optimization algorithm            | `<KUBECONFIG> <SEED>` |
 
-> Tous les scripts acceptent des options supplémentaires via `$@` et peuvent ignorer celles qui ne les concernent pas.
+> All scripts accept additional options via `$@` and may ignore those that don't concern them.
 
-## Exécution d'un test
+## Running a test
 ```bash
 ./run_test.sh <env_script> <stack_script> <traffic_script> <optimizer_script> <output_dir> [seed] [options ...]
 ```
 
-- `$env_script` : crée/détruit le cluster et collecte les logs
-- `$stack_script` : déploie la stack
-- `$traffic_script` : génère du trafic depuis la machine hôte
-- `$optimizer_script` : déploie l'algorithme d'optimisation
-- `$output_dir` : dossier de collecte des logs
-- `[seed]` : optionnel, pour la reproductibilité
-- `[options ...]` : transmis à tous les sous-scripts
+- `$env_script` : creates/destroys the cluster
+- `$stack_script` : deploys the stack
+- `$traffic_script` : generates traffic from the host machine
+- `$optimizer_script` : deploys the optimization algorithm
+- `$output_dir` : log and metrics output folder
+- `[seed]` : optional, for reproducibility
+- `[options ...]` : forwarded to all sub-scripts
+
+## Metrics collection
+
+The `env create` script automatically starts a Prometheus port-forward and a scraper on the host machine. Metrics are written in OpenMetrics format to `<output_dir>/metrics.om` at a configurable frequency.
+```bash
+./envs/kind.sh create <seed> [--output-dir <path>] [--frequency <seconds>] [--workers "..."]
+```
+
+The scraper is stopped and the port-forward is closed on `destroy`.
 
 ## Notes
 
-- Le trafic est généré depuis la machine hôte (hors cluster) afin de ne pas fausser les métriques de ressources observées par l'optimiseur.
-- La structure est modulaire : il est facile d'ajouter de nouveaux environnements, stacks, scénarios de trafic ou optimiseurs.
+- Traffic is generated from the host machine (outside the cluster) to avoid skewing the resource metrics observed by the optimizer.
+- The architecture is modular: new environments, stacks, traffic scenarios, and optimizers can be added independently.

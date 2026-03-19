@@ -42,25 +42,16 @@ def _interpolate(points, t):
 
 class JourneeType(LoadTestShape):
     """
-    Simule une journée type en accéléré.
-    La durée totale est configurable via DURATION_MINUTES (défaut: 24h réelles).
-    Pour un test accéléré, passer --run-time et ajuster DURATION_MINUTES.
+    Simulates a typical day in a continuous loop.
+    The cycle duration is configurable via --duration-minutes (default: 1440 = real 24h).
+    Reduce to accelerate, e.g. --duration-minutes 60 simulates a full day in 1 hour.
     """
-
-    # Durée totale de la simulation en minutes (24*60 = journée réelle)
-    # Réduire pour accélérer, ex: 60 = journée simulée en 1h
-    DURATION_MINUTES = 24 * 60
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.duration = self.runner.environment.parsed_options.duration_minutes
 
     def tick(self):
-        run_time = self.get_run_time()
-        total_seconds = self.DURATION_MINUTES * 60
-
-        if run_time >= total_seconds:
-            return None  # fin du test
-
-        # Mappe le temps écoulé sur 24h
-        progress = run_time / total_seconds
+        total_seconds = self.duration * 60
+        progress = (self.get_run_time() % total_seconds) / total_seconds
         simulated_minutes = progress * 24 * 60
-
-        users = _interpolate(CONTROL_POINTS, simulated_minutes)
-        return (users, SPAWN_RATE)
+        return (_interpolate(CONTROL_POINTS, simulated_minutes), SPAWN_RATE)

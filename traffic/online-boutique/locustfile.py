@@ -1,6 +1,8 @@
 #!/usr/bin/python
+
 #
 # Copyright 2018 Google LLC
+# Modifications copyright 2026 Timon Roxard
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +15,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Modified 2026 Timon Roxard : added --duration-minutes argument to configure the duration of a load shape cycle.
 
 import random
 from locust import FastHttpUser, TaskSet, between
@@ -90,3 +93,12 @@ class UserBehavior(TaskSet):
 class WebsiteUser(FastHttpUser):
     tasks = [UserBehavior]
     wait_time = between(1, 10)
+    
+@events.init_command_line_parser.add_listener
+def add_arguments(parser, **kwargs):
+    parser.add_argument(
+        "--duration-minutes",
+        type=int,
+        default=24 * 60,
+        help="Durée d'un cycle en minutes (défaut: 1440 = 24h réelles)"
+    )
