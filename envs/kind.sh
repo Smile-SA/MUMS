@@ -3,14 +3,14 @@
 # Actions: create, destroy
 #
 # Options:
-#   --workers "<list>"      Worker nodes configuration
-#   --output-dir <path>     Output directory for metrics (default: ./output)
-#   --frequency <seconds>   Scraping frequency in seconds (default: 15)
+#   --workers "<list>"    Worker nodes configuration
 #
 # --workers format : "count=N,cpu=X,memory=YGi;count=M,cpu=A,memory=BGi;..."
 #   Les ressources cpu/memory définissent ce que le worker expose dans le champ
 #   Allocatable (visible par le scheduler). La Capacity reste celle du host.
 #   Implémenté via system-reserved kubelet (compatible cgroup v1, pas besoin de Docker limits).
+#
+# Retourne le chemin du kubeconfig sur stdout.
 
 set -e
 
@@ -26,15 +26,11 @@ KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
 METALLB_IP_RANGE="172.18.240.0-172.18.255.254"
 
 WORKERS_PARAM=""
-OUTPUT_DIR="./output"
-FREQUENCY=15
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --workers)    WORKERS_PARAM="$2"; shift 2 ;;
-        --output-dir) OUTPUT_DIR="$2";    shift 2 ;;
-        --frequency)  FREQUENCY="$2";     shift 2 ;;
-        *)            shift ;;
+        --workers) WORKERS_PARAM="$2"; shift 2 ;;
+        *)         shift ;;
     esac
 done
 
@@ -80,12 +76,18 @@ generate_kind_yaml() {
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
+    kubeadmConfigPatches:
+    - |
+      kind: InitConfiguration
+      nodeRegistration:
+        taints:
+          - key: \"node-role.kubernetes.io/control-plane\"
+            effect: \"NoSchedule\"
 "
     if [ -z "$WORKERS_PARAM" ]; then
         echo -e "$yaml"
         return
     fi
-
     IFS=';' read -ra WORKER_LIST <<< "$WORKERS_PARAM"
     for w in "${WORKER_LIST[@]}"; do
         IFS=',' read -ra PROPS <<< "$w"
@@ -101,7 +103,6 @@ nodes:
                 memory) MEM=$value   ;;
             esac
         done
-
         local reserved_parts=()
         if [ -n "$CPU" ]; then
             local desired_milli
@@ -113,7 +114,6 @@ nodes:
             fi
             reserved_parts+=("cpu=${reserved_milli}m")
         fi
-
         if [ -n "$MEM" ]; then
             local desired_mi
             desired_mi=$(mem_to_mi "$MEM")
@@ -124,7 +124,6 @@ nodes:
             fi
             reserved_parts+=("memory=${reserved_mi}Mi")
         fi
-
         for ((i=1; i<=COUNT; i++)); do
             yaml+="  - role: worker\n"
             if [ "${#reserved_parts[@]}" -gt 0 ]; then
@@ -139,7 +138,6 @@ nodes:
             fi
         done
     done
-
     echo -e "$yaml"
 }
 
@@ -165,39 +163,20 @@ case "$ACTION" in
             --config "$TEMP_YAML"
         rm "$TEMP_YAML"
 
-        "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE"
-        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH"
-        "$UTILS_DIR/prometheus/port-forward.sh" "$KUBECONFIG_PATH" "$CLUSTER_NAME"
-
-        mkdir -p "$OUTPUT_DIR"
-        python3 "$UTILS_DIR/scraper/scraper.py" \
-            http://127.0.0.1:9090 "$FREQUENCY" "$OUTPUT_DIR" \
-            > "/tmp/scraper-${CLUSTER_NAME}.log" 2>&1 &
-        echo $! > "/tmp/scraper-${CLUSTER_NAME}.pid"
-        echo "=== Scraper started (PID $(cat /tmp/scraper-${CLUSTER_NAME}.pid))" >&2
+        "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE" >&2
+        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" >&2
 
         echo "$KUBECONFIG_PATH"
         ;;
 
     destroy)
         echo "=== Destroying Kind cluster: $CLUSTER_NAME ===" >&2
-
-        # Kill scraper
-        PID_FILE="/tmp/scraper-${CLUSTER_NAME}.pid"
-        if [ -f "$PID_FILE" ]; then
-            kill "$(cat "$PID_FILE")" 2>/dev/null && echo "=== Scraper stopped" >&2
-            rm "$PID_FILE"
-        fi
-
-        # Kill port-forward
-        "$UTILS_DIR/prometheus/port-forward-stop.sh" "$CLUSTER_NAME"
-
         kind delete cluster --name "$CLUSTER_NAME"
         [ -f "$KUBECONFIG_PATH" ] && rm "$KUBECONFIG_PATH"
         ;;
 
     *)
-        echo "Usage: $0 <create|destroy> <seed> [--workers \"count=N,cpu=X,memory=YGi;...\"] [--output-dir <path>] [--frequency <seconds>]" >&2
+        echo "Usage: $0 <create|destroy> <seed> [--workers \"count=N,cpu=X,memory=YGi;...\"]" >&2
         exit 1
         ;;
 esac

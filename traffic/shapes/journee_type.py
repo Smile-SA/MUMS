@@ -46,12 +46,10 @@ class JourneeType(LoadTestShape):
     The cycle duration is configurable via --duration-minutes (default: 1440 = real 24h).
     Reduce to accelerate, e.g. --duration-minutes 60 simulates a full day in 1 hour.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.duration = self.runner.environment.parsed_options.duration_minutes
 
     def tick(self):
-        total_seconds = self.duration * 60
+        duration = self.runner.environment.parsed_options.duration_minutes
+        total_seconds = duration * 60
         progress = (self.get_run_time() % total_seconds) / total_seconds
         simulated_minutes = progress * 24 * 60
         return (_interpolate(CONTROL_POINTS, simulated_minutes), SPAWN_RATE)

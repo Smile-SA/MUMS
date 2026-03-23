@@ -1,10 +1,11 @@
 # TODO
 - Documenter les programmes déjà fait avec des petit readme
-- Mettre les shapes locust dans le dossier trafic, partagés entres les différents script de traffics
+- Serveur grafana sur le cluster (sur le controle-plane pour éviter les interférances/probleme de reproductibilité) activé via une option --grafana.
+- Locust pas reproductible ! Voir pour changer de script de charge.
 - Ajouter la possibilité de gérer des **fichiers de configuration** pour `run_test.sh`
   - Exemple : `run_test.sh -f basic.test`
   - Le fichier pourrait définir env, stack, trafic, optimizer, seed, output_dir, et paramètres spécifiques
-- Implémenter `collect_logs` de kink (et/ou dans utils) dans pour récupérer :
+- Implementer de quoi traiter correctement les données Prometeus dans observability :
   - Logs et métriques de la stack
   - Logs et métriques du cluster
   - Dans le but de pouvoir analyser la qualité de l'optimiseur après coup

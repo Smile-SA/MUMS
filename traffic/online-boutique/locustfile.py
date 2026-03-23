@@ -15,10 +15,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Modified 2026 Timon Roxard : added --seed argument for reproducibility.
 # Modified 2026 Timon Roxard : added --duration-minutes argument to configure the duration of a load shape cycle.
 
+
 import random
-from locust import FastHttpUser, TaskSet, between
+from locust import FastHttpUser, TaskSet, between, events
 from faker import Faker
 import datetime
 fake = Faker()
@@ -102,3 +104,13 @@ def add_arguments(parser, **kwargs):
         default=24 * 60,
         help="Durée d'un cycle en minutes (défaut: 1440 = 24h réelles)"
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Seed pour la reproductibilité (défaut: 42)"
+    )
+    
+@events.init.add_listener
+def on_locust_init(environment, **kwargs):
+    random.seed(environment.parsed_options.seed)

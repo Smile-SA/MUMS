@@ -1,6 +1,6 @@
-# Integration Tests
+# Benchmark Platform
 
-This repository contains a modular architecture to deploy distributed Kubernetes stacks, generate traffic, and test scheduling optimization algorithms.
+This repository contains a modular architecture to deploy distributed Kubernetes stacks, generate traffic, collect metrics, and benchmark scheduling optimization algorithms.
 
 ## Dependencies
 
@@ -21,56 +21,65 @@ This repository contains a modular architecture to deploy distributed Kubernetes
 
 ## Structure
 ```
-tests/
-├─ envs/           # Cluster creation/destruction, monitoring and log collection
-├─ utils/          # Shared utilities (helm, metallb, prometheus, scraper)
-├─ stacks/         # Distributed stacks (deployment)
-├─ traffic/        # Traffic generation scripts
-│   └─ shapes/     # Reusable load shapes
-├─ optimizers/     # Scheduling / optimization algorithms
-├─ grafana.sh      # Provision Prometheus datasource in Grafana
-└─ run_test.sh     # Main orchestrator
+benchmark-platform/
+├── envs/              # Cluster creation/destruction
+├── observability/
+│   └── prometheus/    # Metrics collection (port-forward + scraper)
+├── utils/             # Shared utilities (helm, metallb, prometheus, scraper)
+├── stacks/            # Distributed stacks (deployment)
+├── traffic/           # Traffic generation scripts
+│   └── shapes/        # Reusable load shapes
+├── optimizers/        # Scheduling / optimization algorithms
+├── grafana.sh         # Provision Prometheus datasource in Grafana
+└── run_basic_test.sh  # Main orchestrator
 ```
 
-- Each stack folder contains: `prepare.sh` (chart download) and `deploy.sh` (cluster deployment).
-- Each traffic folder contains: `run.sh` (traffic generation from the host machine).
-- "Ready" stacks are directly usable for traffic generation and metrics collection.
-- "Framework" stacks require additional configuration to produce real traffic (Kafka, Flink, Spark).
+## Script types and conventions
 
-## Script types and specifications
+| Script type       | Description                                                        | Parameters |
+|-------------------|--------------------------------------------------------------------|------------|
+| **env**           | Create/destroy a cluster                                           | `create <seed>` → returns KUBECONFIG on stdout <br> `destroy <seed>` |
+| **observability** | Start/stop metrics collection (port-forward + scraper)             | `start <kubeconfig> <output_dir> [--frequency=<s>]` <br> `stop <kubeconfig>` |
+| **stack**         | Deploy a distributed application on the cluster                    | `<kubeconfig> <seed>` |
+| **traffic**       | Generate realistic traffic from the host machine                   | `start <kubeconfig> <seed>` <br> `stop <kubeconfig>` |
+| **optimizer**     | Deploy and run a scheduling/optimization algorithm                 | `<kubeconfig> <seed>` |
 
-| Script type    | Description                                                   | Expected parameters |
-|----------------|---------------------------------------------------------------|---------------------|
-| **env**        | Create/destroy a cluster, collect logs                        | `create <seed>` → returns KUBECONFIG <br> `destroy <seed>` |
-| **stack**      | Deploy a distributed application on the cluster               | `<KUBECONFIG> <SEED>` |
-| **traffic**    | Generate realistic traffic from the host machine              | `<KUBECONFIG> <SEED>` |
-| **optimizer**  | Deploy and run a scheduling/optimization algorithm            | `<KUBECONFIG> <SEED>` |
-
-> All scripts accept additional options via `$@` and may ignore those that don't concern them.
+> All scripts accept additional options via `$@` and ignore those that don't concern them.
 
 ## Running a test
+
 ```bash
-./run_test.sh <env_script> <stack_script> <traffic_script> <optimizer_script> <output_dir> [seed] [options ...]
+./run_basic_test.sh <env> <observability> <stack> <traffic> <optimizer> <output_dir> [seed] [--duration=<seconds>] [options...]
 ```
 
-- `$env_script` : creates/destroys the cluster
-- `$stack_script` : deploys the stack
-- `$traffic_script` : generates traffic from the host machine
-- `$optimizer_script` : deploys the optimization algorithm
-- `$output_dir` : log and metrics output folder
-- `[seed]` : optional, for reproducibility
-- `[options ...]` : forwarded to all sub-scripts
-
-## Metrics collection
-
-The `env create` script automatically starts a Prometheus port-forward and a scraper on the host machine. Metrics are written in OpenMetrics format to `<output_dir>/metrics.om` at a configurable frequency.
+Example:
 ```bash
-./envs/kind.sh create <seed> [--output-dir <path>] [--frequency <seconds>] [--workers "..."]
+./run_basic_test.sh \
+  envs/kind.sh \
+  observability/prometheus/run.sh \
+  stacks/online-boutique/deploy.sh \
+  traffic/online-boutique/run.sh \
+  optimizers/no_scheduler.sh \
+  ./output/test-1 \
+  42 \
+  --duration=300 \
+  --workers "count=4,cpu=1,memory=1Gi;count=2,cpu=1,memory=4Gi"
 ```
 
-The scraper is stopped and the port-forward is closed on `destroy`.
+The orchestrator runs the following sequence:
+1. `env create` → KUBECONFIG
+2. `observability start`
+3. `stack deploy`
+4. `traffic start`
+5. `optimizer deploy`
+6. `sleep $DURATION`
+7. `observability stop`
+8. `traffic stop`
+9. `env destroy`
 
 ## Notes
 
 - Traffic is generated from the host machine (outside the cluster) to avoid skewing the resource metrics observed by the optimizer.
 - The architecture is modular: new environments, stacks, traffic scenarios, and optimizers can be added independently.
+- `grafana.sh` must be called with `http://127.0.0.1:9090` (not `localhost` — Grafana DNS cache bug).
+- The Python venv must be active before running any test (`source venv/bin/activate`).
