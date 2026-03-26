@@ -5,8 +5,8 @@
 #   ./run.sh stop  <kubeconfig>
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROMETHEUS_DIR="$SCRIPT_DIR/../utils/prometheus"
-SCRAPER="$SCRIPT_DIR/../utils/scraper/scraper.py"
+PROMETHEUS_DIR="$SCRIPT_DIR/../../utils/prometheus"
+SCRAPER="$SCRIPT_DIR/../../utils/scraper/scraper.py"
 
 ACTION=$1
 shift
