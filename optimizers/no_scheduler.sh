@@ -1,1 +1,2 @@
-git add run_basic_test.sh
+#!/bin/bash
+# Optimizer baseline : aucune intervention, scheduler Kubernetes par défaut.
