@@ -57,7 +57,10 @@ done
 
 KUBECONFIG=""
 
+CLEANED_UP=false
 cleanup() {
+    [ "$CLEANED_UP" = true ] && return
+    CLEANED_UP=true
     echo "" >&2
     echo "=== Cleanup ===" >&2
 
