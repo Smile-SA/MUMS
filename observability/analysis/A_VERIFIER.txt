@@ -1,0 +1,52 @@
+# A_VERIFIER.txt
+# Points à vérifier / améliorer lors de l'implémentation
+
+## Image pull
+kubelet_image_pull_duration_seconds est par node et tranche de taille, pas par pod.
+Utile en diagnostic pour expliquer des ready_time longs.
+Actuellement laissé dans metrics.om brut, à requêter à la demande.
+-> Envisager un 9ème fichier image_pull_timeseries.csv si besoin ?
+
+## Images et layers
+Une image est composée de layers, un layer peut être partagé entre plusieurs images.
+Données souhaitées :
+  - image_layer_metadata    : (image, layer)        -> liste des layers d'une image
+  - layer_metadata          : (layer)               -> poids du layer et autres métadonnées
+  - layer_node_timeseries   : (timestamp, layer, node) -> présence du layer sur le nœud,
+                               ou progression du téléchargement si accessible
+
+-> Vérifier si Prometheus/kubelet expose la présence des layers par nœud.
+   Piste : kubelet expose /images sur son endpoint, contient les layers présents.
+   Pas sûr que ce soit scrapé par défaut dans notre config Prometheus.
+-> Si non accessible via Prometheus, envisager un scrape direct de l'API kubelet
+   ou de l'API Kubernetes : GET /api/v1/nodes/{node}/proxy/images
+
+## Migration / rescheduling
+Un pod tué et recréé par son controller apparaît comme deux entrées distinctes
+dans pod_metadata (uid différents, même controller_name).
+-> C'est la façon de détecter une migration a posteriori. Vérifier que c'est suffisant.
+-> Cas edge : pod tué puis recréé sur le MÊME nœud — pas une migration, mais même signature.
+
+## Static pods
+kube_pod_owner vide ou owner_kind="Node" : pas de controller, pas de recrée.
+Présents surtout dans kube-system (etcd, kube-scheduler...).
+-> controller_kind='' et controller_name='' dans pod_metadata.
+   Vérifier que ça ne casse pas les jointures avec controller_timeseries/metadata.
+
+## Nœud qui disparaît
+Ses métriques disparaissent du scrape. up=0 est le seul signal dans node_timeseries.
+Les pods orphelins passeront Unknown puis seront recréés ailleurs par leurs controllers.
+-> Vérifier que la disparition des métriques ne crée pas de trous silencieux dans les CSVs.
+-> up=0 puis absence totale de la série = deux cas à distinguer dans l'analyse.
+
+## Réseau inter-nœuds
+container_timeseries contient le trafic du pod, pas la saturation du lien entre nœuds.
+-> Envisager d'ajouter node_network_receive_bytes_total / node_network_transmit_bytes_total
+   dans node_timeseries pour détecter les saturations liées aux migrations.
+
+## succeeded_time et failed_time dans pod_metadata
+Ces timestamps sont approximés par le premier scrape où la phase est observée (valeur=1),
+faute de métrique dédiée (kube_pod_completion_time absent du scrape actuel).
+-> Vérifier si kube_pod_completion_time peut être activé dans kube-state-metrics.
+-> Précision maximale : ± fréquence de scrape (15s actuellement).
+
