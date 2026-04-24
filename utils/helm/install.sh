@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: ./deploy.sh <kubeconfig> <release_name> <chart_name> [--namespace <ns>] [--values <file>]
+# Usage: ./install.sh <kubeconfig> <release_name> <chart_name> [--namespace <ns>] [--values <file>]
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

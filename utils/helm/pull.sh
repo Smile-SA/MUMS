@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: ./prepare.sh <repo_name> <repo_url> <chart> <version>
+# Usage: ./pull.sh <repo_name> <repo_url> <chart> <version>
 #
 # Si repo_name vaut "oci", le helm repo add est skippé
 # et repo_url est utilisé directement comme source du chart.
