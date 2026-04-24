@@ -73,21 +73,21 @@ mem_to_mi() {
 generate_kind_yaml() {
     local yaml
     yaml="kind: Cluster
-    apiVersion: kind.x-k8s.io/v1alpha4
-    nodes:
-      - role: control-plane
-        kubeadmConfigPatches:
-        - |
-          kind: InitConfiguration
-          nodeRegistration:
-            taints:
-              - key: \"node-role.kubernetes.io/control-plane\"
-                effect: \"NoSchedule\"
-        - |
-          # cgroupRoot: / est requis pour certains optimiseurs (ex: Koordinator)
-          kind: KubeletConfiguration
-          cgroupRoot: /
-    "
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+    - |
+      kind: InitConfiguration
+      nodeRegistration:
+        taints:
+          - key: \"node-role.kubernetes.io/control-plane\"
+            effect: \"NoSchedule\"
+    - |
+      # cgroupRoot: / est requis pour certains optimiseurs (ex: Koordinator)
+      kind: KubeletConfiguration
+      cgroupRoot: /
+"
     if [ -z "$WORKERS_PARAM" ]; then
         echo -e "$yaml"
         return
