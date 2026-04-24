@@ -12,7 +12,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-"$UTILS_DIR/helm/prepare.sh" \
+"$UTILS_DIR/helm/pull.sh" \
     metallb \
     https://metallb.github.io/metallb \
     metallb/metallb \

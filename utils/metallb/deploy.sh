@@ -21,7 +21,7 @@ END_INT=$(echo "$END_IP" | awk -F. '{print ($1*256^3)+($2*256^2)+($3*256)+$4}')
 IP_COUNT=$(( END_INT - START_INT + 1 ))
 
 echo "=== Installation MetalLB ===" >&2
-"$UTILS_DIR/helm/deploy.sh" \
+"$UTILS_DIR/helm/install.sh" \
     "$KUBECONFIG" \
     metallb \
     metallb \

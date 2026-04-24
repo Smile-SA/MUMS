@@ -2,13 +2,18 @@
 # Télécharge le chart Helm d'Online Boutique depuis le repo GitHub.
 # Usage: ./prepare.sh [version]
 #
+# Note: ce chart n'est pas disponible sur un repo Helm standard — il est
+# récupéré directement depuis le repo GitHub GoogleCloudPlatform/microservices-demo,
+# donc on n'utilise pas utils/helm/pull.sh.
+#
 # Le chart est dans helm-chart/ du repo GoogleCloudPlatform/microservices-demo.
 # Le registre OCI officiel (us-docker.pkg.dev/online-boutique-ci) a été supprimé.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CHART_REPOSITORY="$SCRIPT_DIR/../../utils/helm/chart-repository"
+UTILS_DIR="$SCRIPT_DIR/../../utils"
+CHART_REPOSITORY="$UTILS_DIR/helm/chart-repository"
 CHART_DIR="$CHART_REPOSITORY/onlineboutique"
 
 VERSION="${1:-v0.10.1}"

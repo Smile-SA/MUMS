@@ -23,7 +23,7 @@ if [ ! -f "$KUBECONFIG" ]; then
     exit 1
 fi
 
-"$UTILS_DIR/helm/deploy.sh" \
+"$UTILS_DIR/helm/install.sh" \
     "$KUBECONFIG" \
     "onlineboutique-${SEED}" \
     onlineboutique \

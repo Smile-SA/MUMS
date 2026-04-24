@@ -3,7 +3,7 @@
 # Actions: create, destroy
 #
 # Options:
-#   --workers "<list>"    Worker nodes configuration
+#   --workers="<list>"    Worker nodes configuration
 #
 # --workers format : "count=N,cpu=X,memory=YGi;count=M,cpu=A,memory=BGi;..."
 #   Les ressources cpu/memory définissent ce que le worker expose dans le champ
@@ -29,7 +29,7 @@ WORKERS_PARAM=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --workers) WORKERS_PARAM="$2"; shift 2 ;;
+       --workers=*) WORKERS_PARAM="${1#--workers=}" ; shift ;;
         *)         shift ;;
     esac
 done
@@ -73,17 +73,21 @@ mem_to_mi() {
 generate_kind_yaml() {
     local yaml
     yaml="kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-  - role: control-plane
-    kubeadmConfigPatches:
-    - |
-      kind: InitConfiguration
-      nodeRegistration:
-        taints:
-          - key: \"node-role.kubernetes.io/control-plane\"
-            effect: \"NoSchedule\"
-"
+    apiVersion: kind.x-k8s.io/v1alpha4
+    nodes:
+      - role: control-plane
+        kubeadmConfigPatches:
+        - |
+          kind: InitConfiguration
+          nodeRegistration:
+            taints:
+              - key: \"node-role.kubernetes.io/control-plane\"
+                effect: \"NoSchedule\"
+        - |
+          # cgroupRoot: / est requis pour certains optimiseurs (ex: Koordinator)
+          kind: KubeletConfiguration
+          cgroupRoot: /
+    "
     if [ -z "$WORKERS_PARAM" ]; then
         echo -e "$yaml"
         return
