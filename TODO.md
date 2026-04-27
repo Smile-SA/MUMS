@@ -14,7 +14,9 @@
   - AWS, Azure, GCP, OVH (si non pris en charge par clusterAPI)
 - Implementer des stacks :
   - Sock Shop (Final ✅)
-  - Online Boutique (Final ✅)
+  - Train Ticket (Final ✅)
+  - DeathStarBench (Final ✅)
+  - Tea Store (Final ✅)
   - BookInfo (Final ✅)
   - Mattermost (Final ✅)
   - Saleor (Final ✅)
