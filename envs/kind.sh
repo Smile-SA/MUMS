@@ -23,6 +23,7 @@ shift 2
 
 CLUSTER_NAME="kind-test-${SEED}"
 KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
+KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.34.0}"
 METALLB_IP_RANGE="172.18.240.0-172.18.255.254"
 
 WORKERS_PARAM=""
@@ -164,7 +165,8 @@ case "$ACTION" in
         kind create cluster \
             --name "$CLUSTER_NAME" \
             --kubeconfig "$KUBECONFIG_PATH" \
-            --config "$TEMP_YAML"
+            --config "$TEMP_YAML" \
+            --image "$KIND_NODE_IMAGE"
         rm "$TEMP_YAML"
 
         "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE" >&2

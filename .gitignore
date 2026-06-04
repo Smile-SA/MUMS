@@ -4,3 +4,4 @@ output/
 *.om
 *.pid
 *.log
+.venv
