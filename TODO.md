@@ -5,10 +5,8 @@
 - Ajouter la possibilité de gérer des **fichiers de configuration** pour `run_test.sh`
   - Exemple : `run_test.sh -f basic.test`
   - Le fichier pourrait définir env, stack, trafic, optimizer, seed, output_dir, et paramètres spécifiques
-- Implementer de quoi traiter correctement les données Prometeus dans observability :
-  - Logs et métriques de la stack
-  - Logs et métriques du cluster
-  - Dans le but de pouvoir analyser la qualité de l'optimiseur après coup
+- Lancer port-forward.sh et port-forward-stop.sh automatiquement avec grafana.sh
+- Mettre des messages d'erreurs et doc dans les composants.
 - Implémenter les envs :
   - clusterAPI
   - AWS, Azure, GCP, OVH (si non pris en charge par clusterAPI)
@@ -37,6 +35,7 @@
   - Locust ?
   - K6 ?
   - Vegeta ?
+- Abstraire le trafic en deux composant : Celui qui transforme une representation abstraite (nombre de client, profil journalier, volatilité, dispertion de la charge par les clients (pareto, 20 % des clients font 80 % du trafic), etc.) en une représentation concrete (quel clients fait quels requetes quand), et celui qui execute cette représentation concrete.
 - Implementer les optimizers :
   - Aucun (Pour point de comparaisons)
   - Hots
