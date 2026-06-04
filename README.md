@@ -19,6 +19,30 @@ This repository contains a modular architecture to deploy distributed Kubernetes
 **Optional:**
 - Grafana (local, to visualize metrics)
 
+## Local development setup
+
+Prepare a local Python environment and validate required host tools:
+
+```bash
+make setup
+make doctor
+```
+
+For development checks and test tooling:
+
+```bash
+make setup-dev
+make check
+```
+
+Activate the virtual environment when executing Python tooling manually:
+
+```bash
+source .venv/bin/activate
+```
+
+Detailed installation and prerequisite information is available in [`docs/setup.md`](docs/setup.md).
+
 ## Structure
 ```
 benchmark-platform/
