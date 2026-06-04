@@ -4,4 +4,15 @@ output/
 *.om
 *.pid
 *.log
-.venv
+
+# Local Python development environment
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local editor/OS files
+.DS_Store
