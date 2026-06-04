@@ -20,10 +20,10 @@ def main():
     base_url = sys.argv[1]
     frequency = int(sys.argv[2])
 
-    print(f"=== Prometheus scraper ===", file=sys.stderr)
+    print("=== Prometheus scraper ===", file=sys.stderr)
     print(f"    URL       : {base_url}", file=sys.stderr)
     print(f"    Frequency : {frequency}s", file=sys.stderr)
-    print(f"    Output    : stdout", file=sys.stderr)
+    print("    Output    : stdout", file=sys.stderr)
 
     running = True
 
