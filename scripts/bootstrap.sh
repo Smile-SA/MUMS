@@ -8,8 +8,8 @@ INSTALL_DEV="${INSTALL_DEV:-false}"
 
 cd "${ROOT_DIR}"
 
-echo "=== Checking host prerequisites ==="
-./scripts/check_prereqs.sh --skip-python-imports
+echo "=== Checking setup prerequisites ==="
+./scripts/check_prereqs.sh --mode setup --skip-python-imports
 
 echo
 echo "=== Creating Python virtual environment ==="
@@ -31,10 +31,17 @@ else
 fi
 
 echo
-echo "=== Validating installed environment ==="
-./scripts/check_prereqs.sh
+echo "=== Validating Python environment ==="
+./scripts/check_prereqs.sh --mode setup
 
 echo
 echo "Setup complete."
+echo
 echo "Activate the environment with:"
 echo "  source .venv/bin/activate"
+echo
+echo "To check benchmark runtime tools, run:"
+echo "  make doctor"
+echo
+echo "On Ubuntu/Debian, missing runtime tools can be installed with:"
+echo "  make install-system-deps-ubuntu"

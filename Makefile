@@ -4,7 +4,7 @@ PYTHON ?= python3
 VENV_DIR ?= .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
 
-.PHONY: help setup setup-dev install install-dev check-prereqs doctor check check-shell check-python lint test clean clean-venv
+.PHONY: help setup setup-dev install install-dev install-system-deps-ubuntu check-prereqs doctor check check-shell check-python lint test clean clean-venv
 
 help:
 	@echo "Benchmark platform developer commands"
@@ -13,6 +13,7 @@ help:
 	@echo "  make setup-dev      Create .venv and install runtime + development dependencies"
 	@echo "  make check-prereqs  Validate required system tools and Python runtime imports"
 	@echo "  make doctor         Display platform-relevant local diagnostics"
+	@echo "  make install-system-deps-ubuntu  Install Docker, kubectl, kind, Helm and jq on Ubuntu/Debian"
 	@echo "  make check          Run non-destructive shell and Python syntax checks"
 	@echo "  make lint           Run Ruff lint checks (requires make setup-dev)"
 	@echo "  make test           Run Python tests when present (requires make setup-dev)"
@@ -25,15 +26,14 @@ setup:
 setup-dev:
 	INSTALL_DEV=true ./scripts/bootstrap.sh
 
-install: setup
-
-install-dev: setup-dev
-
 check-prereqs:
-	./scripts/check_prereqs.sh
+	./scripts/check_prereqs.sh --mode all
 
 doctor:
 	./scripts/doctor.sh
+
+install-system-deps-ubuntu:
+	./scripts/install_system_deps_ubuntu.sh
 
 check: check-shell check-python
 
