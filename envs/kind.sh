@@ -15,6 +15,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 UTILS_DIR="$SCRIPT_DIR/../utils"
 
 ACTION=$1
@@ -24,7 +25,8 @@ shift 2
 CLUSTER_NAME="kind-test-${SEED}"
 KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
 KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.34.0}"
-METALLB_IP_RANGE="172.18.240.0-172.18.255.254"
+METALLB_IP_RANGE="${METALLB_IP_RANGE:-auto}"
+METALLB_POOL_SIZE="${METALLB_POOL_SIZE:-50}"
 
 WORKERS_PARAM=""
 
@@ -162,13 +164,26 @@ case "$ACTION" in
             echo "-------------------" >&2
         fi
 
+        KIND_NODE_IMAGE="$(
+        KIND_NODE_IMAGE="${KIND_NODE_IMAGE}" \
+            "${REPO_ROOT}/utils/kind/validate_node_image.sh"
+        )"
+
+        echo "    Kind node image: ${KIND_NODE_IMAGE}" >&2
+
         kind create cluster \
             --name "$CLUSTER_NAME" \
             --kubeconfig "$KUBECONFIG_PATH" \
             --config "$TEMP_YAML" \
-            --image "$KIND_NODE_IMAGE"
+            --image "${KIND_NODE_IMAGE}"
         rm "$TEMP_YAML"
 
+        METALLB_IP_RANGE="$(
+        METALLB_IP_RANGE="${METALLB_IP_RANGE}" \
+        METALLB_POOL_SIZE="${METALLB_POOL_SIZE}" \
+            "${REPO_ROOT}/utils/metallb/select_ip_range.sh"
+        )"
+        echo "    MetalLB address range: ${METALLB_IP_RANGE}" >&2
         "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE" >&2
         "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" >&2
 

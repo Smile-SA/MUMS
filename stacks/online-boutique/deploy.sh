@@ -29,3 +29,7 @@ fi
     onlineboutique \
     --namespace online-boutique \
     --values "$SCRIPT_DIR/values.yaml"
+
+echo "=== Validation de la disponibilité du frontend Online Boutique ===" >&2
+FRONTEND_URL="$("${SCRIPT_DIR}/check_frontend.sh" "${KUBECONFIG}")"
+echo "=== Frontend Online Boutique prêt: ${FRONTEND_URL} ===" >&2

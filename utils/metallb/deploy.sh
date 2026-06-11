@@ -22,12 +22,24 @@ IP_COUNT=$(( END_INT - START_INT + 1 ))
 
 echo "=== Installation MetalLB ===" >&2
 "$UTILS_DIR/helm/install.sh" \
-    "$KUBECONFIG" \
-    metallb \
-    metallb \
-    --namespace metallb-system
+  "$KUBECONFIG" \
+  metallb \
+  metallb \
+  --namespace metallb-system
 
-echo "=== Configuration IPAddressPool: $IP_RANGE ($IP_COUNT IPs disponibles) ===" >&2
+echo "=== Configuration IPAddressPool: $IP_RANGE ($IP_COUNT IPs available) ===" >&2
+
+echo "=== Waiting for MetalLB components ===" >&2
+
+kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+  -n metallb-system \
+  rollout status deployment/metallb-controller \
+  --timeout=180s
+
+kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+  -n metallb-system \
+  rollout status daemonset/metallb-speaker \
+  --timeout=180s
 
 kubectl apply --kubeconfig "$KUBECONFIG" -f - <<EOF
 apiVersion: metallb.io/v1beta1
@@ -37,7 +49,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - $IP_RANGE
+    - $IP_RANGE
 ---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
@@ -49,4 +61,4 @@ spec:
   - default-pool
 EOF
 
-echo "=== MetalLB prêt — $IP_COUNT IPs disponibles ($IP_RANGE) ===" >&2
+echo "=== MetalLB ready — $IP_COUNT IPs available ($IP_RANGE) ===" >&2
