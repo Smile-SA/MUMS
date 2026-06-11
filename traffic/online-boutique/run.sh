@@ -9,6 +9,7 @@
 #   --duration=<min>    Durée d'un cycle en minutes (écrase DURATION_MINUTES du shape)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TRAFFIC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ACTION=$1
@@ -54,16 +55,12 @@ case "$ACTION" in
             exit 1
         fi
 
-        TARGET_IP=$(kubectl --kubeconfig "$KUBECONFIG" \
-            get svc frontend-external -n online-boutique \
-            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+        FRONTEND_URL="$(
+            "${REPO_ROOT}/stacks/online-boutique/check_frontend.sh" "${KUBECONFIG}"
+        )"
+        echo "=== Cible Locust vérifiée: ${FRONTEND_URL} ===" >&2
 
-        if [ -z "$TARGET_IP" ]; then
-            echo "ERREUR: impossible de récupérer l'IP du frontend (cluster up ? stack déployée ?)" >&2
-            exit 1
-        fi
-
-        TARGET="http://${TARGET_IP}"
+        TARGET="http://${FRONTEND_URL}"
         echo "=== Trafic Online Boutique ===" >&2
         echo "    Target  : $TARGET" >&2
         echo "    Shape   : $SHAPE" >&2
