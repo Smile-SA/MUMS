@@ -9,7 +9,11 @@ if [ -z "$NAME" ]; then
     exit 1
 fi
 
-PID_FILE="/tmp/prometheus-pf-${NAME}.pid"
+BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
+mkdir -p "${BENCHMARK_PID_DIR}"
+BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
+
+PID_FILE="${BENCHMARK_PID_DIR}/prometheus-pf-${NAME}.pid"
 
 if [ -f "$PID_FILE" ]; then
     PID=$(cat "$PID_FILE")
