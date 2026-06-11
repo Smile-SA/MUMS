@@ -16,6 +16,8 @@ help:
 	@echo "  make install-system-deps-ubuntu  Install Docker, kubectl, kind, Helm and jq on Ubuntu/Debian"
 	@echo "  make check          Run non-destructive shell and Python syntax checks"
 	@echo "  make lint           Run Ruff lint checks (requires make setup-dev)"
+	@echo "  make validate-config  Check configuration file format"
+	@echo "  make run-basic      Run basic test scenario"
 	@echo "  make test           Run Python tests when present (requires make setup-dev)"
 	@echo "  make clean          Remove caches only; preserves virtual env and benchmark outputs"
 	@echo "  make clean-venv     Remove the local Python virtual environment"
@@ -57,6 +59,12 @@ lint:
 	@$(VENV_PYTHON) -m ruff check \
 		--exclude utils/helm/chart-repository \
 		traffic observability utils
+
+validate-config:
+	$(VENV_PYTHON) -m benchmark_platform.cli validate configs/basic-online-boutique.yaml
+
+run-basic:
+	$(VENV_PYTHON) -m benchmark_platform.cli run configs/basic-online-boutique.yaml
 
 test:
 	@if find tests -type f -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then \
