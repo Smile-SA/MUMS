@@ -117,7 +117,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         )
 
         run_command(
-            ["./optimizers/baseline/run.sh", "start"],
+            ["./optimizers/baseline.sh", "start"],
             cwd=repo_root,
             log_file=logs_dir / "optimizer.log",
         )
