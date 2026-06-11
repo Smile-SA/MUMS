@@ -109,6 +109,6 @@ Then recreate it with:
 make setup
 ```
 
-## Known local-environment note
+## Deployment troubleshooting
 
-Kind/Kubernetes compatibility and MetalLB networking checks are part of the standalone deployment stabilization work. During early manual testing, a host using cgroup v1 required an explicitly compatible Kind node image instead of the latest implicit default. This setup document only reports cgroup mode; the deployment script correction is handled separately.
+Standalone environment and frontend-readiness troubleshooting, including Kind/cgroup compatibility and MetalLB endpoint diagnostics, is documented in [`troubleshooting.md`](troubleshooting.md).
