@@ -5,6 +5,7 @@ This repository contains a modular architecture to deploy distributed Kubernetes
 ## Dependencies
 
 **System:**
+
 - `kind`
 - `kubectl`
 - `helm`
@@ -12,11 +13,13 @@ This repository contains a modular architecture to deploy distributed Kubernetes
 - `git`
 
 **Python (host):**
+
 - `locust`
 - `faker`
 - `requests`
 
 **Optional:**
+
 - Grafana (local, to visualize metrics)
 
 ## Local development setup
@@ -43,30 +46,31 @@ source .venv/bin/activate
 
 Detailed installation and prerequisite information is available in [`docs/setup.md`](docs/setup.md).
 
-## Structure
-```
-benchmark-platform/
-├── envs/              # Cluster creation/destruction
-├── observability/
-│   └── prometheus/    # Metrics collection (port-forward + scraper)
-├── utils/             # Shared utilities (helm, metallb, prometheus, scraper)
-├── stacks/            # Distributed stacks (deployment)
-├── traffic/           # Traffic generation scripts
-│   └── shapes/        # Reusable load shapes
-├── optimizers/        # Scheduling / optimization algorithms
-├── grafana.sh         # Provision Prometheus datasource in Grafana
-└── run_basic_test.sh  # Main orchestrator
-```
+## Architecture
+
+The platform is organized around interchangeable benchmark components:
+
+- environment
+- application stack
+- traffic generator
+- observability backend
+- optimizer
+- dataset/export pipeline
+
+See:
+
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/components.md`](docs/components.md)
 
 ## Script types and conventions
 
-| Script type       | Description                                                        | Parameters |
-|-------------------|--------------------------------------------------------------------|------------|
-| **env**           | Create/destroy a cluster                                           | `create <seed>` → returns KUBECONFIG on stdout <br> `destroy <seed>` |
-| **observability** | Start/stop metrics collection (port-forward + scraper)             | `start <kubeconfig> <output_dir> [--frequency=<s>]` <br> `stop <kubeconfig>` |
-| **stack**         | Deploy a distributed application on the cluster                    | `<kubeconfig> <seed>` |
-| **traffic**       | Generate realistic traffic from the host machine                   | `start <kubeconfig> <seed>` <br> `stop <kubeconfig>` |
-| **optimizer**     | Deploy and run a scheduling/optimization algorithm                 | `<kubeconfig> <seed>` |
+| Script type       | Description                                            | Parameters                                                                   |
+| ----------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| **env**           | Create/destroy a cluster                               | `create <seed>` → returns KUBECONFIG on stdout <br> `destroy <seed>`         |
+| **observability** | Start/stop metrics collection (port-forward + scraper) | `start <kubeconfig> <output_dir> [--frequency=<s>]` <br> `stop <kubeconfig>` |
+| **stack**         | Deploy a distributed application on the cluster        | `<kubeconfig> <seed>`                                                        |
+| **traffic**       | Generate realistic traffic from the host machine       | `start <kubeconfig> <seed>` <br> `stop <kubeconfig>`                         |
+| **optimizer**     | Deploy and run a scheduling/optimization algorithm     | `<kubeconfig> <seed>`                                                        |
 
 > All scripts accept additional options via `$@` and ignore those that don't concern them.
 
@@ -77,13 +81,14 @@ benchmark-platform/
 ```
 
 Example:
+
 ```bash
 ./run_basic_test.sh \
   envs/kind.sh \
   observability/prometheus/run.sh \
   stacks/online-boutique/deploy.sh \
   traffic/online-boutique/run.sh \
-  optimizers/no_scheduler.sh \
+  optimizers/baseline.sh \
   ./output/test-1 \
   42 \
   --duration=300 \
@@ -91,6 +96,7 @@ Example:
 ```
 
 The orchestrator runs the following sequence:
+
 1. `env create` → KUBECONFIG
 2. `observability start`
 3. `stack deploy`
