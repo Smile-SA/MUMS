@@ -1,0 +1,46 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+
+@dataclass(frozen=True)
+class RunPaths:
+    root: Path
+    config: Path
+    manifest: Path
+    logs: Path
+    runtime: Path
+    pids: Path
+    traffic: Path
+    metrics: Path
+    kubernetes: Path
+    datasets: Path
+
+    @classmethod
+    def create(cls, root: Path) -> "RunPaths":
+        paths = cls(
+            root=root,
+            config=root / "config.yaml",
+            manifest=root / "manifest.yaml",
+            logs=root / "logs",
+            runtime=root / "runtime",
+            pids=root / "runtime" / "pids",
+            traffic=root / "traffic",
+            metrics=root / "metrics",
+            kubernetes=root / "kubernetes",
+            datasets=root / "datasets",
+        )
+
+        for path in (
+            paths.logs,
+            paths.runtime,
+            paths.pids,
+            paths.traffic,
+            paths.metrics,
+            paths.kubernetes,
+            paths.datasets,
+        ):
+            path.mkdir(parents=True, exist_ok=True)
+
+        return paths

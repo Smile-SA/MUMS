@@ -18,8 +18,16 @@ if [ ! -f "$KUBECONFIG" ]; then
     exit 1
 fi
 
-PID_FILE="/tmp/prometheus-pf-${NAME}.pid"
-LOG_FILE="/tmp/prometheus-pf-${NAME}.log"
+BENCHMARK_LOG_DIR="${BENCHMARK_LOG_DIR:-/tmp}"
+BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
+
+mkdir -p "${BENCHMARK_LOG_DIR}" "${BENCHMARK_PID_DIR}"
+
+BENCHMARK_LOG_DIR="$(cd "${BENCHMARK_LOG_DIR}" && pwd -P)"
+BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
+
+PID_FILE="${BENCHMARK_PID_DIR}/prometheus-pf-${NAME}.pid"
+LOG_FILE="${BENCHMARK_LOG_DIR}/prometheus-port-forward.log"
 
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     echo "Port-forward already running (PID $(cat "$PID_FILE"))" >&2

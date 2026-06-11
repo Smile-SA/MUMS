@@ -35,15 +35,31 @@ case "$ACTION" in
             esac
         done
 
-        NAME=$(basename "$KUBECONFIG")
-        mkdir -p "$OUTPUT_DIR"
-        OUTPUT_FILE="$OUTPUT_DIR/metrics.om"
+        NAME="$(basename "$KUBECONFIG")"
+
+        BENCHMARK_LOG_DIR="${BENCHMARK_LOG_DIR:-/tmp}"
+        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
+        BENCHMARK_METRICS_DIR="${BENCHMARK_METRICS_DIR:-${OUTPUT_DIR}}"
+
+        mkdir -p "${BENCHMARK_LOG_DIR}" "${BENCHMARK_PID_DIR}" "${BENCHMARK_METRICS_DIR}"
+
+        # Normalize artifact directories before passing them to helper scripts.
+        BENCHMARK_LOG_DIR="$(cd "${BENCHMARK_LOG_DIR}" && pwd -P)"
+        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
+        BENCHMARK_METRICS_DIR="$(cd "${BENCHMARK_METRICS_DIR}" && pwd -P)"
+
+        OUTPUT_FILE="${BENCHMARK_METRICS_DIR}/metrics.om"
+        SCRAPER_LOG_FILE="${BENCHMARK_LOG_DIR}/scraper.log"
+        SCRAPER_PID_FILE="${BENCHMARK_PID_DIR}/scraper-${NAME}.pid"
 
         PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-9090}"
         PROMETHEUS_BASE_URL="${PROMETHEUS_BASE_URL:-http://127.0.0.1:${PROMETHEUS_LOCAL_PORT}}"
 
         export PROMETHEUS_LOCAL_PORT
         export PROMETHEUS_BASE_URL
+        export BENCHMARK_LOG_DIR
+        export BENCHMARK_PID_DIR
+        export BENCHMARK_METRICS_DIR
 
         if ! "$PROMETHEUS_DIR/port-forward.sh" "$KUBECONFIG" "$NAME"; then
             echo "ERROR: Unable to start Prometheus port-forwarding" >&2
@@ -52,10 +68,10 @@ case "$ACTION" in
 
         python3 "$SCRAPER" "$PROMETHEUS_BASE_URL" "$FREQUENCY" \
             > "$OUTPUT_FILE" \
-            2> "/tmp/scraper-${NAME}.log" &
+            2> "$SCRAPER_LOG_FILE" &
 
-        echo $! > "/tmp/scraper-${NAME}.pid"
-        echo "=== Scraper démarré (PID $(cat "/tmp/scraper-${NAME}.pid"), output: $OUTPUT_FILE, source: $PROMETHEUS_BASE_URL)" >&2
+        echo $! > "$SCRAPER_PID_FILE"
+        echo "=== Scraper démarré (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
         ;;
 
     stop)
@@ -65,8 +81,14 @@ case "$ACTION" in
             exit 1
         fi
 
-        NAME=$(basename "$KUBECONFIG")
-        PID_FILE="/tmp/scraper-${NAME}.pid"
+        NAME="$(basename "$KUBECONFIG")"
+
+        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
+        mkdir -p "${BENCHMARK_PID_DIR}"
+        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
+        export BENCHMARK_PID_DIR
+
+        PID_FILE="${BENCHMARK_PID_DIR}/scraper-${NAME}.pid"
 
         if [ -f "$PID_FILE" ]; then
             PID=$(cat "$PID_FILE")
