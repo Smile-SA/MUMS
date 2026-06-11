@@ -13,6 +13,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+*.egg-info/
 
 # Local editor/OS files
 .DS_Store

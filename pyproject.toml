@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "benchmark-platform"
+version = "0.1.0"
+description = "Benchmark platform for time-series optimization experiments."
+requires-python = ">=3.10"
+dependencies = [
+  "locust>=2.31,<3.0",
+  "Faker>=30,<40",
+  "requests>=2.31,<3.0",
+  "PyYAML>=6.0,<7.0",
+]
+
+[project.scripts]
+benchmark-platform = "benchmark_platform.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["benchmark_platform*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
