@@ -31,12 +31,12 @@ echo "=== Configuration IPAddressPool: $IP_RANGE ($IP_COUNT IPs available) ===" 
 
 echo "=== Waiting for MetalLB components ===" >&2
 
-kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+kubectl --kubeconfig "${KUBECONFIG}" \
   -n metallb-system \
   rollout status deployment/metallb-controller \
   --timeout=180s
 
-kubectl --kubeconfig "${KUBECONFIG_PATH}" \
+kubectl --kubeconfig "${KUBECONFIG}" \
   -n metallb-system \
   rollout status daemonset/metallb-speaker \
   --timeout=180s

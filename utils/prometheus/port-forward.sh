@@ -19,6 +19,7 @@ if [ ! -f "$KUBECONFIG" ]; then
 fi
 
 PID_FILE="/tmp/prometheus-pf-${NAME}.pid"
+LOG_FILE="/tmp/prometheus-pf-${NAME}.log"
 
 if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     echo "Port-forward already running (PID $(cat "$PID_FILE"))" >&2
@@ -31,20 +32,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 kubectl --kubeconfig "$KUBECONFIG" \
     port-forward -n monitoring svc/prometheus-server \
     "${PROMETHEUS_LOCAL_PORT}:${PROMETHEUS_SERVICE_PORT}" \
-    > /dev/null 2>&1 &
+    > "$LOG_FILE" 2>&1 &
 PF_PID=$!
 echo $PF_PID > "$PID_FILE"
 
 echo "=== Waiting for Prometheus port-forward..." >&2
 for i in $(seq 1 15); do
-    if curl -s http://localhost:9090/-/healthy > /dev/null 2>&1; then
-        echo "=== Prometheus available at http://localhost:9090 (PID $PF_PID)" >&2
+    if curl -fsS "http://127.0.0.1:${PROMETHEUS_LOCAL_PORT}/-/healthy" > /dev/null 2>&1; then
+        echo "=== Prometheus available at http://127.0.0.1:${PROMETHEUS_LOCAL_PORT} (PID $PF_PID)" >&2
         exit 0
     fi
     sleep 1
 done
 
 echo "ERROR: Prometheus port-forward failed to start" >&2
-kill "$PF_PID" 2>/dev/null
-rm "$PID_FILE"
+echo "--- port-forward log: ${LOG_FILE} ---" >&2
+cat "$LOG_FILE" >&2 || true
+kill "$PF_PID" 2>/dev/null || true
+rm -f "$PID_FILE"
 exit 1

@@ -45,7 +45,10 @@ case "$ACTION" in
         export PROMETHEUS_LOCAL_PORT
         export PROMETHEUS_BASE_URL
 
-        "$PROMETHEUS_DIR/port-forward.sh" "$KUBECONFIG" "$NAME"
+        if ! "$PROMETHEUS_DIR/port-forward.sh" "$KUBECONFIG" "$NAME"; then
+            echo "ERROR: Unable to start Prometheus port-forwarding" >&2
+            exit 1
+        fi
 
         python3 "$SCRAPER" "$PROMETHEUS_BASE_URL" "$FREQUENCY" \
             > "$OUTPUT_FILE" \
