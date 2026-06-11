@@ -39,14 +39,20 @@ case "$ACTION" in
         mkdir -p "$OUTPUT_DIR"
         OUTPUT_FILE="$OUTPUT_DIR/metrics.om"
 
+        PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-9090}"
+        PROMETHEUS_BASE_URL="${PROMETHEUS_BASE_URL:-http://127.0.0.1:${PROMETHEUS_LOCAL_PORT}}"
+
+        export PROMETHEUS_LOCAL_PORT
+        export PROMETHEUS_BASE_URL
+
         "$PROMETHEUS_DIR/port-forward.sh" "$KUBECONFIG" "$NAME"
 
-        python3 "$SCRAPER" http://127.0.0.1:9090 "$FREQUENCY" \
+        python3 "$SCRAPER" "$PROMETHEUS_BASE_URL" "$FREQUENCY" \
             > "$OUTPUT_FILE" \
             2> "/tmp/scraper-${NAME}.log" &
 
         echo $! > "/tmp/scraper-${NAME}.pid"
-        echo "=== Scraper démarré (PID $(cat "/tmp/scraper-${NAME}.pid"), output: $OUTPUT_FILE)" >&2
+        echo "=== Scraper démarré (PID $(cat "/tmp/scraper-${NAME}.pid"), output: $OUTPUT_FILE, source: $PROMETHEUS_BASE_URL)" >&2
         ;;
 
     stop)

@@ -5,6 +5,9 @@
 KUBECONFIG=$1
 NAME=$2
 
+PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-9090}"
+PROMETHEUS_SERVICE_PORT="${PROMETHEUS_SERVICE_PORT:-80}"
+
 if [ -z "$KUBECONFIG" ] || [ -z "$NAME" ]; then
     echo "Usage: $0 <kubeconfig> <name>" >&2
     exit 1
@@ -22,8 +25,12 @@ if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     exit 0
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"${SCRIPT_DIR}/check_local_port.sh" "${PROMETHEUS_LOCAL_PORT}" >&2
+
 kubectl --kubeconfig "$KUBECONFIG" \
-    port-forward -n monitoring svc/prometheus-server 9090:80 \
+    port-forward -n monitoring svc/prometheus-server \
+    "${PROMETHEUS_LOCAL_PORT}:${PROMETHEUS_SERVICE_PORT}" \
     > /dev/null 2>&1 &
 PF_PID=$!
 echo $PF_PID > "$PID_FILE"
