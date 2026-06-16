@@ -77,6 +77,8 @@ generate_kind_yaml() {
     local yaml
     yaml="kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  ipFamily: dual
 nodes:
   - role: control-plane
     kubeadmConfigPatches:
@@ -152,6 +154,14 @@ nodes:
 
 case "$ACTION" in
     create)
+        DOCKER_NETWORK="$CLUSTER_NAME"
+
+        if docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
+            echo "ERROR: le réseau Docker '$DOCKER_NETWORK' existe déjà." >&2
+            echo "       Cluster déjà créé avec ce seed, ou destroy précédent incomplet ?" >&2
+            exit 1
+        fi
+
         echo "=== Creating Kind cluster: $CLUSTER_NAME ===" >&2
         echo "    Host: ${HOST_CPU} CPUs (${HOST_CPU_MILLI}m), ${HOST_MEM_MI}Mi RAM" >&2
 
@@ -170,6 +180,9 @@ case "$ACTION" in
         )"
 
         echo "    Kind node image: ${KIND_NODE_IMAGE}" >&2
+        # WARNING: KIND_EXPERIMENTAL_DOCKER_NETWORK is an experimental Kind feature.
+        # (cf. https://github.com/kubernetes-sigs/kind/issues/273)
+        export KIND_EXPERIMENTAL_DOCKER_NETWORK="$DOCKER_NETWORK"
 
         kind create cluster \
             --name "$CLUSTER_NAME" \
@@ -178,13 +191,39 @@ case "$ACTION" in
             --image "${KIND_NODE_IMAGE}"
         rm "$TEMP_YAML"
 
-        METALLB_IP_RANGE="$(
-        METALLB_IP_RANGE="${METALLB_IP_RANGE}" \
-        METALLB_POOL_SIZE="${METALLB_POOL_SIZE}" \
-            "${REPO_ROOT}/utils/metallb/select_ip_range.sh"
-        )"
-        echo "    MetalLB address range: ${METALLB_IP_RANGE}" >&2
-        "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE" >&2
+        # Dedicated Docker network for this cluster: derive the MetalLB pool
+        # from the subnet assigned to this cluster network.
+        IPAM_JSON=$(docker network inspect "$DOCKER_NETWORK" -f '{{json .IPAM.Config}}')
+
+        # IPv4: use most of the /16, but skip the low range where Docker gateway
+        # and Kind node addresses are usually allocated.
+        CIDR4=$(echo "$IPAM_JSON" | grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}' | head -n 1)
+
+        if [[ ! "$CIDR4" =~ ^([0-9]+)\.([0-9]+)\.0\.0/16$ ]]; then
+            echo "ERROR: unexpected IPv4 subnet for Docker network '$DOCKER_NETWORK': $CIDR4 (expected a /16)" >&2
+            exit 1
+        fi
+
+        RANGE4="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.1.0-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.255.254"
+
+        # IPv6 is optional. If the Docker network has an IPv6 /64, add an IPv6
+        # MetalLB range too. If not, keep IPv4-only behavior.
+        CIDR6=$(echo "$IPAM_JSON" | grep -oE '[0-9a-fA-F:]+::/64' | head -n 1 || true)
+
+        if [ -n "$CIDR6" ]; then
+            if [[ ! "$CIDR6" =~ ^([0-9a-fA-F:]+)::/64$ ]]; then
+                echo "ERROR: unexpected IPv6 subnet for Docker network '$DOCKER_NETWORK': $CIDR6 (expected a /64)" >&2
+                exit 1
+            fi
+
+            RANGE6="${BASH_REMATCH[1]}:1::/80"
+
+            echo "    MetalLB address ranges: ${RANGE4}, ${RANGE6}" >&2
+            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6" >&2
+        else
+            echo "    MetalLB address range: ${RANGE4}" >&2
+            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" >&2
+        fi
         "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" >&2
 
         echo "$KUBECONFIG_PATH"
@@ -193,6 +232,7 @@ case "$ACTION" in
     destroy)
         echo "=== Destroying Kind cluster: $CLUSTER_NAME ===" >&2
         kind delete cluster --name "$CLUSTER_NAME"
+        docker network rm "$CLUSTER_NAME" >/dev/null 2>&1 || true
         [ -f "$KUBECONFIG_PATH" ] && rm "$KUBECONFIG_PATH"
         ;;
 
