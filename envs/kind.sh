@@ -74,6 +74,8 @@ generate_kind_yaml() {
     local yaml
     yaml="kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  ipFamily: dual
 nodes:
   - role: control-plane
     kubeadmConfigPatches:
@@ -149,6 +151,14 @@ nodes:
 
 case "$ACTION" in
     create)
+        DOCKER_NETWORK="$CLUSTER_NAME"
+
+        if docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
+            echo "ERROR: le réseau Docker '$DOCKER_NETWORK' existe déjà." >&2
+            echo "       Cluster déjà créé avec ce seed, ou destroy précédent incomplet ?" >&2
+            exit 1
+        fi
+
         echo "=== Creating Kind cluster: $CLUSTER_NAME ===" >&2
         echo "    Host: ${HOST_CPU} CPUs (${HOST_CPU_MILLI}m), ${HOST_MEM_MI}Mi RAM" >&2
 
@@ -161,13 +171,37 @@ case "$ACTION" in
             echo "-------------------" >&2
         fi
 
+        # AVERTISSEMENT: réseau Docker dédié via KIND_EXPERIMENTAL_DOCKER_NETWORK — feature expérimentale
+        # non garantie par les mainteneurs de kind, peut changer sans préavis (cf. https://github.com/kubernetes-sigs/kind/issues/273)
+        export KIND_EXPERIMENTAL_DOCKER_NETWORK="$DOCKER_NETWORK"
+
         kind create cluster \
             --name "$CLUSTER_NAME" \
             --kubeconfig "$KUBECONFIG_PATH" \
             --config "$TEMP_YAML"
         rm "$TEMP_YAML"
 
-        "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$METALLB_IP_RANGE" >&2
+        # Réseau dédié à ce cluster -> on peut donner à MetalLB la quasi-totalité
+        # du subnet attribué par Docker, sauf la zone basse (gateway + nœuds).
+        IPAM_JSON=$(docker network inspect "$DOCKER_NETWORK" -f '{{json .IPAM.Config}}')
+
+        # IPv4 : tout le /16 sauf le premier /24
+        CIDR4=$(echo "$IPAM_JSON" | grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}')
+        if [[ ! "$CIDR4" =~ ^([0-9]+)\.([0-9]+)\.0\.0/16$ ]]; then
+            echo "ERROR: subnet IPv4 inattendu pour $DOCKER_NETWORK: $CIDR4 (attendu un /16)" >&2
+            exit 1
+        fi
+        RANGE4="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.1.0-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.255.254"
+
+        # IPv6 : un /80 loin du début du /64
+        CIDR6=$(echo "$IPAM_JSON" | grep -oE '[0-9a-fA-F:]+::/64')
+        if [[ ! "$CIDR6" =~ ^([0-9a-fA-F:]+)::/64$ ]]; then
+            echo "ERROR: subnet IPv6 inattendu pour $DOCKER_NETWORK: $CIDR6 (attendu un /64)" >&2
+            exit 1
+        fi
+        RANGE6="${BASH_REMATCH[1]}:1::/80"
+
+        "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6" >&2
         "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" >&2
 
         echo "$KUBECONFIG_PATH"
@@ -176,6 +210,7 @@ case "$ACTION" in
     destroy)
         echo "=== Destroying Kind cluster: $CLUSTER_NAME ===" >&2
         kind delete cluster --name "$CLUSTER_NAME"
+        docker network rm "$CLUSTER_NAME" >/dev/null 2>&1 || true
         [ -f "$KUBECONFIG_PATH" ] && rm "$KUBECONFIG_PATH"
         ;;
 

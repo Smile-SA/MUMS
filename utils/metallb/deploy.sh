@@ -1,24 +1,15 @@
 #!/bin/bash
-# Usage: ./deploy.sh <kubeconfig> <ip_range>
+# Usage: ./deploy.sh <kubeconfig> <ip_range> [<ip_range> ...]
 set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UTILS_DIR="$SCRIPT_DIR/.."
-
 KUBECONFIG=$1
-IP_RANGE=$2
+shift
 
-if [ -z "$KUBECONFIG" ] || [ -z "$IP_RANGE" ]; then
-    echo "Usage: $0 <kubeconfig> <ip_range>" >&2
+if [ -z "$KUBECONFIG" ] || [ "$#" -eq 0 ]; then
+    echo "Usage: $0 <kubeconfig> <ip_range> [<ip_range> ...]" >&2
     exit 1
 fi
-
-# Calcul du nombre d'IPs disponibles
-START_IP=$(echo "$IP_RANGE" | cut -d'-' -f1)
-END_IP=$(echo "$IP_RANGE" | cut -d'-' -f2)
-START_INT=$(echo "$START_IP" | awk -F. '{print ($1*256^3)+($2*256^2)+($3*256)+$4}')
-END_INT=$(echo "$END_IP" | awk -F. '{print ($1*256^3)+($2*256^2)+($3*256)+$4}')
-IP_COUNT=$(( END_INT - START_INT + 1 ))
 
 echo "=== Installation MetalLB ===" >&2
 "$UTILS_DIR/helm/install.sh" \
@@ -27,8 +18,13 @@ echo "=== Installation MetalLB ===" >&2
     metallb \
     --namespace metallb-system
 
-echo "=== Configuration IPAddressPool: $IP_RANGE ($IP_COUNT IPs disponibles) ===" >&2
+ADDRESSES_YAML=""
+for range in "$@"; do
+    ADDRESSES_YAML="${ADDRESSES_YAML}  - ${range}
+"
+done
 
+echo "=== Configuration IPAddressPool: $* ===" >&2
 kubectl apply --kubeconfig "$KUBECONFIG" -f - <<EOF
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
@@ -37,8 +33,7 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-  - $IP_RANGE
----
+${ADDRESSES_YAML}---
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
 metadata:
@@ -48,5 +43,4 @@ spec:
   ipAddressPools:
   - default-pool
 EOF
-
-echo "=== MetalLB prêt — $IP_COUNT IPs disponibles ($IP_RANGE) ===" >&2
+echo "=== MetalLB prêt ($*) ===" >&2
