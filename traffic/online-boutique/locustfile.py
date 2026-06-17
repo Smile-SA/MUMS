@@ -16,7 +16,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Modified 2026 Timon Roxard : added --seed argument for reproducibility.
-# Modified 2026 Timon Roxard : added --duration-minutes argument to configure the duration of a load shape cycle.
+# Modified 2026 Timon Roxard : added --duration-minutes argument to configure
+# the duration of a load shape cycle.
 
 
 import random
@@ -36,34 +37,34 @@ products = [
     'LS4PSXUNUM',
     'OLJCESPC7Z']
 
-def index(l):
-    l.client.get("/")
+def index(loc):
+    loc.client.get("/")
 
-def setCurrency(l):
+def setCurrency(loc):
     currencies = ['EUR', 'USD', 'JPY', 'CAD', 'GBP', 'TRY']
-    l.client.post("/setCurrency",
+    loc.client.post("/setCurrency",
         {'currency_code': random.choice(currencies)})
 
-def browseProduct(l):
-    l.client.get("/product/" + random.choice(products))
+def browseProduct(loc):
+    loc.client.get("/product/" + random.choice(products))
 
-def viewCart(l):
-    l.client.get("/cart")
+def viewCart(loc):
+    loc.client.get("/cart")
 
-def addToCart(l):
+def addToCart(loc):
     product = random.choice(products)
-    l.client.get("/product/" + product)
-    l.client.post("/cart", {
+    loc.client.get("/product/" + product)
+    loc.client.post("/cart", {
         'product_id': product,
         'quantity': random.randint(1,10)})
-    
-def empty_cart(l):
-    l.client.post('/cart/empty')
 
-def checkout(l):
-    addToCart(l)
+def empty_cart(loc):
+    loc.client.post('/cart/empty')
+
+def checkout(loc):
+    addToCart(loc)
     current_year = datetime.datetime.now().year+1
-    l.client.post("/cart/checkout", {
+    loc.client.post("/cart/checkout", {
         'email': fake.email(),
         'street_address': fake.street_address(),
         'zip_code': fake.zipcode(),
@@ -75,9 +76,9 @@ def checkout(l):
         'credit_card_expiration_year': random.randint(current_year, current_year + 70),
         'credit_card_cvv': f"{random.randint(100, 999)}",
     })
-    
-def logout(l):
-    l.client.get('/logout')  
+
+def logout(loc):
+    loc.client.get('/logout')  
 
 
 class UserBehavior(TaskSet):
@@ -95,7 +96,7 @@ class UserBehavior(TaskSet):
 class WebsiteUser(FastHttpUser):
     tasks = [UserBehavior]
     wait_time = between(1, 10)
-    
+
 @events.init_command_line_parser.add_listener
 def add_arguments(parser, **kwargs):
     parser.add_argument(
@@ -110,7 +111,7 @@ def add_arguments(parser, **kwargs):
         default=42,
         help="Seed pour la reproductibilité (défaut: 42)"
     )
-    
+
 @events.init.add_listener
 def on_locust_init(environment, **kwargs):
     random.seed(environment.parsed_options.seed)

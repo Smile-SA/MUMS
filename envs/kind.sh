@@ -15,6 +15,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 UTILS_DIR="$SCRIPT_DIR/../utils"
 
 ACTION=$1
@@ -23,7 +24,9 @@ shift 2
 
 CLUSTER_NAME="kind-test-${SEED}"
 KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
-METALLB_IP_RANGE="172.18.240.0-172.18.255.254"
+KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.34.0}"
+METALLB_IP_RANGE="${METALLB_IP_RANGE:-auto}"
+METALLB_POOL_SIZE="${METALLB_POOL_SIZE:-50}"
 
 WORKERS_PARAM=""
 
@@ -171,37 +174,56 @@ case "$ACTION" in
             echo "-------------------" >&2
         fi
 
-        # AVERTISSEMENT: réseau Docker dédié via KIND_EXPERIMENTAL_DOCKER_NETWORK — feature expérimentale
-        # non garantie par les mainteneurs de kind, peut changer sans préavis (cf. https://github.com/kubernetes-sigs/kind/issues/273)
+        KIND_NODE_IMAGE="$(
+        KIND_NODE_IMAGE="${KIND_NODE_IMAGE}" \
+            "${REPO_ROOT}/utils/kind/validate_node_image.sh"
+        )"
+
+        echo "    Kind node image: ${KIND_NODE_IMAGE}" >&2
+        # WARNING: KIND_EXPERIMENTAL_DOCKER_NETWORK is an experimental Kind feature.
+        # (cf. https://github.com/kubernetes-sigs/kind/issues/273)
         export KIND_EXPERIMENTAL_DOCKER_NETWORK="$DOCKER_NETWORK"
 
         kind create cluster \
             --name "$CLUSTER_NAME" \
             --kubeconfig "$KUBECONFIG_PATH" \
-            --config "$TEMP_YAML"
+            --config "$TEMP_YAML" \
+            --image "${KIND_NODE_IMAGE}"
         rm "$TEMP_YAML"
 
-        # Réseau dédié à ce cluster -> on peut donner à MetalLB la quasi-totalité
-        # du subnet attribué par Docker, sauf la zone basse (gateway + nœuds).
+        # Dedicated Docker network for this cluster: derive the MetalLB pool
+        # from the subnet assigned to this cluster network.
         IPAM_JSON=$(docker network inspect "$DOCKER_NETWORK" -f '{{json .IPAM.Config}}')
 
-        # IPv4 : tout le /16 sauf le premier /24
-        CIDR4=$(echo "$IPAM_JSON" | grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}')
+        # IPv4: use most of the /16, but skip the low range where Docker gateway
+        # and Kind node addresses are usually allocated.
+        CIDR4=$(echo "$IPAM_JSON" | grep -oE '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}' | head -n 1)
+
         if [[ ! "$CIDR4" =~ ^([0-9]+)\.([0-9]+)\.0\.0/16$ ]]; then
-            echo "ERROR: subnet IPv4 inattendu pour $DOCKER_NETWORK: $CIDR4 (attendu un /16)" >&2
+            echo "ERROR: unexpected IPv4 subnet for Docker network '$DOCKER_NETWORK': $CIDR4 (expected a /16)" >&2
             exit 1
         fi
+
         RANGE4="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.1.0-${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.255.254"
 
-        # IPv6 : un /80 loin du début du /64
-        CIDR6=$(echo "$IPAM_JSON" | grep -oE '[0-9a-fA-F:]+::/64')
-        if [[ ! "$CIDR6" =~ ^([0-9a-fA-F:]+)::/64$ ]]; then
-            echo "ERROR: subnet IPv6 inattendu pour $DOCKER_NETWORK: $CIDR6 (attendu un /64)" >&2
-            exit 1
-        fi
-        RANGE6="${BASH_REMATCH[1]}:1::/80"
+        # IPv6 is optional. If the Docker network has an IPv6 /64, add an IPv6
+        # MetalLB range too. If not, keep IPv4-only behavior.
+        CIDR6=$(echo "$IPAM_JSON" | grep -oE '[0-9a-fA-F:]+::/64' | head -n 1 || true)
 
-        "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6" >&2
+        if [ -n "$CIDR6" ]; then
+            if [[ ! "$CIDR6" =~ ^([0-9a-fA-F:]+)::/64$ ]]; then
+                echo "ERROR: unexpected IPv6 subnet for Docker network '$DOCKER_NETWORK': $CIDR6 (expected a /64)" >&2
+                exit 1
+            fi
+
+            RANGE6="${BASH_REMATCH[1]}:1::/80"
+
+            echo "    MetalLB address ranges: ${RANGE4}, ${RANGE6}" >&2
+            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6" >&2
+        else
+            echo "    MetalLB address range: ${RANGE4}" >&2
+            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" >&2
+        fi
         "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" >&2
 
         echo "$KUBECONFIG_PATH"

@@ -1,0 +1,5 @@
+locust>=2.31,<3.0
+Faker>=30,<40
+requests>=2.31,<3.0
+# Scenario configuration and runner support.
+PyYAML>=6.0,<7.0
