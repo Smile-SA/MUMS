@@ -56,9 +56,9 @@ check-python:
 	@echo "Python syntax checks succeeded."
 
 lint:
-	@$(VENV_PYTHON) -m ruff check \
+	$(VENV_PYTHON) -m ruff check \
 		--exclude utils/helm/chart-repository \
-		traffic observability utils
+		benchmark_platform tests traffic observability utils
 
 validate-config:
 	$(VENV_PYTHON) -m benchmark_platform.cli validate configs/basic-online-boutique.yaml
@@ -72,6 +72,9 @@ test:
 	else \
 		echo "No Python tests are committed yet. Dataset and runner tests are added in the testing issue."; \
 	fi
+
+smoke:
+	./tests/smoke/run_basic_config.sh
 
 clean:
 	@find . -type d -name '__pycache__' -prune -exec rm -rf {} +

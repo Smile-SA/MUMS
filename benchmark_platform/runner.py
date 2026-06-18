@@ -178,7 +178,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
 
         manifest.set("optimizer", {"type": str(optimizer["type"])})
         run_command(
-            ["./optimizers/baseline/run.sh", "start"],
+            ["./optimizers/baseline.sh", "start"],
             cwd=repo_root,
             env=env_vars,
             log_file=paths.logs / "optimizer.log",
