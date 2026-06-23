@@ -80,6 +80,7 @@ case "$ACTION" in
 
         echo $! > "$SCRAPER_PID_FILE"
         echo "=== Scraper démarré (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, metadata: $SCRAPE_METADATA_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
+        ;;
 
     stop)
         KUBECONFIG=$1
