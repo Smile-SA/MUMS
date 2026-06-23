@@ -4,7 +4,7 @@ PYTHON ?= python3
 VENV_DIR ?= .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
 
-.PHONY: help setup setup-dev install install-dev install-system-deps-ubuntu check-prereqs doctor check check-shell check-python lint test clean clean-venv
+.PHONY: help setup setup-dev check-prereqs doctor install-system-deps-ubuntu check check-shell check-python lint validate-config run-basic test clean clean-venv clean-env
 
 help:
 	@echo "Benchmark platform developer commands"
@@ -21,6 +21,7 @@ help:
 	@echo "  make test           Run Python tests when present (requires make setup-dev)"
 	@echo "  make clean          Remove caches only; preserves virtual env and benchmark outputs"
 	@echo "  make clean-venv     Remove the local Python virtual environment"
+	@echo "  make clean-env 	 Remove the benchmark environment"
 
 setup:
 	./scripts/bootstrap.sh
@@ -84,3 +85,6 @@ clean:
 clean-venv:
 	@rm -rf "$(VENV_DIR)"
 	@echo "Removed virtual environment: $(VENV_DIR)"
+
+clean-env:
+	./scripts/clean_env.sh $(SEED)
