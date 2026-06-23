@@ -81,7 +81,10 @@ def _generate_datasets_and_metadata(
     env_vars: dict[str, str],
     manifest: RunManifest,
 ) -> None:
-    metrics_file = paths.metrics / "metrics.om"
+    run_root = paths.root.resolve()
+    metrics_file = (paths.metrics / "metrics.om").resolve()
+    datasets_dir = paths.datasets.resolve()
+    log_file = (paths.logs / "datasets.log").resolve()
 
     if not metrics_file.exists() or metrics_file.stat().st_size == 0:
         manifest.set(
@@ -101,7 +104,7 @@ def _generate_datasets_and_metadata(
         'cat "$1" | ./observability/analysis/run_all.sh "$2"',
         "dataset-generation",
         str(metrics_file),
-        str(paths.datasets),
+        str(datasets_dir),
     ]
 
     merged_env = os.environ.copy()
@@ -130,20 +133,20 @@ def _generate_datasets_and_metadata(
             {
                 "status": "failed",
                 "returncode": result.returncode,
-                "log": str(log_file),
+                "log": log_file.resolve().relative_to(run_root).as_posix(),
             },
         )
         manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.failed"})
         return
 
-    metadata_path = write_metadata(paths.root)
+    metadata_path = write_metadata(run_root)
 
     manifest.set(
         "dataset_generation",
         {
             "status": "completed",
-            "metadata": str(metadata_path.relative_to(paths.root)),
-            "log": str(log_file.relative_to(paths.root)),
+            "metadata": metadata_path.resolve().relative_to(run_root).as_posix(),
+            "log": log_file.resolve().relative_to(run_root).as_posix(),
         },
     )
     manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.complete"})
