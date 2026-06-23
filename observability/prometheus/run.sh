@@ -66,12 +66,20 @@ case "$ACTION" in
             exit 1
         fi
 
-        python3 "$SCRAPER" "$PROMETHEUS_BASE_URL" "$FREQUENCY" \
-            > "$OUTPUT_FILE" \
+        SCRAPE_METADATA_FILE="${BENCHMARK_METRICS_DIR}/scrapes.csv"
+        PROMETHEUS_SCRAPE_TIMEOUT="${PROMETHEUS_SCRAPE_TIMEOUT:-10}"
+
+        python3 "$SCRAPER" \
+            --url "$PROMETHEUS_BASE_URL" \
+            --output "$OUTPUT_FILE" \
+            --metadata-output "$SCRAPE_METADATA_FILE" \
+            --frequency "$FREQUENCY" \
+            --timeout "$PROMETHEUS_SCRAPE_TIMEOUT" \
+            > /dev/null \
             2> "$SCRAPER_LOG_FILE" &
 
         echo $! > "$SCRAPER_PID_FILE"
-        echo "=== Scraper démarré (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
+        echo "=== Scraper démarré (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, metadata: $SCRAPE_METADATA_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
         ;;
 
     stop)

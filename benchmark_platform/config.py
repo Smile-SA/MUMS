@@ -122,6 +122,18 @@ def load_config(path: str | Path) -> ScenarioConfig:
         "observability.frequency_seconds",
     )
 
+    if "local_port" in observability:
+        _require_positive_int(
+            observability["local_port"],
+            "observability.local_port",
+        )
+
+    if "timeout_seconds" in observability:
+        _require_positive_int(
+            observability["timeout_seconds"],
+            "observability.timeout_seconds",
+        )
+
     if _require_field(traffic, "traffic", "type") != "locust":
         raise ConfigError("Only traffic.type='locust' is currently supported.")
     _require_field(traffic, "traffic", "shape")
