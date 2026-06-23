@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
@@ -10,6 +11,7 @@ from benchmark_platform.config import ScenarioConfig
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.paths import RunPaths
 from benchmark_platform.shell import capture_stdout, run_command
+from benchmark_platform.datasets.metadata import write_metadata
 
 
 class RunnerInterrupted(RuntimeError):
@@ -73,6 +75,80 @@ def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths, repo_root: Path)
             )
 
 
+def _generate_datasets_and_metadata(
+    paths: RunPaths,
+    repo_root: Path,
+    env_vars: dict[str, str],
+    manifest: RunManifest,
+) -> None:
+    metrics_file = paths.metrics / "metrics.om"
+
+    if not metrics_file.exists() or metrics_file.stat().st_size == 0:
+        manifest.set(
+            "dataset_generation",
+            {
+                "status": "skipped",
+                "reason": "metrics/metrics.om is missing or empty",
+            },
+        )
+        return
+
+    manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.start"})
+
+    command = [
+        "bash",
+        "-lc",
+        'cat "$1" | ./observability/analysis/run_all.sh "$2"',
+        "dataset-generation",
+        str(metrics_file),
+        str(paths.datasets),
+    ]
+
+    merged_env = os.environ.copy()
+    merged_env.update(env_vars)
+
+    log_file = paths.logs / "datasets.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    with log_file.open("a", encoding="utf-8") as stream:
+        stream.write(f"\n$ cat {metrics_file} | ./observability/analysis/run_all.sh {paths.datasets}\n")
+        stream.flush()
+
+        result = subprocess.run(
+            command,
+            cwd=str(repo_root),
+            env=merged_env,
+            text=True,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
+    if result.returncode != 0:
+        manifest.set(
+            "dataset_generation",
+            {
+                "status": "failed",
+                "returncode": result.returncode,
+                "log": str(log_file),
+            },
+        )
+        manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.failed"})
+        return
+
+    metadata_path = write_metadata(paths.root)
+
+    manifest.set(
+        "dataset_generation",
+        {
+            "status": "completed",
+            "metadata": str(metadata_path.relative_to(paths.root)),
+            "log": str(log_file.relative_to(paths.root)),
+        },
+    )
+    manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.complete"})
+
+
 def _sleep_with_interrupt(duration_seconds: int) -> None:
     end = time.monotonic() + duration_seconds
     while time.monotonic() < end:
@@ -120,6 +196,8 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     env_vars = {
         "KIND_NODE_IMAGE": str(env_cfg.get("node_image", "kindest/node:v1.34.0")),
         "METALLB_IP_RANGE": str(env_cfg.get("metallb", {}).get("ip_range", "auto")),
+        "PROMETHEUS_LOCAL_PORT": str(observability.get("local_port", 9090)),
+        "PROMETHEUS_SCRAPE_TIMEOUT": str(observability.get("timeout_seconds", 10)),
         "BENCHMARK_RUN_DIR": str(paths.root),
         "BENCHMARK_LOG_DIR": str(paths.logs),
         "BENCHMARK_PID_DIR": str(paths.pids),
@@ -237,6 +315,8 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
 
             manifest.append_event({"time": utc_now_iso(), "type": "kubernetes.collect-state"})
             _collect_kubernetes_state(kubeconfig_path, paths, repo_root)
+
+            _generate_datasets_and_metadata(paths, repo_root, env_vars, manifest)
 
             if environment_created and config.cleanup_environment:
                 manifest.append_event({"time": utc_now_iso(), "type": "environment.destroy"})

@@ -22,6 +22,7 @@ observability:
   type: prometheus
   frequency_seconds: 15
   local_port: 9090
+  timeout_seconds: 10
 
 traffic:
   type: locust

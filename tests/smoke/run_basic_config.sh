@@ -22,10 +22,21 @@ test -f "${LATEST_RUN}/manifest.yaml"
 test -f "${LATEST_RUN}/config.yaml"
 test -d "${LATEST_RUN}/logs"
 test -d "${LATEST_RUN}/metrics"
+test -d "${LATEST_RUN}/datasets"
+test -s "${LATEST_RUN}/metrics/scrapes.csv"
+test -f "${LATEST_RUN}/datasets/dataset-metadata.yaml"
 
 if [[ ! -s "${LATEST_RUN}/metrics/metrics.om" ]]; then
   echo "[ERROR] Raw metrics file is missing or empty." >&2
   exit 1
 fi
+
+if [[ ! -s "${LATEST_RUN}/metrics/scrapes.csv" ]]; then
+  echo "[ERROR] Scrape metadata file is missing or empty." >&2
+  exit 1
+fi
+
+python -m benchmark_platform.datasets.metadata "${LATEST_RUN}"
+test -f "${LATEST_RUN}/datasets/dataset-metadata.yaml"
 
 echo "Standalone smoke test succeeded."
