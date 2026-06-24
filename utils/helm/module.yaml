@@ -1,0 +1,8 @@
+name: utils.helm
+type: util
+
+dependencies:
+  python: []
+  commands:
+    - helm
+  utils: []

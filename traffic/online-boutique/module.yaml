@@ -1,0 +1,9 @@
+name: traffic.online-boutique
+type: traffic
+entrypoint: run.sh
+
+dependencies:
+  python:
+    - requirements.txt
+  commands: []
+  utils: []
