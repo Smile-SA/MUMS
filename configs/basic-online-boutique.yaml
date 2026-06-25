@@ -7,6 +7,7 @@ scenario:
 
 environment:
   type: kind
+  module: envs/kind
   node_image: kindest/node:v1.34.0
   workers:
     count: 2
@@ -17,20 +18,29 @@ environment:
 
 stack:
   type: online-boutique
+  module: stacks/online-boutique
 
 observability:
   type: prometheus
+  module: observability/prometheus
   frequency_seconds: 15
   local_port: 9090
   timeout_seconds: 10
 
 traffic:
   type: locust
+  module: traffic/online-boutique
   shape: journee_type
   cycle_minutes: 60
 
 optimizer:
   type: baseline
+  module: optimizers/baseline
+
+dataset:
+  type: refined-csv
+  module: observability/analysis
+  enabled: true
 
 output:
   root_directory: output/runs

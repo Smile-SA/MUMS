@@ -49,10 +49,23 @@ def _require_section(raw: dict[str, Any], section: str) -> dict[str, Any]:
     return _require_mapping(raw[section], section)
 
 
+def _optional_section(raw: dict[str, Any], section: str) -> dict[str, Any]:
+    if section not in raw:
+        return {}
+    return _require_mapping(raw[section], section)
+
+
 def _require_field(section: dict[str, Any], section_name: str, field: str) -> Any:
     if field not in section:
         raise ConfigError(f"Missing required field: '{section_name}.{field}'.")
     return section[field]
+
+
+def _require_non_empty_string(value: Any, field: str) -> str:
+    parsed = str(value).strip()
+    if not parsed:
+        raise ConfigError(f"Field '{field}' must not be empty.")
+    return parsed
 
 
 def _require_positive_int(value: Any, field: str) -> int:
@@ -63,6 +76,16 @@ def _require_positive_int(value: Any, field: str) -> int:
     if parsed <= 0:
         raise ConfigError(f"Field '{field}' must be positive.")
     return parsed
+
+
+def _validate_component(section: dict[str, Any], section_name: str) -> None:
+    _require_non_empty_string(
+        _require_field(section, section_name, "type"),
+        f"{section_name}.type",
+    )
+
+    if "module" in section:
+        _require_non_empty_string(section["module"], f"{section_name}.module")
 
 
 def load_config(path: str | Path) -> ScenarioConfig:
@@ -87,20 +110,19 @@ def load_config(path: str | Path) -> ScenarioConfig:
     traffic = _require_section(raw, "traffic")
     optimizer = _require_section(raw, "optimizer")
     output = _require_section(raw, "output")
+    dataset = _optional_section(raw, "dataset")
 
-    name = _require_field(scenario, "scenario", "name")
-    if not str(name).strip():
-        raise ConfigError("Field 'scenario.name' must not be empty.")
-
+    _require_non_empty_string(
+        _require_field(scenario, "scenario", "name"),
+        "scenario.name",
+    )
     _require_positive_int(_require_field(scenario, "scenario", "seed"), "scenario.seed")
     _require_positive_int(
         _require_field(scenario, "scenario", "duration_seconds"),
         "scenario.duration_seconds",
     )
 
-    if _require_field(environment, "environment", "type") != "kind":
-        raise ConfigError("Only environment.type='kind' is currently supported.")
-
+    _validate_component(environment, "environment")
     workers = _require_mapping(
         _require_field(environment, "environment", "workers"),
         "environment.workers",
@@ -109,45 +131,44 @@ def load_config(path: str | Path) -> ScenarioConfig:
         _require_field(workers, "environment.workers", "count"),
         "environment.workers.count",
     )
-    _require_field(workers, "environment.workers", "cpu")
-    _require_field(workers, "environment.workers", "memory")
+    _require_non_empty_string(
+        _require_field(workers, "environment.workers", "cpu"),
+        "environment.workers.cpu",
+    )
+    _require_non_empty_string(
+        _require_field(workers, "environment.workers", "memory"),
+        "environment.workers.memory",
+    )
 
-    if _require_field(stack, "stack", "type") != "online-boutique":
-        raise ConfigError("Only stack.type='online-boutique' is currently supported.")
+    _validate_component(stack, "stack")
 
-    if _require_field(observability, "observability", "type") != "prometheus":
-        raise ConfigError("Only observability.type='prometheus' is currently supported.")
+    _validate_component(observability, "observability")
     _require_positive_int(
         _require_field(observability, "observability", "frequency_seconds"),
         "observability.frequency_seconds",
     )
-
     if "local_port" in observability:
-        _require_positive_int(
-            observability["local_port"],
-            "observability.local_port",
-        )
-
+        _require_positive_int(observability["local_port"], "observability.local_port")
     if "timeout_seconds" in observability:
-        _require_positive_int(
-            observability["timeout_seconds"],
-            "observability.timeout_seconds",
-        )
+        _require_positive_int(observability["timeout_seconds"], "observability.timeout_seconds")
 
-    if _require_field(traffic, "traffic", "type") != "locust":
-        raise ConfigError("Only traffic.type='locust' is currently supported.")
-    _require_field(traffic, "traffic", "shape")
+    _validate_component(traffic, "traffic")
+    _require_non_empty_string(_require_field(traffic, "traffic", "shape"), "traffic.shape")
     _require_positive_int(
         _require_field(traffic, "traffic", "cycle_minutes"),
         "traffic.cycle_minutes",
     )
 
-    optimizer_type = _require_field(optimizer, "optimizer", "type")
-    if optimizer_type not in {"baseline", "none", "kubernetes-default"}:
-        raise ConfigError(
-            "Only optimizer.type='baseline', 'none', or 'kubernetes-default' is currently supported."
-        )
+    _validate_component(optimizer, "optimizer")
 
-    _require_field(output, "output", "root_directory")
+    if dataset:
+        _validate_component(dataset, "dataset")
+        if "enabled" in dataset and not isinstance(dataset["enabled"], bool):
+            raise ConfigError("Field 'dataset.enabled' must be a boolean when provided.")
+
+    _require_non_empty_string(
+        _require_field(output, "output", "root_directory"),
+        "output.root_directory",
+    )
 
     return ScenarioConfig(path=config_path, raw=raw)
