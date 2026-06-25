@@ -1,0 +1,11 @@
+name: datasets.refined-csv
+type: dataset
+entrypoint: run.sh
+
+lifecycle:
+  generate: "run.sh generate <metrics_file> <output_dir> [--lines=N]"
+
+dependencies:
+  python: []
+  commands: []
+  utils: []

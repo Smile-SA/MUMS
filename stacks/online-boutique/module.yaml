@@ -1,0 +1,17 @@
+name: stacks.online-boutique
+type: stack
+entrypoint: run.sh
+
+lifecycle:
+  prepare: "run.sh prepare"
+  deploy: "run.sh deploy <kubeconfig> <seed>"
+  stop: "run.sh stop <kubeconfig>"
+  destroy: "run.sh destroy <kubeconfig>"
+
+dependencies:
+  python: []
+  commands:
+    - kubectl
+    - helm
+  utils:
+    - utils/helm
