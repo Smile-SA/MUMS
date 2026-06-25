@@ -85,16 +85,14 @@ def load_module(
     module_type = str(descriptor.get("type", ""))
     if expected_type is not None and module_type != expected_type:
         raise ModuleError(
-            f"Module '{module_path}' has type '{module_type}', "
-            f"expected '{expected_type}'."
+            f"Module '{module_path}' has type '{module_type}', expected '{expected_type}'."
         )
 
     spec = ModuleSpec(repo_root=repo_root, module_path=path, descriptor=descriptor)
 
     if not spec.entrypoint.exists():
         raise ModuleError(
-            f"Module '{module_path}' entrypoint does not exist: "
-            f"{spec.entrypoint_relative}"
+            f"Module '{module_path}' entrypoint does not exist: {spec.entrypoint_relative}"
         )
 
     return spec

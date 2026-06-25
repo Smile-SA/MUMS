@@ -23,7 +23,7 @@ def test_missing_config_fails(tmp_path: Path) -> None:
 def test_empty_component_type_fails(tmp_path: Path) -> None:
     config_path = tmp_path / "bad.yaml"
     config_path.write_text(
-        '''
+        """
 version: 1
 scenario:
   name: bad
@@ -53,7 +53,7 @@ optimizer:
   module: optimizers/baseline
 output:
   root_directory: output/runs
-''',
+""",
         encoding="utf-8",
     )
 

@@ -6,12 +6,11 @@ import csv
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
 import requests
-
 
 RUNNING = True
 MATCH_ALL_METRICS = '{__name__=~".+"}'
@@ -19,7 +18,7 @@ OPENMETRICS_ACCEPT_HEADER = "application/openmetrics-text; version=1.0.0"
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def handle_signal(signum: int, frame: object) -> None:
@@ -70,7 +69,9 @@ def open_output_stream(output: str | None) -> tuple[TextIO, bool]:
     return output_path.open("a", encoding="utf-8"), True
 
 
-def open_metadata_writer(metadata_output: str | None) -> tuple[TextIO | None, csv.DictWriter | None]:
+def open_metadata_writer(
+    metadata_output: str | None,
+) -> tuple[TextIO | None, csv.DictWriter | None]:
     if metadata_output is None:
         return None, None
 

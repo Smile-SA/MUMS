@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import argparse
 import csv
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import yaml
-
 
 DATASET_FORMAT_VERSION = 1
 
@@ -24,7 +23,7 @@ TABLE_FAMILIES = [
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _relative(path: Path, root: Path) -> str:
@@ -100,7 +99,7 @@ def _read_scrapes(scrapes_path: Path) -> list[dict[str, Any]]:
                 }
             )
 
-    rows.sort(key=lambda row: row["started_at_dt"] or datetime.min.replace(tzinfo=timezone.utc))
+    rows.sort(key=lambda row: row["started_at_dt"] or datetime.min.replace(tzinfo=UTC))
     return rows
 
 
@@ -214,7 +213,7 @@ def _build_collection_quality(
                     }
                 )
 
-        for previous, current in zip(rows, rows[1:]):
+        for previous, current in zip(rows, rows[1:], strict=True):
             previous_start = previous["started_at_dt"]
             current_start = current["started_at_dt"]
             if previous_start is None or current_start is None:
@@ -225,7 +224,9 @@ def _build_collection_quality(
                 periods.append(
                     {
                         "reason": "large_gap_between_scrapes",
-                        "started_at": (previous_start + timedelta(seconds=frequency_seconds)).isoformat(),
+                        "started_at": (
+                            previous_start + timedelta(seconds=frequency_seconds)
+                        ).isoformat(),
                         "ended_at": current_start.isoformat(),
                         "gap_seconds": round(gap, 3),
                     }
@@ -269,11 +270,7 @@ def _list_tables(run_dir: Path) -> dict[str, list[str]]:
         if not table_dir.exists():
             continue
 
-        files = sorted(
-            path
-            for path in table_dir.glob("*.csv")
-            if path.is_file()
-        )
+        files = sorted(path for path in table_dir.glob("*.csv") if path.is_file())
         if files:
             tables[table] = [_relative(path, run_dir) for path in files]
 
@@ -298,7 +295,11 @@ def _extract_container_images(run_dir: Path) -> list[dict[str, str]]:
         pod = str(metadata.get("name", ""))
 
         status_by_name: dict[str, dict[str, Any]] = {}
-        for status_field in ("initContainerStatuses", "containerStatuses", "ephemeralContainerStatuses"):
+        for status_field in (
+            "initContainerStatuses",
+            "containerStatuses",
+            "ephemeralContainerStatuses",
+        ):
             statuses = status.get(status_field, [])
             if isinstance(statuses, list):
                 for container_status in statuses:
@@ -327,7 +328,9 @@ def _extract_container_images(run_dir: Path) -> list[dict[str, str]]:
                     "image_id": image_id,
                 }
 
-    return sorted(images.values(), key=lambda item: (item["namespace"], item["pod"], item["container"]))
+    return sorted(
+        images.values(), key=lambda item: (item["namespace"], item["pod"], item["container"])
+    )
 
 
 def _extract_chart_references(run_dir: Path) -> list[dict[str, str]]:
@@ -351,7 +354,9 @@ def _extract_chart_references(run_dir: Path) -> list[dict[str, str]]:
     return references
 
 
-def _build_provenance(run_dir: Path, manifest: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+def _build_provenance(
+    run_dir: Path, manifest: dict[str, Any], config: dict[str, Any]
+) -> dict[str, Any]:
     kubernetes = run_dir / "kubernetes"
 
     kubernetes_artifacts = {
@@ -410,7 +415,9 @@ def build_metadata(run_dir: Path) -> dict[str, Any]:
             "ended_at": manifest.get("ended_at"),
         },
         "source_artifacts": {
-            "raw_metrics": _relative(raw_metrics_path, run_dir) if raw_metrics_path.exists() else None,
+            "raw_metrics": _relative(raw_metrics_path, run_dir)
+            if raw_metrics_path.exists()
+            else None,
             "scrape_metadata": _relative(scrapes_path, run_dir) if scrapes_path.exists() else None,
         },
         "collection_quality": _build_collection_quality(

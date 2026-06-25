@@ -4,15 +4,15 @@ import os
 import shutil
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from benchmark_platform.config import ScenarioConfig
+from benchmark_platform.datasets.metadata import write_metadata
 from benchmark_platform.manifest import RunManifest, utc_now_iso
+from benchmark_platform.modules import ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
 from benchmark_platform.shell import capture_stdout, run_command
-from benchmark_platform.datasets.metadata import write_metadata
-from benchmark_platform.modules import ModuleSpec, load_module
 
 
 class RunnerInterrupted(RuntimeError):
@@ -20,7 +20,7 @@ class RunnerInterrupted(RuntimeError):
 
 
 def _utc_timestamp() -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _safe_name(value: str) -> str:
@@ -205,7 +205,6 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     traffic = raw["traffic"]
     optimizer = raw["optimizer"]
 
-    stack = raw["stack"]
     dataset = raw.get("dataset", {})
 
     environment_module = load_module(

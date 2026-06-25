@@ -18,7 +18,7 @@ class RunPaths:
     datasets: Path
 
     @classmethod
-    def create(cls, root: Path) -> "RunPaths":
+    def create(cls, root: Path) -> RunPaths:
         paths = cls(
             root=root,
             config=root / "config.yaml",

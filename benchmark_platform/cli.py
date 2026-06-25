@@ -17,7 +17,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     run = subparsers.add_parser("run", help="Run a scenario configuration.")
     run.add_argument("config", help="Path to scenario YAML file.")
-    run.add_argument("--repo-root", default=".", help="Repository root. Defaults to current directory.")
+    run.add_argument(
+        "--repo-root", default=".", help="Repository root. Defaults to current directory."
+    )
 
     return parser
 

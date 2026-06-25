@@ -18,14 +18,14 @@ SPAWN_RATE = 5  # users/seconde pour les transitions
 
 # Points de contrôle : (heure_en_minutes, users)
 CONTROL_POINTS = [
-    (0   * 60,  10),   # 00h - creux nuit
-    (6   * 60,  10),   # 00h - creux nuit
-    (10  * 60,  80),   # 07h - bosse matin
-    (12  * 60,  50),   # 12h - creux midi
-    (14  * 60,  70),   # 14h - reprise après-midi
-    (19  * 60, 200),   # 19h - pic soir
-    (22  * 60,  40),   # 22h - descente
-    (24  * 60,  10),   # 24h - creux nuit
+    (0 * 60, 10),  # 00h - creux nuit
+    (6 * 60, 10),  # 00h - creux nuit
+    (10 * 60, 80),  # 07h - bosse matin
+    (12 * 60, 50),  # 12h - creux midi
+    (14 * 60, 70),  # 14h - reprise après-midi
+    (19 * 60, 200),  # 19h - pic soir
+    (22 * 60, 40),  # 22h - descente
+    (24 * 60, 10),  # 24h - creux nuit
 ]
 
 

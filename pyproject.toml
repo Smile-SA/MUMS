@@ -19,4 +19,24 @@ include = ["benchmark_platform*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
+exclude = [
+  ".venv",
+  "output",
+  "utils/helm/chart-repository",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "UP",
+  "B",
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
