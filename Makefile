@@ -34,6 +34,13 @@ setup-dev:
 setup-module:
 	./scripts/install_module_deps.sh $(MODULE)
 
+setup-basic-online-boutique: setup-core
+	./scripts/install_module_deps.sh envs/kind
+	./scripts/install_module_deps.sh stacks/online-boutique
+	./scripts/install_module_deps.sh observability/prometheus
+	./scripts/install_module_deps.sh traffic/online-boutique
+	./scripts/install_module_deps.sh optimizers/baseline
+
 check-prereqs:
 	./scripts/check_prereqs.sh --mode all
 
