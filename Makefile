@@ -32,7 +32,8 @@ setup-dev:
 	INSTALL_DEV=true ./scripts/bootstrap.sh
 
 setup-module:
-	./scripts/install_module_deps.sh $(MODULE)
+	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=traffic/online-boutique" >&2; exit 2)
+	./scripts/install_module_deps.sh "$(MODULE)"
 
 setup-basic-online-boutique: setup-core
 	./scripts/install_module_deps.sh envs/kind
@@ -45,7 +46,8 @@ check-prereqs:
 	./scripts/check_prereqs.sh --mode all
 
 check-module:
-	./scripts/check_module_deps.sh $(MODULE)
+	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=traffic/online-boutique" >&2; exit 2)
+	./scripts/check_module_deps.sh "$(MODULE)"
 
 doctor:
 	./scripts/doctor.sh
