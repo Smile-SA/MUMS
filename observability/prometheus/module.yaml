@@ -1,0 +1,16 @@
+name: observability.prometheus
+type: observability
+entrypoint: run.sh
+
+lifecycle:
+  start: "run.sh start <kubeconfig> <metrics_dir> [--frequency=<seconds>]"
+  stop: "run.sh stop <kubeconfig>"
+
+dependencies:
+  python: []
+  commands:
+    - kubectl
+    - curl
+  utils:
+    - utils/prometheus
+    - utils/scraper
