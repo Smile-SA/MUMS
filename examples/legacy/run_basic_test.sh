@@ -1,4 +1,18 @@
 #!/bin/bash
+# SUPERSEDED — use `benchmark-platform run <config>` instead.
+#
+# This script was the original orchestrator and is kept here for reference only.
+# The canonical entry point is now the CLI:
+#
+#   benchmark-platform run configs/basic-online-boutique.yaml
+#
+# or via Make:
+#
+#   make run-basic
+#
+# See the project README for the current workflow.
+#
+# ---------------------------------------------------------------------------
 # Exécute un test de bout en bout : env → observabilité → stack → trafic → optimizer → collecte → cleanup.
 #
 # Usage:
@@ -68,11 +82,11 @@ cleanup() {
     if [ -n "$KUBECONFIG" ]; then
         echo "--- Arrêt de l'observabilité" >&2
         "$OBSERVABILITY_SCRIPT" stop "$KUBECONFIG" "${EXTRA_ARGS[@]}" || true
-        
+
         echo "--- Arrêt du trafic" >&2
         "$TRAFFIC_SCRIPT" stop "$KUBECONFIG" "${EXTRA_ARGS[@]}" || true
     fi
-    
+
     echo "--- Destruction de l'environnement" >&2
     "$ENV_SCRIPT" destroy "$SEED" "${EXTRA_ARGS[@]}" || true
 
