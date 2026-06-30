@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -91,6 +92,7 @@ def _generate_datasets_and_metadata(
     env_vars: dict[str, str],
     manifest: RunManifest,
     dataset_module: ModuleSpec | None,
+    dataset_section: dict,
 ) -> None:
     run_root = paths.root.resolve()
     metrics_file = (paths.metrics / "metrics.om").resolve()
@@ -122,7 +124,7 @@ def _generate_datasets_and_metadata(
     command = dataset_module.command("generate", str(metrics_file), str(datasets_dir))
 
     merged_env = os.environ.copy()
-    merged_env.update(env_vars)
+    merged_env.update(_component_env(env_vars, dataset_section))
 
     log_file = paths.logs / "datasets.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +172,10 @@ def _sleep_with_interrupt(duration_seconds: int) -> None:
     end = time.monotonic() + duration_seconds
     while time.monotonic() < end:
         time.sleep(min(1.0, end - time.monotonic()))
+
+
+def _component_env(base: dict[str, str], section: dict) -> dict[str, str]:
+    return {**base, "BENCHMARK_COMPONENT_CONFIG": json.dumps(section)}
 
 
 def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
@@ -283,7 +289,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         kubeconfig_path = capture_stdout(
             environment_module.command("create", str(config.seed), f"--workers={workers_arg}"),
             cwd=repo_root,
-            env=env_vars,
+            env=_component_env(env_vars, env_cfg),
         )
         environment_created = True
 
@@ -310,7 +316,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 f"--frequency={observability['frequency_seconds']}",
             ),
             cwd=repo_root,
-            env=env_vars,
+            env=_component_env(env_vars, observability),
             log_file=paths.logs / "observability-start.log",
         )
         observability_started = True
@@ -319,7 +325,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         run_command(
             stack_module.command("deploy", kubeconfig_path, str(config.seed)),
             cwd=repo_root,
-            env=env_vars,
+            env=_component_env(env_vars, raw["stack"]),
             log_file=paths.logs / "stack.log",
         )
         manifest.append_event({"time": utc_now_iso(), "type": "stack.deploy.complete"})
@@ -328,7 +334,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         run_command(
             optimizer_module.command("start"),
             cwd=repo_root,
-            env=env_vars,
+            env=_component_env(env_vars, optimizer),
             log_file=paths.logs / "optimizer.log",
         )
 
@@ -342,7 +348,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 f"--duration={traffic['cycle_minutes']}",
             ),
             cwd=repo_root,
-            env=env_vars,
+            env=_component_env(env_vars, traffic),
             log_file=paths.logs / "traffic-start.log",
         )
         traffic_started = True
@@ -367,7 +373,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 run_command(
                     traffic_module.command("stop", kubeconfig_path),
                     cwd=repo_root,
-                    env=env_vars,
+                    env=_component_env(env_vars, traffic),
                     log_file=paths.logs / "traffic-stop.log",
                     check=False,
                 )
@@ -377,7 +383,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 run_command(
                     observability_module.command("stop", kubeconfig_path),
                     cwd=repo_root,
-                    env=env_vars,
+                    env=_component_env(env_vars, observability),
                     log_file=paths.logs / "observability-stop.log",
                     check=False,
                 )
@@ -385,14 +391,16 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
             manifest.append_event({"time": utc_now_iso(), "type": "kubernetes.collect-state"})
             _collect_kubernetes_state(kubeconfig_path, paths, repo_root)
 
-            _generate_datasets_and_metadata(paths, repo_root, env_vars, manifest, dataset_module)
+            _generate_datasets_and_metadata(
+                paths, repo_root, env_vars, manifest, dataset_module, dataset
+            )
 
             if environment_created and config.cleanup_environment:
                 manifest.append_event({"time": utc_now_iso(), "type": "environment.destroy"})
                 run_command(
                     environment_module.command("destroy", str(config.seed)),
                     cwd=repo_root,
-                    env=env_vars,
+                    env=_component_env(env_vars, env_cfg),
                     log_file=paths.logs / "environment-destroy.log",
                     check=False,
                 )

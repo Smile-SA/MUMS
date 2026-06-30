@@ -113,6 +113,37 @@ The runner injects these variables into every action:
 | `METALLB_IP_RANGE` | MetalLB IP range (from scenario config) |
 | `PROMETHEUS_LOCAL_PORT` | Prometheus local port (from scenario config) |
 | `PROMETHEUS_SCRAPE_TIMEOUT` | Prometheus scrape timeout in seconds |
+| `BENCHMARK_COMPONENT_CONFIG` | Full component section from the scenario config, JSON-encoded |
+
+### Reading extra parameters via `BENCHMARK_COMPONENT_CONFIG`
+
+Any key you add to a component's section in the scenario config is automatically
+available to the module without changes to the runner.
+
+```yaml
+# scenario config
+traffic:
+  type: k6
+  module: traffic/k6
+  shape: day_profile
+  cycle_minutes: 60
+  target_rps: 200        # custom field
+```
+
+In `run.sh`, read it with `jq` (or any JSON parser):
+
+```bash
+TARGET_RPS=$(echo "$BENCHMARK_COMPONENT_CONFIG" | jq -r '.target_rps // 100')
+```
+
+Or with Python:
+
+```bash
+TARGET_RPS=$(python3 -c "import json,os; print(json.loads(os.environ['BENCHMARK_COMPONENT_CONFIG']).get('target_rps', 100))")
+```
+
+The standard positional arguments (kubeconfig, seed, --shape, etc.) are passed
+regardless — `BENCHMARK_COMPONENT_CONFIG` is an addition, not a replacement.
 
 ---
 
