@@ -4,7 +4,7 @@ PYTHON ?= python3
 VENV_DIR ?= .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
 
-.PHONY: help setup-core setup-dev setup-module check-prereqs check-module doctor install-system-deps-ubuntu check check-shell check-python lint validate-config run-basic test clean clean-venv clean-env
+.PHONY: help setup-core setup-dev setup-module check-prereqs check-module doctor install-system-deps-ubuntu check check-shell check-python lint validate-config run-basic test smoke clean clean-venv clean-env
 
 help:
 	@echo "Benchmark platform developer commands"
@@ -21,6 +21,7 @@ help:
 	@echo "  make validate-config  Check configuration file format"
 	@echo "  make run-basic      Run basic test scenario"
 	@echo "  make test           Run Python tests when present (requires make setup-dev)"
+	@echo "  make smoke          End-to-end smoke test on a real cluster (requires Kind)"
 	@echo "  make clean          Remove caches only; preserves virtual env and benchmark outputs"
 	@echo "  make clean-venv     Remove the local Python virtual environment"
 	@echo "  make clean-env 	 Remove the benchmark environment"

@@ -213,7 +213,7 @@ def _build_collection_quality(
                     }
                 )
 
-        for previous, current in zip(rows, rows[1:], strict=True):
+        for previous, current in zip(rows, rows[1:], strict=False):
             previous_start = previous["started_at_dt"]
             current_start = current["started_at_dt"]
             if previous_start is None or current_start is None:
