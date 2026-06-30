@@ -1,9 +1,9 @@
 #!/bin/bash
-# Déploie Online Boutique sur un cluster k8s via Helm.
+# Deploys Online Boutique on a Kubernetes cluster via Helm.
 #
 # Usage: ./deploy.sh <kubeconfig> <seed>
 #
-# Prérequis : avoir lancé prepare.sh au préalable.
+# Prerequisite: run prepare.sh first.
 
 set -e
 
@@ -19,7 +19,7 @@ if [ -z "$KUBECONFIG" ] || [ -z "$SEED" ]; then
 fi
 
 if [ ! -f "$KUBECONFIG" ]; then
-    echo "ERREUR: kubeconfig '$KUBECONFIG' introuvable" >&2
+    echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
     exit 1
 fi
 
@@ -30,6 +30,6 @@ fi
     --namespace online-boutique \
     --values "$SCRIPT_DIR/values.yaml"
 
-echo "=== Validation de la disponibilité du frontend Online Boutique ===" >&2
+echo "=== Waiting for Online Boutique frontend to become ready ===" >&2
 FRONTEND_URL="$("${SCRIPT_DIR}/check_frontend.sh" "${KUBECONFIG}")"
-echo "=== Frontend Online Boutique prêt: ${FRONTEND_URL} ===" >&2
+echo "=== Online Boutique frontend ready: ${FRONTEND_URL} ===" >&2

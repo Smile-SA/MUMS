@@ -110,10 +110,10 @@ def add_arguments(parser, **kwargs):
         "--duration-minutes",
         type=int,
         default=24 * 60,
-        help="Durée d'un cycle en minutes (défaut: 1440 = 24h réelles)",
+        help="Cycle duration in minutes (default: 1440 = real 24h)",
     )
     parser.add_argument(
-        "--seed", type=int, default=42, help="Seed pour la reproductibilité (défaut: 42)"
+        "--seed", type=int, default=42, help="Seed for reproducibility (default: 42)"
     )
 
 

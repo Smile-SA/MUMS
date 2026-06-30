@@ -4,10 +4,10 @@ container_timeseries.py
 stdin  : metrics.om (OpenMetrics)
 stdout : container_timeseries.csv
 
-Colonnes : timestamp, pod, namespace, container, node,
-           cpu_usage_rate, memory_working_set_bytes, memory_rss_bytes,
-           cpu_throttled_ratio, network_receive_bytes_rate,
-           network_transmit_bytes_rate, oom_events_total, restarts_total
+Columns: timestamp, pod, namespace, container, node,
+         cpu_usage_rate, memory_working_set_bytes, memory_rss_bytes,
+         cpu_throttled_ratio, network_receive_bytes_rate,
+         network_transmit_bytes_rate, oom_events_total, restarts_total
 """
 
 import csv
@@ -106,7 +106,7 @@ def main():
                     return (metrics[metric] - prev[metric]) / dt
                 return ""
 
-            # Ratio de throttling : proportion de périodes CFS throttlées
+            # Throttle ratio: fraction of CFS periods that were throttled
             throttled_ratio = ""
             if dt:
                 d_thr = metrics.get("container_cpu_cfs_throttled_seconds_total", 0) - prev.get(

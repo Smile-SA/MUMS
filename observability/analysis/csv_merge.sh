@@ -1,30 +1,29 @@
 #!/bin/bash
 # csv_merge.sh
-# Concatène les fichiers CSV d'un dossier en un seul flux sur stdout.
+# Concatenates the CSV files in a directory into a single stream on stdout.
 #
-# Usage : csv_merge.sh <dossier>
+# Usage: csv_merge.sh <directory>
 #
-# Lit    : <dossier>/<basename>_1.csv
-#          <dossier>/<basename>_2.csv
-#          ...
+# Reads:  <directory>/<basename>_1.csv
+#         <directory>/<basename>_2.csv
+#         ...
 #
-# Le header n'est émis qu'une seule fois (depuis le premier fichier).
-# Inverse exact de csv_split.sh :
-#   cmd | csv_split.sh monDossier && csv_merge.sh monDossier | cmd2
-#   == cmd | cmd2
+# The header is emitted only once (from the first file).
+# Exact inverse of csv_split.sh:
+#   cmd | csv_split.sh dir && csv_merge.sh dir | cmd2  ==  cmd | cmd2
 
 set -euo pipefail
 
 DIR="${1:-}"
 
 if [ -z "$DIR" ]; then
-    echo "Usage: $0 <dossier>" >&2
+    echo "Usage: $0 <directory>" >&2
     exit 1
 fi
 
 BASENAME="$(basename "$DIR")"
 
-# Collecter les fichiers dans l'ordre numérique strict
+# Collect files in strict numeric order.
 files=()
 count=1
 while [ -f "$DIR/${BASENAME}_${count}.csv" ]; do
@@ -33,14 +32,14 @@ while [ -f "$DIR/${BASENAME}_${count}.csv" ]; do
 done
 
 if [ ${#files[@]} -eq 0 ]; then
-    echo "ERREUR: aucun fichier trouvé dans $DIR (attendu : ${BASENAME}_1.csv ...)" >&2
+    echo "ERROR: no files found in $DIR (expected: ${BASENAME}_1.csv ...)" >&2
     exit 1
 fi
 
-# Premier fichier : intégral (header + données)
+# First file: full (header + data).
 cat "${files[0]}"
 
-# Fichiers suivants : on saute le header (ligne 1)
+# Subsequent files: skip the header (line 1).
 for file in "${files[@]:1}"; do
     tail -n +2 "$file"
 done

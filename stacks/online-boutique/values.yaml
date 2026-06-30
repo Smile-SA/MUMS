@@ -1,4 +1,4 @@
-# Valeurs Helm pour Online Boutique dans le contexte des tests d'intégration.
-# Ajouter ici les surcharges si nécessaire.
+# Helm values for Online Boutique in the benchmark integration test context.
+# Add overrides here as needed.
 loadGenerator:
   create: false

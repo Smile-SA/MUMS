@@ -4,11 +4,11 @@ controller_timeseries.py
 stdin  : metrics.om (OpenMetrics)
 stdout : controller_timeseries.csv
 
-Clé    : (timestamp, controller_kind, controller_name, namespace)
-Colonnes : timestamp, controller_kind, controller_name, namespace,
-           replicas_desired, replicas_ready
+Key    : (timestamp, controller_kind, controller_name, namespace)
+Columns: timestamp, controller_kind, controller_name, namespace,
+         replicas_desired, replicas_ready
 
-Supporte : ReplicaSet, StatefulSet, DaemonSet, Job
+Supports: ReplicaSet, StatefulSet, DaemonSet, Job
 """
 
 import csv

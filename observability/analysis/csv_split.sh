@@ -1,15 +1,15 @@
 #!/bin/bash
 # csv_split.sh
-# Lit un CSV depuis stdin, découpe en fichiers numérotés dans un dossier.
+# Reads a CSV from stdin and splits it into numbered files in a directory.
 #
-# Usage : csv_split.sh <dossier> [--lines=N]
+# Usage: csv_split.sh <directory> [--lines=N]
 #
-# Produit : <dossier>/<basename>_1.csv
-#           <dossier>/<basename>_2.csv
-#           ...
+# Output: <directory>/<basename>_1.csv
+#         <directory>/<basename>_2.csv
+#         ...
 #
-# Chaque fichier est un CSV valide autonome (header inclus).
-# N lignes de données par fichier, défaut : 100000.
+# Each output file is a self-contained CSV (header included).
+# Default: 100000 data rows per file.
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ for arg in "$@"; do
 done
 
 if [ -z "$DIR" ]; then
-    echo "Usage: $0 <dossier> [--lines=N]" >&2
+    echo "Usage: $0 <directory> [--lines=N]" >&2
     exit 1
 fi
 
@@ -52,6 +52,6 @@ NR == 1 {
     print >> outfile
 }
 END {
-    print "=== Split terminé : " count " fichier(s) dans " dir > "/dev/stderr"
+    print "=== Split done: " count " file(s) in " dir > "/dev/stderr"
 }
 '

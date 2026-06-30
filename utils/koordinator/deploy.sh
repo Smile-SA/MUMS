@@ -1,8 +1,8 @@
 #!/bin/bash
-# Déploie Koordinator sur un cluster k8s via Helm.
+# Deploys Koordinator on a Kubernetes cluster via Helm.
 # Usage: ./deploy.sh <kubeconfig>
 #
-# TODO: passer les replicas en option
+# TODO: expose replica counts as options
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +19,7 @@ if [ -z "$KUBECONFIG" ]; then
 fi
 
 if [ ! -f "$KUBECONFIG" ]; then
-    echo "ERREUR: kubeconfig '$KUBECONFIG' introuvable" >&2
+    echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
     exit 1
 fi
 

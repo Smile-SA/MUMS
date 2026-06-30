@@ -4,8 +4,8 @@ node_timeseries.py
 stdin  : metrics.om (OpenMetrics)
 stdout : node_timeseries.csv
 
-Clé    : (timestamp, node)
-Colonnes : timestamp, node, cpu_usage_ratio, memory_used_bytes,
+Key    : (timestamp, node)
+Columns: timestamp, node, cpu_usage_ratio, memory_used_bytes,
            memory_allocatable_bytes, cpu_pressure_waiting_seconds_total,
            memory_pressure_waiting_seconds_total,
            memory_pressure_stalled_seconds_total,
@@ -151,7 +151,7 @@ def main():
                 if total_delta > 0:
                     cpu_usage_ratio = 1.0 - (idle_delta / total_delta)
 
-            # Mémoire utilisée
+            # Memory used = MemTotal - MemAvailable
             mem_total = metrics.get("mem_total", "")
             mem_available = metrics.get("mem_available", "")
             if mem_total != "" and mem_available != "":

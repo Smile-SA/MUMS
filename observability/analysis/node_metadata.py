@@ -4,11 +4,11 @@ node_metadata.py
 stdin  : metrics.om (OpenMetrics)
 stdout : node_metadata.csv
 
-Clé    : node
-Colonnes : node, cpu_allocatable, memory_allocatable,
-           architecture, os, kernel_version, taints, created_time
+Key    : node
+Columns: node, cpu_allocatable, memory_allocatable,
+         architecture, os, kernel_version, taints, created_time
 
-taints est sérialisé en JSON : [{"key": ..., "effect": ..., "value": ...}, ...]
+taints is serialized as JSON: [{"key": ..., "effect": ..., "value": ...}, ...]
 """
 
 import csv

@@ -30,7 +30,7 @@ observability:
 traffic:
   type: locust
   module: traffic/online-boutique
-  shape: journee_type
+  shape: day_profile
   cycle_minutes: 60
 
 optimizer:

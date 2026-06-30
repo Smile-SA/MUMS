@@ -1,5 +1,5 @@
 #!/bin/bash
-# Télécharge le chart Helm de Prometheus.
+# Downloads the Prometheus Helm chart.
 # Usage: ./prepare.sh <version>
 
 set -e

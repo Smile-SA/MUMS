@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 """
 pod_timeseries.py
-Lit trois CSV depuis le disque et agrège les métriques container -> pod.
-stdout : pod_timeseries.csv
+Reads three CSVs from disk and aggregates container metrics -> pod.
+stdout: pod_timeseries.csv
 
-Usage :
+Usage:
   python3 pod_timeseries.py <container_timeseries.csv> \
                              <container_metadata.csv>   \
                              <pod_metadata.csv>
 
-Règles d'agrégation (par timestamp x pod x namespace) :
-  - cpu_usage_rate               : addition
-  - memory_working_set_bytes     : addition
-  - memory_rss_bytes             : addition
-  - network_receive_bytes_rate   : addition
-  - network_transmit_bytes_rate  : addition
-  - oom_events_total             : addition
-  - restarts_total               : addition
-  - cpu_throttled_ratio          : moyenne pondérée par cpu_request du container
-                                   (si aucun request connu, moyenne simple)
+Aggregation rules (per timestamp x pod x namespace):
+  - cpu_usage_rate               : sum
+  - memory_working_set_bytes     : sum
+  - memory_rss_bytes             : sum
+  - network_receive_bytes_rate   : sum
+  - network_transmit_bytes_rate  : sum
+  - oom_events_total             : sum
+  - restarts_total               : sum
+  - cpu_throttled_ratio          : weighted average by container cpu_request
+                                   (simple average if no request is known)
 
-Le champ 'node' est pris depuis pod_metadata (fixe par pod).
+The 'node' field is taken from pod_metadata (fixed per pod).
 """
 
 import csv
@@ -36,7 +36,7 @@ def safe_float(v):
 
 
 def load_container_metadata(path):
-    """Retourne {(pod, namespace, container): row_dict}"""
+    """Returns {(pod, namespace, container): row_dict}"""
     meta = {}
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
@@ -46,7 +46,7 @@ def load_container_metadata(path):
 
 
 def load_pod_metadata(path):
-    """Retourne {(pod, namespace): row_dict}"""
+    """Returns {(pod, namespace): row_dict}"""
     meta = {}
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
@@ -71,7 +71,7 @@ def main():
     container_meta = load_container_metadata(container_meta_path)
     pod_meta = load_pod_metadata(pod_meta_path)
 
-    # Agrégation : data[(ts, pod, ns)] = dict of accumulators
+    # Aggregation: data[(ts, pod, ns)] = dict of accumulators
     agg = defaultdict(
         lambda: {
             "cpu_usage_rate": 0.0,
@@ -83,7 +83,7 @@ def main():
             "restarts_total": 0.0,
             "throttle_weighted_sum": 0.0,
             "cpu_request_sum": 0.0,
-            "throttle_count": 0,  # pour moyenne simple si pas de request
+            "throttle_count": 0,  # for simple average when cpu_request is unknown
             "has_data": False,
         }
     )
@@ -113,7 +113,7 @@ def main():
                 if v is not None:
                     agg[key][col] += v
 
-            # Throttle : moyenne pondérée par cpu_request
+            # Throttle: weighted average by cpu_request
             throttle = safe_float(row.get("cpu_throttled_ratio"))
             cpu_req = safe_float(container_meta.get((pod, ns, ctr), {}).get("cpu_request"))
             if throttle is not None:
@@ -121,7 +121,7 @@ def main():
                     agg[key]["throttle_weighted_sum"] += throttle * cpu_req
                     agg[key]["cpu_request_sum"] += cpu_req
                 else:
-                    # Pas de request connu → on accumule pour moyenne simple
+                    # No known request → accumulate for simple average
                     agg[key]["throttle_weighted_sum"] += throttle
                     agg[key]["throttle_count"] += 1
 
@@ -148,7 +148,7 @@ def main():
         if not d["has_data"]:
             continue
 
-        # Résolution du throttle
+        # Resolve throttle ratio
         if d["cpu_request_sum"] > 0:
             throttle_ratio = d["throttle_weighted_sum"] / d["cpu_request_sum"]
         elif d["throttle_count"] > 0:

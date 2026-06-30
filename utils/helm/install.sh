@@ -17,11 +17,11 @@ fi
 
 CHART_DIR="$CHART_REPOSITORY/$CHART_NAME"
 if [ ! -d "$CHART_DIR" ]; then
-    echo "ERREUR: chart '$CHART_NAME' introuvable dans $CHART_REPOSITORY — avez-vous lancé prepare.sh ?" >&2
+    echo "ERROR: chart '$CHART_NAME' not found in $CHART_REPOSITORY — did you run prepare.sh?" >&2
     exit 1
 fi
 
-echo "=== Déploiement Helm: $RELEASE_NAME ===" >&2
+echo "=== Helm install: $RELEASE_NAME ===" >&2
 echo "    Chart:     $CHART_DIR" >&2
 
 helm install "$RELEASE_NAME" "$CHART_DIR" \

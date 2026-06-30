@@ -4,9 +4,9 @@ container_metadata.py
 stdin  : metrics.om (OpenMetrics)
 stdout : container_metadata.csv
 
-Clé    : (pod, namespace, container)
-Colonnes : pod, namespace, container, image,
-           cpu_request, memory_request, cpu_limit, memory_limit
+Key    : (pod, namespace, container)
+Columns: pod, namespace, container, image,
+         cpu_request, memory_request, cpu_limit, memory_limit
 """
 
 import csv

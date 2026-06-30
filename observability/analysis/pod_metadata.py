@@ -4,17 +4,17 @@ pod_metadata.py
 stdin  : metrics.om (OpenMetrics)
 stdout : pod_metadata.csv
 
-Clé    : (pod, namespace)
-Colonnes : pod, namespace, node, controller_kind, controller_name,
-           qos_class, created_time, scheduled_time, running_time,
-           ready_time, succeeded_time, failed_time
+Key    : (pod, namespace)
+Columns: pod, namespace, node, controller_kind, controller_name,
+         qos_class, created_time, scheduled_time, running_time,
+         ready_time, succeeded_time, failed_time
 
-Notes :
-  - created_time, scheduled_time, running_time, ready_time sont des timestamps
-    Unix (secondes) portés par la valeur de la métrique elle-même.
-  - succeeded_time et failed_time sont approximés par le premier timestamp de
-    scrape où la phase correspondante est observée (valeur = 1), faute de
-    métrique de timestamp dédiée.
+Notes:
+  - created_time, scheduled_time, running_time, ready_time are Unix timestamps
+    (seconds) carried by the metric value itself.
+  - succeeded_time and failed_time are approximated by the first scrape timestamp
+    where the corresponding phase is observed (value = 1), as no dedicated
+    timestamp metric exists for these transitions.
 """
 
 import csv
@@ -53,7 +53,7 @@ def parse_line(line):
 
 def main():
     pods = defaultdict(dict)
-    # Premier timestamp de scrape où phase=Succeeded/Failed est observé
+    # First scrape timestamp where phase=Succeeded/Failed is observed.
     phase_first_scrape = defaultdict(dict)  # (pod, ns) -> {phase: scrape_ts}
 
     for line in sys.stdin:
@@ -96,7 +96,7 @@ def main():
         elif name == "kube_pod_status_phase":
             phase = labels.get("phase", "")
             if value == 1 and phase in ("Succeeded", "Failed"):
-                # Garder le premier scrape où la phase est observée
+                # Keep only the first scrape where the phase is observed.
                 if phase not in phase_first_scrape[key]:
                     phase_first_scrape[key][phase] = ts
 

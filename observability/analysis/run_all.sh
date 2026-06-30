@@ -1,14 +1,14 @@
 #!/bin/bash
 # run_all.sh
-# Génère les 8 fichiers CSV d'analyse depuis un flux OpenMetrics sur stdin.
+# Generates the 8 analysis CSV files from an OpenMetrics stream on stdin.
 #
-# Usage :
-#   <commande> | ./run_all.sh <output_dir> [--lines=N]
-#   cat metrics.om | ./run_all.sh output/test-complet/raffined/
-#   cat metrics.om | ./run_all.sh output/test-complet/raffined/ --lines=50000
+# Usage:
+#   <command> | ./run_all.sh <output_dir> [--lines=N]
+#   cat metrics.om | ./run_all.sh output/run-42/datasets/
+#   cat metrics.om | ./run_all.sh output/run-42/datasets/ --lines=50000
 #
-# Les CSV sont splittes en fichiers numérotés (défaut : 100000 lignes/fichier).
-# pod_timeseries.csv est généré en dernier depuis les fichiers splittes.
+# CSVs are split into numbered files (default: 100000 rows/file).
+# pod_timeseries.csv is generated last by merging the split files.
 
 set -euo pipefail
 
@@ -23,17 +23,17 @@ for arg in "$@"; do
 done
 
 if [ -z "$OUTPUT" ]; then
-    echo "Usage: <commande> | $0 <output_dir> [--lines=N]" >&2
+    echo "Usage: <command> | $0 <output_dir> [--lines=N]" >&2
     exit 1
 fi
 
 mkdir -p "$OUTPUT"
 
-# Matérialiser stdin dans un tmpfile
+# Buffer stdin to a temp file so it can be read multiple times.
 TMPFILE="$(mktemp /tmp/openmetrics_XXXXXX.om)"
 trap 'rm -f "$TMPFILE"' EXIT
 
-echo "=== Lecture du flux OpenMetrics ===" >&2
+echo "=== Reading OpenMetrics stream ===" >&2
 tee "$TMPFILE" > /dev/null
 
 run() {
@@ -53,15 +53,15 @@ run "node_metadata"           node_metadata.py           "$OUTPUT/node_metadata"
 run "controller_timeseries"   controller_timeseries.py   "$OUTPUT/controller_timeseries"
 run "controller_metadata"     controller_metadata.py     "$OUTPUT/controller_metadata"
 
-echo "=== pod_timeseries (agrégation depuis dossiers splittes) ===" >&2
+echo "=== pod_timeseries (aggregating from split directories) ===" >&2
 python3 "$SCRIPT_DIR/pod_timeseries.py" \
     <("$SCRIPT_DIR/csv_merge.sh" "$OUTPUT/container_timeseries") \
     <("$SCRIPT_DIR/csv_merge.sh" "$OUTPUT/container_metadata")   \
     <("$SCRIPT_DIR/csv_merge.sh" "$OUTPUT/pod_metadata")         \
     | "$SCRIPT_DIR/csv_split.sh" "$OUTPUT/pod_timeseries" --lines="$CSV_LINES"
 
-echo "=== Terminé ===" >&2
+echo "=== Done ===" >&2
 for dir in "$OUTPUT"/*/; do
     count=$(ls "$dir" | wc -l)
-    echo "  $dir : $count fichier(s)" >&2
+    echo "  $dir : $count file(s)" >&2
 done

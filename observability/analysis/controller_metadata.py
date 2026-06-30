@@ -4,11 +4,11 @@ controller_metadata.py
 stdin  : metrics.om (OpenMetrics)
 stdout : controller_metadata.csv
 
-Clé    : (controller_kind, controller_name, namespace)
-Colonnes : controller_kind, controller_name, namespace,
-           parent_kind, parent_name, replicas_desired
+Key    : (controller_kind, controller_name, namespace)
+Columns: controller_kind, controller_name, namespace,
+         parent_kind, parent_name, replicas_desired
 
-Supporte : ReplicaSet (avec parent Deployment), StatefulSet, DaemonSet, Job
+Supports: ReplicaSet (with parent Deployment), StatefulSet, DaemonSet, Job
 """
 
 import csv

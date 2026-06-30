@@ -42,7 +42,7 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
-# ─── Helpers ressources ───────────────────────────────────────────────────────
+# ─── Resource helpers ─────────────────────────────────────────────────────────
 
 HOST_CPU=$(nproc)
 HOST_CPU_MILLI=$(( HOST_CPU * 1000 ))
@@ -76,7 +76,7 @@ mem_to_mi() {
     fi
 }
 
-# ─── Génération du YAML Kind ──────────────────────────────────────────────────
+# ─── Kind cluster YAML generation ────────────────────────────────────────────
 
 generate_kind_yaml() {
     local yaml
@@ -94,7 +94,7 @@ nodes:
           - key: \"node-role.kubernetes.io/control-plane\"
             effect: \"NoSchedule\"
     - |
-      # cgroupRoot: / est requis pour certains optimiseurs (ex: Koordinator)
+      # cgroupRoot: / is required by some optimizers (e.g. Koordinator)
       kind: KubeletConfiguration
       cgroupRoot: /
 "
@@ -157,13 +157,14 @@ nodes:
 
 # ─── Actions ──────────────────────────────────────────────────────────────────
 
+
 case "$ACTION" in
     create)
         DOCKER_NETWORK="$CLUSTER_NAME"
 
         if docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
-            echo "ERROR: le réseau Docker '$DOCKER_NETWORK' existe déjà." >&2
-            echo "       Cluster déjà créé avec ce seed, ou destroy précédent incomplet ?" >&2
+            echo "ERROR: Docker network '$DOCKER_NETWORK' already exists." >&2
+            echo "       Cluster already created with this seed, or previous destroy incomplete?" >&2
             exit 1
         fi
 
