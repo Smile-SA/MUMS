@@ -3,14 +3,19 @@
 # Actions: create, destroy
 #
 # Options:
-#   --workers="<list>"    Worker nodes configuration
+#   --workers="<list>"    Worker node configuration
 #
-# --workers format : "count=N,cpu=X,memory=YGi;count=M,cpu=A,memory=BGi;..."
-#   Les ressources cpu/memory définissent ce que le worker expose dans le champ
-#   Allocatable (visible par le scheduler). La Capacity reste celle du host.
-#   Implémenté via system-reserved kubelet (compatible cgroup v1, pas besoin de Docker limits).
+# --workers format: "count=N,cpu=X,memory=YGi;count=M,cpu=A,memory=BGi;..."
+#   cpu/memory set what the worker exposes in the Allocatable field (visible to
+#   the scheduler); Capacity remains the host value. Implemented via
+#   system-reserved kubelet config — works on cgroup v1, no Docker limits needed.
 #
-# Retourne le chemin du kubeconfig sur stdout.
+#   Alternative (cgroup v2 only): apply constraints via `docker update --cpus /
+#   --memory` after cluster creation, which reduces the real Capacity instead of
+#   Allocatable. Useful when schedulers read Capacity directly (e.g. Koordinator).
+#   See kind_v2.sh in git history for a reference implementation.
+#
+# Prints the kubeconfig path to stdout.
 
 set -e
 
