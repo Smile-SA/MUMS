@@ -20,8 +20,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-UTILS_DIR="$SCRIPT_DIR/../utils"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+UTILS_DIR="$SCRIPT_DIR/../../utils"
 
 ACTION=$1
 SEED=$2
