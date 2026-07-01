@@ -18,6 +18,7 @@
 # Modified 2026 Timon Roxard : added --seed argument for reproducibility.
 # Modified 2026 Timon Roxard : added --duration-minutes argument to configure
 # the duration of a load shape cycle.
+# Modified 2026 Etienne Leclercq : change variable name from l to loc.
 
 
 import datetime
