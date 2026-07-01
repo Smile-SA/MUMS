@@ -7,7 +7,24 @@ name = "benchmark-platform"
 version = "0.1.0"
 description = "Benchmark platform for time-series optimization experiments."
 license = { text = "Apache-2.0" }
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+  { name = "Smile R&D team", email = "rnd@smile.fr" },
+]
+keywords = ["kubernetes", "benchmark", "scheduling", "observability", "kind"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Benchmark",
+]
 dependencies = [
   "PyYAML>=6.0,<7.0",
 ]
