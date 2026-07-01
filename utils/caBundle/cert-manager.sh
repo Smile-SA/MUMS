@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# cert-manager.sh — Gestion du certificat TLS pour le MutatingWebhook
+# cert-manager.sh — Manages the TLS certificate for a MutatingWebhook
 #
 # Usage:
 #   ./cert-manager.sh check  --service <name> --namespace <ns>
 #   ./cert-manager.sh create --service <name> --namespace <ns> --secret <secret-name>
 #   ./cert-manager.sh delete --service <name> --namespace <ns> --secret <secret-name>
 #
-# Exemple:
+# Example:
 #   ./cert-manager.sh create --service basic-rescheduler --namespace rescheduler-system --secret rescheduler-tls
 
 set -euo pipefail
@@ -23,7 +23,7 @@ err()  { echo "[cert-manager] ERROR: $*" >&2; exit 1; }
 
 require() {
     for cmd in "$@"; do
-        command -v "$cmd" &>/dev/null || err "Commande requise manquante: $cmd"
+        command -v "$cmd" &>/dev/null || err "Required command not found: $cmd"
     done
 }
 
@@ -41,68 +41,69 @@ while [[ $# -gt 0 ]]; do
         --namespace)  NAMESPACE="$2";  shift ;;
         --secret)     SECRET="$2";     shift ;;
         -h|--help)    usage ;;
-        *) err "Argument inconnu: $1" ;;
+        *) err "Unknown argument: $1" ;;
     esac
     shift
 done
 
 [[ -z "$COMMAND" ]]   && usage
-[[ -z "$SERVICE" ]]   && err "--service requis"
-[[ -z "$NAMESPACE" ]] && err "--namespace requis"
+[[ -z "$SERVICE" ]]   && err "--service is required"
+[[ -z "$NAMESPACE" ]] && err "--namespace is required"
 
-# Le nom DNS complet du service — c'est ce qui ira dans le CN du certificat
+# Full DNS name of the service — used as the certificate CN.
 # Format: <service>.<namespace>.svc
-# Kubernetes résoudra ce nom DNS vers le ClusterIP du Service
+# Kubernetes resolves this DNS name to the Service ClusterIP.
 DNS_NAME="${SERVICE}.${NAMESPACE}.svc"
 CSR_NAME="${SERVICE}-tls-csr"
 
-# ── Commande: check ─────────────────────────────────────────────────────────────
-# Vérifie si un CSR approuvé et un Secret TLS existent déjà
+# ── Command: check ─────────────────────────────────────────────────────────────
+# Checks whether an approved CSR and a TLS Secret already exist.
 
 cmd_check() {
-    log "Vérification du certificat pour $DNS_NAME..."
+    log "Checking certificate for $DNS_NAME..."
 
     local ok=true
 
-    # Vérifier le CSR Kubernetes
+    # Check the Kubernetes CSR.
     if kubectl get csr "$CSR_NAME" &>/dev/null; then
         local condition
         condition=$(kubectl get csr "$CSR_NAME" -o jsonpath='{.status.conditions[0].type}' 2>/dev/null || echo "")
         if [[ "$condition" == "Approved" ]]; then
-            log "✓ CSR '$CSR_NAME' existe et est approuvé"
+            log "✓ CSR '$CSR_NAME' exists and is approved"
         else
-            log "✗ CSR '$CSR_NAME' existe mais n'est pas approuvé (état: ${condition:-inconnu})"
+            log "✗ CSR '$CSR_NAME' exists but is not approved (state: ${condition:-unknown})"
             ok=false
         fi
     else
-        log "✗ CSR '$CSR_NAME' n'existe pas"
+        log "✗ CSR '$CSR_NAME' does not exist"
         ok=false
     fi
 
-    # Vérifier le Secret TLS (seulement si --secret fourni)
+    # Check the TLS Secret (only when --secret is provided).
     if [[ -n "$SECRET" ]]; then
         if kubectl get secret "$SECRET" -n "$NAMESPACE" &>/dev/null; then
-            log "✓ Secret '$SECRET' existe dans le namespace '$NAMESPACE'"
+            log "✓ Secret '$SECRET' exists in namespace '$NAMESPACE'"
         else
-            log "✗ Secret '$SECRET' absent du namespace '$NAMESPACE'"
+            log "✗ Secret '$SECRET' not found in namespace '$NAMESPACE'"
             ok=false
         fi
     fi
 
     if $ok; then
-        log "✓ Tout est en ordre"
+        log "✓ All good"
         return 0
     else
-        log "✗ Certificat incomplet ou absent — lancez 'create'"
+        log "✗ Certificate incomplete or missing — run 'create'"
         return 1
     fi
 }
 
-# ── Commande: create ────────────────────────────────────────────────────────────
-# Génère la clé privée, soumet le CSR, approuve, récupère le cert, crée le Secret
+# ── Command: create ────────────────────────────────────────────────────────────
+# Generates a private key, submits a CSR, approves it, retrieves the cert,
+# and creates the TLS Secret.
 
 cmd_create() {
-    [[ -z "$SECRET" ]] && err "--secret requis pour create"
+    [[ -z "$SECRET" ]] && err "--secret is required for create"
 
     require openssl kubectl
 
@@ -110,13 +111,13 @@ cmd_create() {
     tmpdir=$(mktemp -d)
     trap "rm -rf $tmpdir" EXIT
 
-    log "Génération de la clé privée RSA 2048..."
-    # tls.key : clé privée — ne quitte jamais le Secret, jamais commitée
+    log "Generating RSA 2048 private key..."
+    # tls.key: private key — never leaves the Secret, never committed.
     openssl genrsa -out "$tmpdir/tls.key" 2048 2>/dev/null
 
-    log "Génération du CSR (CN=$DNS_NAME)..."
-    # Le CN doit correspondre exactement au nom DNS du Service
-    # kube-apiserver vérifie ce CN quand il appelle le webhook
+    log "Generating CSR (CN=$DNS_NAME)..."
+    # The CN must match the Service DNS name exactly.
+    # kube-apiserver validates this CN when calling the webhook.
     openssl req -new \
         -key "$tmpdir/tls.key" \
         -out "$tmpdir/tls.csr" \
@@ -124,9 +125,9 @@ cmd_create() {
         -addext "subjectAltName=DNS:${DNS_NAME},DNS:${DNS_NAME}.cluster.local" \
         2>/dev/null
 
-    log "Soumission du CSR à l'API Kubernetes..."
-    # On encode le CSR en base64 et on le soumet comme objet CertificateSigningRequest
-    # K8s utilise sa propre CA pour signer — c'est cette CA qu'on mettra dans caBundle
+    log "Submitting CSR to the Kubernetes API..."
+    # The CSR is base64-encoded and submitted as a CertificateSigningRequest object.
+    # Kubernetes signs it with its own CA — that CA goes into caBundle.
     local csr_b64
     csr_b64=$(base64 < "$tmpdir/tls.csr" | tr -d '\n')
 
@@ -144,53 +145,51 @@ spec:
     - server auth
 EOF
 
-    log "Approbation du CSR..."
-    # En prod, cette étape peut être faite par un humain ou un controller d'approbation
-    # Ici on approuve directement pour simplifier
+    log "Approving CSR..."
+    # In production this step may be delegated to a human or an approval controller.
     kubectl certificate approve "$CSR_NAME"
 
-    log "Attente du certificat signé..."
+    log "Waiting for signed certificate..."
     local retries=10
     while [[ $retries -gt 0 ]]; do
         local cert
         cert=$(kubectl get csr "$CSR_NAME" -o jsonpath='{.status.certificate}' 2>/dev/null || echo "")
         if [[ -n "$cert" ]]; then
             echo "$cert" | base64 --decode > "$tmpdir/tls.crt"
-            log "✓ Certificat reçu"
+            log "✓ Certificate received"
             break
         fi
         sleep 2
         ((retries--))
     done
-    [[ $retries -eq 0 ]] && err "Timeout: le certificat n'a pas été émis"
+    [[ $retries -eq 0 ]] && err "Timeout: certificate was not issued"
 
-    log "Création du Secret TLS '$SECRET' dans '$NAMESPACE'..."
-    # Le pod montera ce Secret pour servir du HTTPS
-    # tls.crt = certificat signé par la CA du cluster
-    # tls.key = clé privée générée localement
+    log "Creating TLS Secret '$SECRET' in '$NAMESPACE'..."
+    # tls.crt = certificate signed by the cluster CA
+    # tls.key = locally generated private key
     kubectl create secret tls "$SECRET" \
         --cert="$tmpdir/tls.crt" \
         --key="$tmpdir/tls.key" \
         --namespace="$NAMESPACE" \
         --dry-run=client -o yaml | kubectl apply -f -
 
-    log "Récupération du caBundle (CA du cluster)..."
-    # Le caBundle est la CA publique du cluster
-    # On la donne à kube-apiserver dans le MutatingWebhookConfiguration
-    # pour qu'il puisse vérifier le cert de notre pod
+    log "Retrieving caBundle (cluster CA)..."
+    # The caBundle is the cluster's public CA.
+    # Pass it to kube-apiserver in the MutatingWebhookConfiguration
+    # so it can verify the certificate presented by the webhook pod.
     local ca_bundle
     ca_bundle=$(kubectl get configmap kube-root-ca.crt \
         -n "$NAMESPACE" \
         -o jsonpath='{.data.ca\.crt}' | base64 | tr -d '\n')
 
     log ""
-    log "✓ Certificat créé avec succès"
+    log "✓ Certificate created successfully"
     log ""
-    log "À utiliser dans votre MutatingWebhookConfiguration:"
+    log "Use in your MutatingWebhookConfiguration:"
     log ""
     echo "  caBundle: ${ca_bundle}"
     log ""
-    log "Et dans votre Deployment, monter le Secret:"
+    log "Mount the Secret in your Deployment:"
     log ""
     cat <<EOF
   volumes:
@@ -205,18 +204,18 @@ EOF
 EOF
 }
 
-# ── Commande: delete ────────────────────────────────────────────────────────────
+# ── Command: delete ────────────────────────────────────────────────────────────
 
 cmd_delete() {
-    [[ -z "$SECRET" ]] && err "--secret requis pour delete"
+    [[ -z "$SECRET" ]] && err "--secret is required for delete"
 
-    log "Suppression du CSR '$CSR_NAME'..."
+    log "Deleting CSR '$CSR_NAME'..."
     kubectl delete csr "$CSR_NAME" --ignore-not-found
 
-    log "Suppression du Secret '$SECRET' dans '$NAMESPACE'..."
+    log "Deleting Secret '$SECRET' in '$NAMESPACE'..."
     kubectl delete secret "$SECRET" -n "$NAMESPACE" --ignore-not-found
 
-    log "✓ Nettoyé"
+    log "✓ Cleaned up"
 }
 
 # ── Dispatch ────────────────────────────────────────────────────────────────────

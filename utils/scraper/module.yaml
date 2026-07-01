@@ -1,0 +1,8 @@
+name: utils.scraper
+type: util
+
+dependencies:
+  python:
+    - requirements.txt
+  commands: []
+  utils: []

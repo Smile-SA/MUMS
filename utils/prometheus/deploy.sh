@@ -1,5 +1,5 @@
 #!/bin/bash
-# Déploie Prometheus sur un cluster k8s via Helm.
+# Deploys Prometheus on a Kubernetes cluster via Helm.
 # Usage: ./deploy.sh <kubeconfig>
 set -e
 
@@ -14,7 +14,7 @@ if [ -z "$KUBECONFIG" ]; then
 fi
 
 if [ ! -f "$KUBECONFIG" ]; then
-    echo "ERREUR: kubeconfig '$KUBECONFIG' introuvable" >&2
+    echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
     exit 1
 fi
 

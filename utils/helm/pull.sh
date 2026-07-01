@@ -1,9 +1,8 @@
 #!/bin/bash
 # Usage: ./pull.sh <repo_name> <repo_url> <chart> <version>
 #
-# Si repo_name vaut "oci", le helm repo add est skippé
-# et repo_url est utilisé directement comme source du chart.
-# chart est alors ignoré.
+# If repo_name is "oci", the `helm repo add` step is skipped and repo_url is
+# used directly as the chart source. The chart argument is then ignored.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,22 +21,22 @@ fi
 mkdir -p "$CHART_REPOSITORY"
 
 if [[ "$REPO_NAME" == oci ]]; then
-    # Mode OCI : REPO_URL est l'URL complète du chart, REPO_NAME et CHART ignorés
-    echo "=== Téléchargement chart OCI: $REPO_URL version $VERSION ===" >&2
+    # OCI mode: REPO_URL is the full chart URL; REPO_NAME and CHART are ignored.
+    echo "=== Pulling OCI chart: $REPO_URL version $VERSION ===" >&2
     helm pull "$REPO_URL" \
         --version "$VERSION" \
         --destination "$CHART_REPOSITORY" \
         --untar
 else
-    echo "=== Ajout repo Helm: $REPO_NAME ===" >&2
+    echo "=== Adding Helm repo: $REPO_NAME ===" >&2
     helm repo add "$REPO_NAME" "$REPO_URL"
     helm repo update "$REPO_NAME"
 
-    echo "=== Téléchargement chart: $CHART version $VERSION ===" >&2
+    echo "=== Pulling chart: $CHART version $VERSION ===" >&2
     helm pull "$CHART" \
         --version "$VERSION" \
         --destination "$CHART_REPOSITORY" \
         --untar
 fi
 
-echo "=== Chart disponible dans $CHART_REPOSITORY ===" >&2
+echo "=== Chart available in $CHART_REPOSITORY ===" >&2

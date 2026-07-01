@@ -1,108 +1,104 @@
 # observability/analysis
 
-Pipeline de traitement des métriques au format OpenMetrics vers des
-CSV structurés, prêts pour l'analyse comparative des optimiseurs.
+Pipeline that processes OpenMetrics data into structured CSVs ready for
+comparative analysis of scheduling optimizers.
 
 ---
 
-## Architecture générale
+## Architecture
 
 ```
-flux OpenMetrics  ──┬──> container_timeseries.py ──> container_timeseries.csv
-                    ├──> container_metadata.py   ──> container_metadata.csv
-                    │                                        v
-                    ├──> pod_metadata.py         ──> pod_metadata.csv ──┐
-                    │                                                   ├──> pod_timeseries.py ──> pod_timeseries.csv
-                    ├───────────────────────────────────────────────────┘
-                    ├──> node_timeseries.py      ──> node_timeseries.csv
-                    ├──> node_metadata.py        ──> node_metadata.csv
-                    ├──> controller_timeseries.py──> controller_timeseries.csv
-                    └──> controller_metadata.py  ──> controller_metadata.csv
+OpenMetrics stream ──┬──> container_timeseries.py ──> container_timeseries.csv
+                     ├──> container_metadata.py   ──> container_metadata.csv
+                     │                                        v
+                     ├──> pod_metadata.py         ──> pod_metadata.csv ──┐
+                     │                                                    ├──> pod_timeseries.py ──> pod_timeseries.csv
+                     ├────────────────────────────────────────────────────┘
+                     ├──> node_timeseries.py      ──> node_timeseries.csv
+                     ├──> node_metadata.py        ──> node_metadata.csv
+                     ├──> controller_timeseries.py──> controller_timeseries.csv
+                     └──> controller_metadata.py  ──> controller_metadata.csv
 ```
 
-Les 7 premiers scripts lisent un flux OpenMetrics depuis **stdin** et écrivent sur **stdout**
-(pipe unix classique). `pod_timeseries.py` est une exception : il agrège trois CSV
-déjà produits et prend leurs chemins en arguments.
+The first 7 scripts read an OpenMetrics stream from **stdin** and write to **stdout**
+(classic Unix pipe). `pod_timeseries.py` is an exception: it aggregates three
+already-produced CSVs and takes their paths as arguments.
 
 ---
 
 ## Usage
 
 ```bash
-# Depuis un fichier
-cat <flux.om> | ./run_all.sh <output_dir>
+# From a file
+cat <stream.om> | ./run_all.sh <output_dir>
 
-# Exemples
-cat output/test-complet/metrics.om | ./run_all.sh output/test-complet/raffined/
+# Examples
+cat output/run-42/metrics/metrics.om | ./run_all.sh output/run-42/datasets/
 
-# Depuis un scrape live, sans passer par un fichier
-python3 utils/scraper/scraper.py http://127.0.0.1:9090 15 | ./run_all.sh output/test-live/
+# Manually, script by script (from a file)
+python3 container_timeseries.py < stream.om > container_timeseries.csv
 
-# Manuellement, script par script (depuis un fichier)
-python3 container_timeseries.py < flux.om > container_timeseries.csv
-
-# pod_timeseries (multi-entrées)
+# pod_timeseries (multi-input)
 python3 pod_timeseries.py container_timeseries.csv container_metadata.csv pod_metadata.csv > pod_timeseries.csv
 ```
 
-### Split / merge des CSV (gestion de la taille)
+### CSV split / merge (large volume handling)
 
-Les CSV peuvent être découpés en fichiers numérotés pour gérer les gros volumes :
+CSVs can be split into numbered files to manage large runs:
 
 ```bash
-# Découper en tranches de 50 000 lignes de données
+# Split into chunks of 50 000 data rows
 cat container_timeseries.csv | ./csv_split.sh output/container_timeseries --lines=50000
 # → output/container_timeseries/container_timeseries_1.csv
 # → output/container_timeseries/container_timeseries_2.csv ...
 
-# Reconstruire le flux original (inverse exact)
+# Reconstruct the original stream (exact inverse)
 ./csv_merge.sh output/container_timeseries | wc -l
 
-# run_all.sh détecte automatiquement les dossiers splittes
-# et les merge à la volée via process substitution bash
+# run_all.sh automatically detects split directories
+# and merges them on the fly via bash process substitution
 ```
 
-Chaque fichier splitte est un CSV valide autonome (header inclus).
-`csv_merge | csv_split` ou `csv_split | csv_merge` est une opération identité.
+Each split file is a self-contained CSV (header included).
+`csv_merge | csv_split` or `csv_split | csv_merge` is an identity operation.
 
 ---
 
-## Modèle de données
+## Data model
 
-### Principe général
+### General principle
 
-Chaque catégorie (containers, pods, nœuds, controllers) est représentée par
-deux fichiers complémentaires :
+Each category (containers, pods, nodes, controllers) is represented by two
+complementary files:
 
-| Fichier | Contenu | Granularité temporelle |
-|---|---|---|
-| `*_timeseries.csv` | Métriques qui évoluent dans le temps | Une ligne par (entité, timestamp) |
-| `*_metadata.csv`   | Données figées à la création | Une ligne par entité |
+| File | Content | Temporal granularity |
+|------|---------|----------------------|
+| `*_timeseries.csv` | Metrics that change over time | One row per (entity, timestamp) |
+| `*_metadata.csv`   | Static data captured at creation | One row per entity |
 
-Les métadonnées ne sont collectées qu'une fois (dernière valeur vue dans le scrape)
-car elles ne changent pas pendant la durée d'un test.
+Metadata is collected only once (last value seen in the scrape) because it does
+not change during a benchmark run.
 
-### Lignes creuses dans les timeseries
+### Sparse rows in timeseries
 
-Les métriques proviennent de plusieurs sources avec des cycles de scrape
-indépendants et non synchronisés :
+Metrics come from multiple sources with independent, unsynchronized scrape cycles:
 
-- **cAdvisor** : métriques temps réel des containers (CPU, mémoire, réseau)
-- **node_exporter** : métriques système des nœuds (CPU, mémoire, pression PSI)
-- **kube-state-metrics** : état déclaratif Kubernetes (allocatable, condition, replicas)
+- **cAdvisor**: real-time container metrics (CPU, memory, network)
+- **node_exporter**: node-level system metrics (CPU, memory, PSI pressure)
+- **kube-state-metrics**: declarative Kubernetes state (allocatable, conditions, replicas)
 
-Ces sources ont des timestamps différents pour le même nœud ou pod. Plutôt que de
-fusionner et perdre de l'information, les CSV conservent toutes les lignes, certaines
-colonnes étant vides (cellule vide entre virgules = `NaN` en pandas/numpy/R).
+These sources produce different timestamps for the same node or pod. Rather than
+merging and losing information, the CSVs preserve all rows with some columns empty
+(empty cell between commas = `NaN` in pandas/numpy/R).
 
-**Pour une vue consolidée**, utiliser une interpolation linéaire pondérée par la
-proximité temporelle entre le point précédent et le point suivant pour chaque colonne.
-Ne jamais détruire l'information brute avant d'en avoir besoin.
+**For a consolidated view**, use time-weighted linear interpolation between the
+preceding and following non-null values for each column. Never discard raw data
+before it is needed.
 
-### Clés uniques
+### Unique keys
 
-| Fichier | Clé unique |
-|---|---|
+| File | Unique key |
+|------|-----------|
 | `container_timeseries` | `(timestamp, pod, namespace, container)` |
 | `container_metadata`   | `(pod, namespace, container)` |
 | `pod_timeseries`       | `(timestamp, pod, namespace)` |
@@ -112,208 +108,206 @@ Ne jamais détruire l'information brute avant d'en avoir besoin.
 | `controller_timeseries`| `(timestamp, controller_kind, controller_name, namespace)` |
 | `controller_metadata`  | `(controller_kind, controller_name, namespace)` |
 
-**Note sur les pods recréés** : quand un pod meurt et est recréé par son controller,
-Un nouveau pod avec un nom différent apparaît dans `pod_timeseries` sur un nœud différent.
-`pod_metadata` avec le même `controller_name` indiquent une migration ou un redémarrage.
+**Note on recreated pods**: when a pod dies and is recreated by its controller,
+a new pod with a different name appears in `pod_timeseries` on a potentially
+different node. Two `pod_metadata` rows sharing the same `controller_name` indicate
+a migration or restart.
 
 ---
 
-## Catégorie 1 — Containers et Pods
+## Category 1 — Containers and Pods
 
 ### `container_timeseries.csv`
-Clé : `(timestamp, pod, namespace, container)`
+Key: `(timestamp, pod, namespace, container)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `timestamp` | Timestamp du scrape Prometheus (ms Unix) | — |
-| `pod` | Nom du pod | labels |
-| `namespace` | Namespace Kubernetes | labels |
-| `container` | Nom du container | labels |
-| `node` | Nœud d'exécution | labels cAdvisor |
-| `cpu_usage_rate` | Consommation CPU (cores/s), rate du counter cumulatif | `container_cpu_usage_seconds_total` |
-| `memory_working_set_bytes` | Mémoire active (référence Kubernetes pour OOM/limits) | `container_memory_working_set_bytes` |
-| `memory_rss_bytes` | Mémoire RSS du process (heap+stack, sans cache) | `container_memory_rss` |
-| `cpu_throttled_ratio` | Proportion de périodes CFS où le container a été throttlé | `container_cpu_cfs_throttled_seconds_total` / `container_cpu_cfs_periods_total` |
-| `network_receive_bytes_rate` | Débit réseau entrant (bytes/s) | `container_network_receive_bytes_total` |
-| `network_transmit_bytes_rate` | Débit réseau sortant (bytes/s) | `container_network_transmit_bytes_total` |
-| `oom_events_total` | Nombre d'OOM kills cumulés | `container_oom_events_total` |
-| `restarts_total` | Nombre de restarts cumulés | `kube_pod_container_status_restarts_total` |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `timestamp` | Prometheus scrape timestamp (ms Unix) | — |
+| `pod` | Pod name | labels |
+| `namespace` | Kubernetes namespace | labels |
+| `container` | Container name | labels |
+| `node` | Execution node | cAdvisor labels |
+| `cpu_usage_rate` | CPU consumption (cores/s), rate of cumulative counter | `container_cpu_usage_seconds_total` |
+| `memory_working_set_bytes` | Active memory (Kubernetes reference for OOM/limits) | `container_memory_working_set_bytes` |
+| `memory_rss_bytes` | Process RSS memory (heap+stack, excluding cache) | `container_memory_rss` |
+| `cpu_throttled_ratio` | Fraction of CFS periods where the container was throttled | `container_cpu_cfs_throttled_seconds_total` / `container_cpu_cfs_periods_total` |
+| `network_receive_bytes_rate` | Inbound network throughput (bytes/s) | `container_network_receive_bytes_total` |
+| `network_transmit_bytes_rate` | Outbound network throughput (bytes/s) | `container_network_transmit_bytes_total` |
+| `oom_events_total` | Cumulative OOM kill count | `container_oom_events_total` |
+| `restarts_total` | Cumulative restart count | `kube_pod_container_status_restarts_total` |
 
-**Note sur les rates** : `cpu_usage_rate` et les débits réseau sont des dérivées
-discrètes `(v2 - v1) / (t2 - t1)`. Le premier point de chaque série n'a pas de rate
-calculable → cellule vide.
+**Note on rates**: `cpu_usage_rate` and network throughput are discrete derivatives
+`(v2 - v1) / (t2 - t1)`. The first point of each series has no computable rate →
+empty cell.
 
 ---
 
 ### `container_metadata.csv`
-Clé : `(pod, namespace, container)`
+Key: `(pod, namespace, container)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `pod` | Nom du pod | — |
-| `namespace` | Namespace Kubernetes | — |
-| `container` | Nom du container | — |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `pod` | Pod name | — |
+| `namespace` | Kubernetes namespace | — |
+| `container` | Container name | — |
+| `image` | Container Docker image | `kube_pod_container_info` |
+| `cpu_request` | Guaranteed CPU (cores) | `kube_pod_container_resource_requests{resource="cpu"}` |
+| `memory_request` | Guaranteed memory (bytes) | `kube_pod_container_resource_requests{resource="memory"}` |
+| `cpu_limit` | CPU ceiling — throttling if exceeded (cores) | `kube_pod_container_resource_limits{resource="cpu"}` |
+| `memory_limit` | Memory ceiling — OOM kill if exceeded (bytes) | `kube_pod_container_resource_limits{resource="memory"}` |
 
-| `image` | Image Docker du container | `kube_pod_container_info` |
-| `cpu_request` | CPU garanti (cores) | `kube_pod_container_resource_requests{resource="cpu"}` |
-| `memory_request` | Mémoire garantie (bytes) | `kube_pod_container_resource_requests{resource="memory"}` |
-| `cpu_limit` | Plafond CPU — throttling si dépassé (cores) | `kube_pod_container_resource_limits{resource="cpu"}` |
-| `memory_limit` | Plafond mémoire — OOM kill si dépassé (bytes) | `kube_pod_container_resource_limits{resource="memory"}` |
-
-**Requests vs Limits** :
-- `request` = ressource garantie par le scheduler, utilisée pour le placement
-- `cpu_limit` = plafond souple (throttling CFS si dépassé, pas de kill)
-- `memory_limit` = plafond dur (OOM kill immédiat si dépassé)
-- Un container sans limit peut consommer tout ce qui est disponible (BestEffort)
+**Requests vs Limits**:
+- `request` = resource guaranteed by the scheduler, used for placement decisions
+- `cpu_limit` = soft ceiling (CFS throttling if exceeded, no kill)
+- `memory_limit` = hard ceiling (immediate OOM kill if exceeded)
+- A container without a limit can consume all available resources (BestEffort)
 
 ---
 
 ### `pod_timeseries.csv`
-Clé : `(timestamp, pod, namespace)`
+Key: `(timestamp, pod, namespace)`
 
-Agrégation de `container_timeseries` par pod. Généré par `pod_timeseries.py`.
+Aggregation of `container_timeseries` by pod. Generated by `pod_timeseries.py`.
 
-| Colonne | Agrégation |
-|---|---|
-| `cpu_usage_rate` | Somme des containers |
-| `memory_working_set_bytes` | Somme des containers |
-| `memory_rss_bytes` | Somme des containers |
-| `cpu_throttled_ratio` | Moyenne pondérée par `cpu_request` de chaque container |
-| `network_receive_bytes_rate` | Somme des containers |
-| `network_transmit_bytes_rate` | Somme des containers |
-| `oom_events_total` | Somme des containers |
-| `restarts_total` | Somme des containers |
+| Column | Aggregation |
+|--------|-------------|
+| `cpu_usage_rate` | Sum of containers |
+| `memory_working_set_bytes` | Sum of containers |
+| `memory_rss_bytes` | Sum of containers |
+| `cpu_throttled_ratio` | Weighted average by `cpu_request` of each container |
+| `network_receive_bytes_rate` | Sum of containers |
+| `network_transmit_bytes_rate` | Sum of containers |
+| `oom_events_total` | Sum of containers |
+| `restarts_total` | Sum of containers |
 
 ---
 
 ### `pod_metadata.csv`
-Clé : `(pod, namespace)`
+Key: `(pod, namespace)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `pod` | Nom du pod | — |
-| `namespace` | Namespace Kubernetes | — |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `pod` | Pod name | — |
+| `namespace` | Kubernetes namespace | — |
+| `node` | Execution node | `kube_pod_info` |
+| `controller_kind` | Parent controller type (`ReplicaSet`, `StatefulSet`, `DaemonSet`, `Job`, empty for static pods) | `kube_pod_owner` |
+| `controller_name` | Parent controller name | `kube_pod_owner` |
+| `qos_class` | QoS class (`Guaranteed`, `Burstable`, `BestEffort`) | `kube_pod_status_qos_class` |
+| `created_time` | Creation timestamp in etcd (Unix s) | `kube_pod_created` |
+| `scheduled_time` | Timestamp of scheduler placement decision (Unix s) | `kube_pod_status_scheduled_time` |
+| `running_time` | Timestamp when containers started (Unix s) | `kube_pod_status_initialized_time` |
+| `ready_time` | Timestamp when pod is ready to receive traffic (Unix s) | `kube_pod_status_ready_time` |
+| `succeeded_time` | First scrape where phase=Succeeded (nullable, ±15 s) | `kube_pod_status_phase` |
+| `failed_time` | First scrape where phase=Failed (nullable, ±15 s) | `kube_pod_status_phase` |
 
-| `node` | Nœud d'exécution | `kube_pod_info` |
-| `controller_kind` | Type du controller parent (`ReplicaSet`, `StatefulSet`, `DaemonSet`, `Job`, vide si static pod) | `kube_pod_owner` |
-| `controller_name` | Nom du controller parent | `kube_pod_owner` |
-| `qos_class` | Classe QoS (`Guaranteed`, `Burstable`, `BestEffort`) | `kube_pod_status_qos_class` |
-| `created_time` | Timestamp de création dans etcd (s Unix) | `kube_pod_created` |
-| `scheduled_time` | Timestamp de décision de placement par le scheduler (s Unix) | `kube_pod_status_scheduled_time` |
-| `running_time` | Timestamp de démarrage des containers (s Unix) | `kube_pod_status_initialized_time` |
-| `ready_time` | Timestamp où le pod est prêt à recevoir du trafic (s Unix) | `kube_pod_status_ready_time` |
-| `succeeded_time` | Premier scrape où phase=Succeeded (nullable, ±15s) | `kube_pod_status_phase` |
-| `failed_time` | Premier scrape où phase=Failed (nullable, ±15s) | `kube_pod_status_phase` |
+**Pod phases** are strictly unidirectional: `Pending → Running → Succeeded/Failed`.
+A restarting container stays in `Running` — restarts are captured in
+`container_timeseries.restarts_total`.
 
-**Phases des pods** : les phases sont strictement unidirectionnelles,
-`Pending → Running → Succeeded/Failed`. Pas d'aller-retour possible.
-Un container qui redémarre reste en phase `Running` — les restarts sont
-capturés dans `container_timeseries.restarts_total`.
-
-**Temps en Pending** = `scheduled_time - created_time`
-**Temps de démarrage** = `ready_time - scheduled_time` (inclut le pull d'image)
+**Time in Pending** = `scheduled_time - created_time`
+**Startup time** = `ready_time - scheduled_time` (includes image pull)
 
 ---
 
-## Catégorie 2 — Nœuds
+## Category 2 — Nodes
 
 ### `node_timeseries.csv`
-Clé : `(timestamp, node)`
+Key: `(timestamp, node)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `timestamp` | Timestamp du scrape (ms Unix) | — |
-| `node` | Nom du nœud | labels |
-| `cpu_usage_ratio` | Ratio d'utilisation CPU (0-1) = `1 - rate(idle) / sum(all modes)` | `node_cpu_seconds_total` |
-| `memory_used_bytes` | Mémoire utilisée = MemTotal - MemAvailable | `node_memory_MemTotal/MemAvailable_bytes` |
-| `memory_allocatable_bytes` | Mémoire allouable aux pods | `kube_node_status_allocatable{resource="memory"}` |
-| `cpu_pressure_waiting_seconds_total` | Temps cumulé où des tâches attendent du CPU (PSI) | `node_pressure_cpu_waiting_seconds_total` |
-| `memory_pressure_waiting_seconds_total` | Temps cumulé où des tâches attendent de la mémoire (PSI) | `node_pressure_memory_waiting_seconds_total` |
-| `memory_pressure_stalled_seconds_total` | Temps cumulé où des tâches sont bloquées sur la mémoire (PSI) | `node_pressure_memory_stalled_seconds_total` |
-| `condition_ready` | 1 si le nœud est Ready, 0 sinon | `kube_node_status_condition{condition="Ready"}` |
-| `unschedulable` | 1 si le nœud est cordonné (drain en cours) | `kube_node_spec_unschedulable` |
-| `up` | 1 si le nœud répond au scrape, 0 si inaccessible | `up{job="kubernetes-nodes"}` |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `timestamp` | Scrape timestamp (ms Unix) | — |
+| `node` | Node name | labels |
+| `cpu_usage_ratio` | CPU utilization ratio (0–1) = `1 - rate(idle) / sum(all modes)` | `node_cpu_seconds_total` |
+| `memory_used_bytes` | Memory used = MemTotal - MemAvailable | `node_memory_MemTotal/MemAvailable_bytes` |
+| `memory_allocatable_bytes` | Memory allocatable to pods | `kube_node_status_allocatable{resource="memory"}` |
+| `cpu_pressure_waiting_seconds_total` | Cumulative time tasks waited for CPU (PSI) | `node_pressure_cpu_waiting_seconds_total` |
+| `memory_pressure_waiting_seconds_total` | Cumulative time tasks waited for memory (PSI) | `node_pressure_memory_waiting_seconds_total` |
+| `memory_pressure_stalled_seconds_total` | Cumulative time tasks stalled on memory (PSI) | `node_pressure_memory_stalled_seconds_total` |
+| `condition_ready` | 1 if node is Ready, 0 otherwise | `kube_node_status_condition{condition="Ready"}` |
+| `unschedulable` | 1 if node is cordoned (drain in progress) | `kube_node_spec_unschedulable` |
+| `up` | 1 if node responds to scrape, 0 if unreachable | `up{job="kubernetes-nodes"}` |
 
-**Détection de panne** : `up=0` signale une inaccessibilité réseau au prochain scrape
-(~15s). `condition_ready=0` ou `Unknown` arrive après ~40s (délai du node controller).
-Les deux sont complémentaires.
+**Failure detection**: `up=0` signals network unreachability at the next scrape
+(~15 s). `condition_ready=0` or `Unknown` arrives after ~40 s (node controller delay).
+Both signals are complementary.
 
 ---
 
 ### `node_metadata.csv`
-Clé : `(node)`
+Key: `(node)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `node` | Nom du nœud | — |
-| `cpu_allocatable` | CPU allouable aux pods (cores) | `kube_node_status_allocatable{resource="cpu"}` |
-| `memory_allocatable` | Mémoire allouable aux pods (bytes) | `kube_node_status_allocatable{resource="memory"}` |
-| `architecture` | Architecture CPU (ex: `amd64`) | `kube_node_info` |
-| `os` | OS (ex: `linux`) | `kube_node_info` |
-| `kernel_version` | Version du kernel | `kube_node_info` |
-| `taints` | Taints du nœud (JSON) | `kube_node_spec_taint` |
-| `created_time` | Timestamp d'enregistrement du nœud (s Unix) | `kube_node_created` |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `node` | Node name | — |
+| `cpu_allocatable` | CPU allocatable to pods (cores) | `kube_node_status_allocatable{resource="cpu"}` |
+| `memory_allocatable` | Memory allocatable to pods (bytes) | `kube_node_status_allocatable{resource="memory"}` |
+| `architecture` | CPU architecture (e.g. `amd64`) | `kube_node_info` |
+| `os` | OS (e.g. `linux`) | `kube_node_info` |
+| `kernel_version` | Kernel version | `kube_node_info` |
+| `taints` | Node taints (JSON) | `kube_node_spec_taint` |
+| `created_time` | Node registration timestamp (Unix s) | `kube_node_created` |
 
-**Allocatable vs Capacity** : `allocatable` est ce qui est réellement disponible pour
-les pods (capacity moins les ressources réservées au système). C'est la référence
-correcte pour évaluer la pression sur un nœud.
+**Allocatable vs Capacity**: `allocatable` is what is actually available to pods
+(capacity minus system-reserved resources). This is the correct reference for
+evaluating node pressure.
 
 ---
 
-## Catégorie 3 — Controllers
+## Category 3 — Controllers
 
 ### `controller_timeseries.csv`
-Clé : `(timestamp, controller_kind, controller_name, namespace)`
+Key: `(timestamp, controller_kind, controller_name, namespace)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `timestamp` | Timestamp du scrape (ms Unix) | — |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `timestamp` | Scrape timestamp (ms Unix) | — |
 | `controller_kind` | `ReplicaSet`, `StatefulSet`, `DaemonSet`, `Job` | — |
-| `controller_name` | Nom du controller | labels |
-| `namespace` | Namespace Kubernetes | labels |
-| `replicas_desired` | Nombre de replicas souhaités | `kube_*_spec_replicas` / `kube_daemonset_status_desired_*` |
-| `replicas_ready` | Nombre de replicas prêts à recevoir du trafic | `kube_*_status_ready_replicas` / `kube_daemonset_status_number_ready` |
+| `controller_name` | Controller name | labels |
+| `namespace` | Kubernetes namespace | labels |
+| `replicas_desired` | Desired replica count | `kube_*_spec_replicas` / `kube_daemonset_status_desired_*` |
+| `replicas_ready` | Replicas ready to receive traffic | `kube_*_status_ready_replicas` / `kube_daemonset_status_number_ready` |
 
-**Disponibilité applicative** : `replicas_ready / replicas_desired` à chaque instant
-est le KPI principal de disponibilité. Une valeur < 1 indique une dégradation de
-service — causée par un rescheduling, un crash, ou une migration.
+**Application availability**: `replicas_ready / replicas_desired` at each instant
+is the primary availability KPI. A value < 1 indicates service degradation —
+caused by rescheduling, a crash, or a migration.
 
 ---
 
 ### `controller_metadata.csv`
-Clé : `(controller_kind, controller_name, namespace)`
+Key: `(controller_kind, controller_name, namespace)`
 
-| Colonne | Description | Source |
-|---|---|---|
-| `controller_kind` | Type du controller | — |
-| `controller_name` | Nom du controller | — |
-| `namespace` | Namespace Kubernetes | — |
-| `parent_kind` | Type du parent (ex: `Deployment` pour un `ReplicaSet`) | `kube_replicaset_owner` |
-| `parent_name` | Nom du parent | `kube_replicaset_owner` |
-| `replicas_desired` | Nombre de replicas souhaités (valeur initiale) | `kube_*_spec_replicas` |
+| Column | Description | Source |
+|--------|-------------|--------|
+| `controller_kind` | Controller type | — |
+| `controller_name` | Controller name | — |
+| `namespace` | Kubernetes namespace | — |
+| `parent_kind` | Parent type (e.g. `Deployment` for a `ReplicaSet`) | `kube_replicaset_owner` |
+| `parent_name` | Parent name | `kube_replicaset_owner` |
+| `replicas_desired` | Desired replica count (initial value) | `kube_*_spec_replicas` |
 
 ---
 
 ## Scripts
 
-| Script | Rôle | Entrée | Sortie |
-|---|---|---|---|
-| `run_all.sh` | Orchestre la génération des 8 CSV | stdin (OpenMetrics) + `output_dir` | 8 fichiers CSV |
-| `container_timeseries.py` | Séries temporelles containers | stdin (OpenMetrics) | stdout (CSV) |
-| `container_metadata.py` | Métadonnées containers | stdin (OpenMetrics) | stdout (CSV) |
-| `pod_metadata.py` | Métadonnées pods | stdin (OpenMetrics) | stdout (CSV) |
-| `node_timeseries.py` | Séries temporelles nœuds | stdin (OpenMetrics) | stdout (CSV) |
-| `node_metadata.py` | Métadonnées nœuds | stdin (OpenMetrics) | stdout (CSV) |
-| `controller_timeseries.py` | Séries temporelles controllers | stdin (OpenMetrics) | stdout (CSV) |
-| `controller_metadata.py` | Métadonnées controllers | stdin (OpenMetrics) | stdout (CSV) |
-| `pod_timeseries.py` | Agrégation container→pod | 3 fichiers CSV (args) | stdout (CSV) |
-| `csv_split.sh` | Découpe un CSV en fichiers numérotés | stdin (CSV) + dossier | `dossier/basename_N.csv` |
-| `csv_merge.sh` | Reconstruit un flux CSV depuis un dossier | dossier | stdout (CSV) |
+| Script | Role | Input | Output |
+|--------|------|-------|--------|
+| `run_all.sh` | Orchestrates generation of all 8 CSVs | stdin (OpenMetrics) + `output_dir` | 8 CSV files |
+| `container_timeseries.py` | Container time series | stdin (OpenMetrics) | stdout (CSV) |
+| `container_metadata.py` | Container metadata | stdin (OpenMetrics) | stdout (CSV) |
+| `pod_metadata.py` | Pod metadata | stdin (OpenMetrics) | stdout (CSV) |
+| `node_timeseries.py` | Node time series | stdin (OpenMetrics) | stdout (CSV) |
+| `node_metadata.py` | Node metadata | stdin (OpenMetrics) | stdout (CSV) |
+| `controller_timeseries.py` | Controller time series | stdin (OpenMetrics) | stdout (CSV) |
+| `controller_metadata.py` | Controller metadata | stdin (OpenMetrics) | stdout (CSV) |
+| `pod_timeseries.py` | Container → pod aggregation | 3 CSV files (args) | stdout (CSV) |
+| `csv_split.sh` | Splits a CSV into numbered files | stdin (CSV) + directory | `directory/basename_N.csv` |
+| `csv_merge.sh` | Reconstructs a CSV stream from a directory | directory | stdout (CSV) |
 
 ---
 
-## Voir aussi
+## See also
 
-- `A_VERIFIER.txt` — points en suspens et améliorations futures
-- `../../observability/prometheus/` — scripts de scraping et port-forward
-- `../../utils/scraper/scraper.py` — scraper Prometheus → OpenMetrics (.om)
+- [`docs/known-limitations.md`](../../docs/known-limitations.md) — open questions and future work
+- [`observability/prometheus/`](../prometheus/) — scraping scripts and port-forward management
+- [`utils/scraper/scraper.py`](../../utils/scraper/scraper.py) — Prometheus → OpenMetrics (.om) scraper

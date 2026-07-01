@@ -1,12 +1,12 @@
 #!/bin/bash
-# Génère du trafic sur Online Boutique depuis la machine hôte.
+# Generates traffic against Online Boutique from the host machine.
 # Usage:
-#   ./run.sh start <kubeconfig> <seed> [--shape=<nom>] [--duration=<minutes>] [options ...]
+#   ./run.sh start <kubeconfig> <seed> [--shape=<name>] [--duration=<minutes>] [options ...]
 #   ./run.sh stop  <kubeconfig>
 #
-# Options (start) :
-#   --shape=<nom>       Shape à utiliser (défaut: journee_type)
-#   --duration=<min>    Durée d'un cycle en minutes (écrase DURATION_MINUTES du shape)
+# Options (start):
+#   --shape=<name>      Traffic shape to use (default: day_profile)
+#   --duration=<min>    Cycle duration in minutes (overrides DURATION_MINUTES from the shape)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -23,12 +23,12 @@ case "$ACTION" in
         shift 2
 
         if [ -z "$KUBECONFIG" ] || [ -z "$SEED" ]; then
-            echo "Usage: $0 start <kubeconfig> <seed> [--shape=<nom>] [--duration=<minutes>]" >&2
+            echo "Usage: $0 start <kubeconfig> <seed> [--shape=<name>] [--duration=<minutes>]" >&2
             exit 1
         fi
 
         if [ ! -f "$KUBECONFIG" ]; then
-            echo "ERREUR: kubeconfig '$KUBECONFIG' introuvable" >&2
+            echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
             exit 1
         fi
 
@@ -52,15 +52,15 @@ case "$ACTION" in
             OLD_PID="$(cat "$PID_FILE")"
 
             if kill -0 "$OLD_PID" 2>/dev/null; then
-                echo "ERREUR: trafic déjà en cours (PID $OLD_PID)" >&2
+                echo "ERROR: traffic already running (PID $OLD_PID)" >&2
                 exit 1
             fi
 
-            echo "AVERTISSEMENT: fichier PID trafic obsolète supprimé (PID $OLD_PID)" >&2
+            echo "WARNING: stale traffic PID file removed (PID $OLD_PID)" >&2
             rm -f "$PID_FILE"
         fi
 
-        SHAPE="journee_type"
+        SHAPE="day_profile"
         DURATION=""
 
         for arg in "$@"; do
@@ -73,17 +73,17 @@ case "$ACTION" in
 
         SHAPE_FILE="$TRAFFIC_DIR/shapes/${SHAPE}.py"
         if [ ! -f "$SHAPE_FILE" ]; then
-            echo "ERREUR: shape '$SHAPE' introuvable ($SHAPE_FILE)" >&2
+            echo "ERROR: shape '$SHAPE' not found ($SHAPE_FILE)" >&2
             exit 1
         fi
 
         FRONTEND_URL="$(
             "${REPO_ROOT}/stacks/online-boutique/check_frontend.sh" "${KUBECONFIG}"
         )"
-        echo "=== Cible Locust vérifiée: ${FRONTEND_URL} ===" >&2
+        echo "=== Locust target verified: ${FRONTEND_URL} ===" >&2
 
         TARGET="${FRONTEND_URL}"
-        echo "=== Trafic Online Boutique ===" >&2
+        echo "=== Online Boutique traffic ===" >&2
         echo "    Target  : $TARGET" >&2
         echo "    Shape   : $SHAPE" >&2
         echo "    Seed    : $SEED" >&2
@@ -102,7 +102,7 @@ case "$ACTION" in
             > "$LOG_FILE" 2>&1 &
 
         echo $! > "$PID_FILE"
-        echo "=== Trafic démarré (PID $(cat "$PID_FILE"), log: $LOG_FILE, csv: ${LOCUST_CSV_PREFIX}_*.csv)" >&2
+        echo "=== Traffic started (PID $(cat "$PID_FILE"), log: $LOG_FILE, csv: ${LOCUST_CSV_PREFIX}_*.csv)" >&2
         ;;
 
     stop)
@@ -119,22 +119,22 @@ case "$ACTION" in
         RUN_NAME="$(basename "$KUBECONFIG")"
         PID_FILE="${BENCHMARK_PID_DIR}/traffic-${RUN_NAME}.pid"
         if [ ! -f "$PID_FILE" ]; then
-            echo "AVERTISSEMENT: pas de PID file trouvé ($PID_FILE)" >&2
+            echo "WARNING: no PID file found ($PID_FILE)" >&2
             exit 0
         fi
 
         PID=$(cat "$PID_FILE")
         if kill "$PID" 2>/dev/null; then
-            echo "=== Trafic arrêté (PID $PID)" >&2
+            echo "=== Traffic stopped (PID $PID)" >&2
         else
-            echo "AVERTISSEMENT: processus $PID déjà arrêté" >&2
+            echo "WARNING: process $PID already stopped" >&2
         fi
         rm -f "$PID_FILE"
         ;;
 
     *)
         echo "Usage: $0 <start|stop> ..." >&2
-        echo "  start <kubeconfig> <seed> [--shape=<nom>] [--duration=<minutes>]" >&2
+        echo "  start <kubeconfig> <seed> [--shape=<name>] [--duration=<minutes>]" >&2
         echo "  stop  <kubeconfig>" >&2
         exit 1
         ;;

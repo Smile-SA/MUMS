@@ -6,11 +6,26 @@ build-backend = "setuptools.build_meta"
 name = "benchmark-platform"
 version = "0.1.0"
 description = "Benchmark platform for time-series optimization experiments."
+license = { text = "Apache-2.0" }
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+  { name = "Smile R&D team", email = "rnd@smile.fr" },
+]
+keywords = ["kubernetes", "benchmark", "scheduling", "observability", "kind"]
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Benchmark",
+]
 dependencies = [
-  "locust>=2.31,<3.0",
-  "Faker>=30,<40",
-  "requests>=2.31,<3.0",
   "PyYAML>=6.0,<7.0",
 ]
 
@@ -22,4 +37,24 @@ include = ["benchmark_platform*"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
+exclude = [
+  ".venv",
+  "output",
+  "utils/helm/chart-repository",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "UP",
+  "B",
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  check-and-test:
+    name: check / lint / test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dev dependencies
+        run: make setup-dev
+
+      - name: Shell and Python syntax check
+        run: make check
+
+      - name: Ruff lint
+        run: make lint
+
+      - name: Unit tests
+        run: make test

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 import subprocess
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Mapping, Sequence
 
 
 class CommandError(RuntimeError):

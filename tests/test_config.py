@@ -10,6 +10,8 @@ def test_basic_config_loads() -> None:
     assert config.name == "basic-online-boutique"
     assert config.seed == 42
     assert config.duration_seconds > 0
+    assert config.raw["environment"]["module"] == "envs/kind"
+    assert config.raw["observability"]["module"] == "observability/prometheus"
 
 
 def test_missing_config_fails(tmp_path: Path) -> None:
@@ -18,35 +20,40 @@ def test_missing_config_fails(tmp_path: Path) -> None:
         load_config(missing)
 
 
-def test_invalid_component_type_fails(tmp_path: Path) -> None:
+def test_empty_component_type_fails(tmp_path: Path) -> None:
     config_path = tmp_path / "bad.yaml"
     config_path.write_text(
-        '''
+        """
 version: 1
 scenario:
   name: bad
   seed: 1
   duration_seconds: 10
 environment:
-  type: unsupported
+  type: ""
+  module: envs/kind
   workers:
     count: 1
     cpu: "1"
     memory: "1Gi"
 stack:
   type: online-boutique
+  module: stacks/online-boutique
 observability:
   type: prometheus
+  module: observability/prometheus
   frequency_seconds: 15
 traffic:
   type: locust
+  module: traffic/online-boutique
   shape: journee_type
   cycle_minutes: 60
 optimizer:
   type: baseline
+  module: optimizers/baseline
 output:
   root_directory: output/runs
-''',
+""",
         encoding="utf-8",
     )
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Télécharge le chart Helm de Koordinator.
+# Downloads the Koordinator Helm chart.
 # Usage: ./prepare.sh <version>
 set -e
 

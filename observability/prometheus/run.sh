@@ -1,5 +1,5 @@
 #!/bin/bash
-# Gère l'observabilité : port-forward Prometheus + scraper.
+# Manages observability: Prometheus port-forward + scraper.
 # Usage:
 #   ./run.sh start <kubeconfig> <output_dir> [--frequency=<seconds>]
 #   ./run.sh stop  <kubeconfig>
@@ -24,7 +24,7 @@ case "$ACTION" in
         fi
 
         if [ ! -f "$KUBECONFIG" ]; then
-            echo "ERREUR: kubeconfig '$KUBECONFIG' introuvable" >&2
+            echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
             exit 1
         fi
 
@@ -79,7 +79,7 @@ case "$ACTION" in
             2> "$SCRAPER_LOG_FILE" &
 
         echo $! > "$SCRAPER_PID_FILE"
-        echo "=== Scraper démarré (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, metadata: $SCRAPE_METADATA_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
+        echo "=== Scraper started (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, metadata: $SCRAPE_METADATA_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
         ;;
 
     stop)
@@ -101,11 +101,11 @@ case "$ACTION" in
         if [ -f "$PID_FILE" ]; then
             PID=$(cat "$PID_FILE")
             kill "$PID" 2>/dev/null \
-                && echo "=== Scraper arrêté (PID $PID)" >&2 \
-                || echo "AVERTISSEMENT: scraper $PID déjà arrêté" >&2
+                && echo "=== Scraper stopped (PID $PID)" >&2 \
+                || echo "WARNING: scraper $PID already stopped" >&2
             rm -f "$PID_FILE"
         else
-            echo "AVERTISSEMENT: pas de PID scraper trouvé pour $NAME" >&2
+            echo "WARNING: no scraper PID file found for $NAME" >&2
         fi
 
         "$PROMETHEUS_DIR/port-forward-stop.sh" "$NAME"

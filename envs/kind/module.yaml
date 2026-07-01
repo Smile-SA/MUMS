@@ -1,0 +1,23 @@
+name: envs.kind
+type: environment
+entrypoint: run.sh
+
+lifecycle:
+  create: "run.sh create <seed> [--workers=count=N,cpu=X,memory=YGi]"
+  destroy: "run.sh destroy <seed>"
+
+outputs:
+  create_stdout: kubeconfig_path
+
+dependencies:
+  python: []
+  commands:
+    - docker
+    - kind
+    - kubectl
+    - helm
+  utils:
+    - utils/kind
+    - utils/metallb
+    - utils/prometheus
+    - utils/helm
