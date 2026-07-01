@@ -35,9 +35,9 @@ The benchmark platform orchestrates experiments, but it should not hardcode ever
 Instead:
 
 - Shell scripts remain valid component adapters.
-- A Python runner may orchestrate those adapters later.
+- A Python runner may orchestrate those adapters.
 - Environment-specific logic remains in environment or connector adapters.
-- HOTS should make optimization decisions but should not directly embed all environment-specific execution details.
+- Optimizer should make optimization decisions but should not directly embed all environment-specific execution details.
 
 ## Repository responsibilities
 

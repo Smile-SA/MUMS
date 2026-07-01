@@ -192,8 +192,8 @@ optimizers/
 Responsibilities:
 
 - Implement or connect the optimization strategy.
-- Run baseline/no-op behavior when no optimizer is used.
-- Later, start/connect HOTS and collect decision artifacts.
+- Run baseline behavior when no optimizer is used.
+- Start/connect optimizer and collect decision artifacts.
 
 Recommended lifecycle:
 

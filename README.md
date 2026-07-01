@@ -5,20 +5,6 @@ It deploys a distributed application stack, generates realistic traffic, collect
 Prometheus metrics, and records a structured dataset — ready for offline analysis
 or scheduler evaluation.
 
-## Status
-
-| Component | State |
-|-----------|-------|
-| Environment — Kind | Supported |
-| Stack — Online Boutique | Supported |
-| Observability — Prometheus | Supported |
-| Traffic — Locust | Supported |
-| Optimizer — baseline (no-op) | Supported |
-| Dataset export — refined CSV | Supported |
-| Connector (apply decisions to cluster) | **Not yet implemented** |
-| HOTS / online optimizer | **Not yet implemented** |
-| Evaluation / comparison pipeline | **Not yet implemented** |
-
 ## Dependencies
 
 **System tools** (must be on `$PATH`):
