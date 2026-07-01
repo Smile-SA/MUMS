@@ -173,12 +173,12 @@ if [[ "${SKIP_PYTHON_IMPORTS}" == "false" && ( "${MODE}" == "setup" || "${MODE}"
   echo "=== Python virtual environment dependencies ==="
 
   if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
-    error "Virtual environment not found at ${VENV_DIR}. Run 'make setup' first."
+    error "Virtual environment not found at ${VENV_DIR}. Run 'make setup-core' (or 'make setup-dev') first."
   else
     if "${VENV_DIR}/bin/python" - <<'PY'
 import importlib
 
-required_modules = ("locust", "faker", "requests")
+required_modules = ("yaml",)
 missing = []
 
 for module_name in required_modules:
@@ -195,7 +195,7 @@ PY
     then
       :
     else
-      error "Python runtime dependency validation failed. Run 'make setup' again."
+      error "Python runtime dependency validation failed. Run 'make setup-core' (or 'make setup-dev') again."
     fi
   fi
 fi
