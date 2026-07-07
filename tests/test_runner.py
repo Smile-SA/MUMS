@@ -99,7 +99,7 @@ def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner._generate_datasets_and_metadata"),
+        patch("benchmark_platform.runner._generate_datasets"),
         patch("shutil.copy2"),
     ):
         run_scenario(config, repo_root=repo)
@@ -107,7 +107,7 @@ def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
     assert dispatched == [
         ("prometheus", "start"),   # observability.start
         ("mystack", "deploy"),     # stack.deploy
-        ("baseline", "start"),     # optimizer.start
+        ("baseline", "deploy"),    # optimizer.deploy
         ("mytraffic", "start"),    # traffic.start
         ("mytraffic", "stop"),     # traffic.stop  (teardown)
         ("prometheus", "stop"),    # observability.stop (teardown)
@@ -136,7 +136,7 @@ def test_runner_injects_component_config_env(tmp_path: Path) -> None:
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner._generate_datasets_and_metadata"),
+        patch("benchmark_platform.runner._generate_datasets"),
         patch("shutil.copy2"),
     ):
         run_scenario(config, repo_root=repo)
