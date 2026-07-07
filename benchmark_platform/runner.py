@@ -9,10 +9,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from benchmark_platform.config import ScenarioConfig
-from benchmark_platform.datasets.metadata import write_metadata
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
+from benchmark_platform.schema import validate_section
 from benchmark_platform.shell import capture_stdout, run_command
 
 
@@ -45,6 +45,16 @@ def _component_module_path(raw: dict[str, object], section: str, default: str) -
         if value:
             return str(value)
     return default
+
+
+def _load_and_validate(
+    repo_root: Path, raw: dict[str, object], section: str, default: str, expected_type: str
+) -> ModuleSpec:
+    module = load_module(
+        repo_root, _component_module_path(raw, section, default), expected_type=expected_type
+    )
+    validate_section(raw.get(section, {}), module.arg_schema, section)
+    return module
 
 
 def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths, repo_root: Path) -> None:
@@ -86,7 +96,7 @@ def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths, repo_root: Path)
             )
 
 
-def _generate_datasets_and_metadata(
+def _generate_datasets(
     paths: RunPaths,
     repo_root: Path,
     env_vars: dict[str, str],
@@ -94,78 +104,28 @@ def _generate_datasets_and_metadata(
     dataset_module: ModuleSpec | None,
     dataset_section: dict,
 ) -> None:
-    run_root = paths.root.resolve()
-    metrics_file = (paths.metrics / "metrics.om").resolve()
-    datasets_dir = paths.datasets.resolve()
-    log_file = (paths.logs / "datasets.log").resolve()
-
-    if not metrics_file.exists() or metrics_file.stat().st_size == 0:
-        manifest.set(
-            "dataset_generation",
-            {
-                "status": "skipped",
-                "reason": "metrics/metrics.om is missing or empty",
-            },
-        )
+    if dataset_module is None:
+        manifest.set("dataset_generation", {"status": "skipped", "reason": "module disabled"})
         return
 
     manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.start"})
 
-    if dataset_module is None:
-        manifest.set(
-            "dataset_generation",
-            {
-                "status": "skipped",
-                "reason": "dataset module disabled",
-            },
-        )
-        return
-
-    command = dataset_module.command("generate", str(metrics_file), str(datasets_dir))
-
-    merged_env = os.environ.copy()
-    merged_env.update(_component_env(env_vars, dataset_section))
-
-    log_file = paths.logs / "datasets.log"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with log_file.open("a", encoding="utf-8") as stream:
-        stream.write(f"\n$ {' '.join(command)}\n")
-        stream.flush()
-
-        result = subprocess.run(
-            command,
-            cwd=str(repo_root),
-            env=merged_env,
-            text=True,
-            stdout=stream,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
-
-    if result.returncode != 0:
-        manifest.set(
-            "dataset_generation",
-            {
-                "status": "failed",
-                "returncode": result.returncode,
-                "log": log_file.resolve().relative_to(run_root).as_posix(),
-            },
-        )
-        manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.failed"})
-        return
-
-    metadata_path = write_metadata(run_root)
-
-    manifest.set(
-        "dataset_generation",
-        {
-            "status": "completed",
-            "metadata": metadata_path.resolve().relative_to(run_root).as_posix(),
-            "log": log_file.resolve().relative_to(run_root).as_posix(),
-        },
+    command = dataset_module.command(
+        "generate", str(paths.metrics / "metrics.om"), str(paths.datasets)
     )
-    manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.complete"})
+    result = run_command(
+        command,
+        cwd=repo_root,
+        env=_component_env(
+            env_vars, dataset_section, paths.module_artifacts(dataset_module.name)
+        ),
+        log_file=paths.logs / "datasets.log",
+        check=False,
+    )
+
+    status = "completed" if result.returncode == 0 else "failed"
+    manifest.set("dataset_generation", {"status": status, "returncode": result.returncode})
+    manifest.append_event({"time": utc_now_iso(), "type": f"dataset.generate.{status}"})
 
 
 def _sleep_with_interrupt(duration_seconds: int) -> None:
@@ -174,8 +134,13 @@ def _sleep_with_interrupt(duration_seconds: int) -> None:
         time.sleep(min(1.0, end - time.monotonic()))
 
 
-def _component_env(base: dict[str, str], section: dict) -> dict[str, str]:
-    return {**base, "BENCHMARK_COMPONENT_CONFIG": json.dumps(section)}
+def _component_env(
+    base: dict[str, str], section: dict, artifact_dir: Path | None = None
+) -> dict[str, str]:
+    env = {**base, "BENCHMARK_COMPONENT_CONFIG": json.dumps(section)}
+    if artifact_dir is not None:
+        env["BENCHMARK_ARTIFACT_DIR"] = str(artifact_dir)
+    return env
 
 
 def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
@@ -200,43 +165,33 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 "traffic": str(paths.traffic),
                 "kubernetes": str(paths.kubernetes),
                 "datasets": str(paths.datasets),
+                "artifacts": str(paths.artifacts),
             },
         },
     )
 
     raw = config.raw
     env_cfg = raw["environment"]
-    workers = env_cfg["workers"]
     observability = raw["observability"]
     traffic = raw["traffic"]
     optimizer = raw["optimizer"]
 
     dataset = raw.get("dataset", {})
 
-    environment_module = load_module(
-        repo_root,
-        _component_module_path(raw, "environment", "envs/kind"),
-        expected_type="environment",
+    environment_module = _load_and_validate(
+        repo_root, raw, "environment", "envs/kind", "environment"
     )
-    stack_module = load_module(
-        repo_root,
-        _component_module_path(raw, "stack", "stacks/online-boutique"),
-        expected_type="stack",
+    stack_module = _load_and_validate(
+        repo_root, raw, "stack", "stacks/online-boutique", "stack"
     )
-    observability_module = load_module(
-        repo_root,
-        _component_module_path(raw, "observability", "observability/prometheus"),
-        expected_type="observability",
+    observability_module = _load_and_validate(
+        repo_root, raw, "observability", "observability/prometheus", "observability"
     )
-    traffic_module = load_module(
-        repo_root,
-        _component_module_path(raw, "traffic", "traffic/online-boutique"),
-        expected_type="traffic",
+    traffic_module = _load_and_validate(
+        repo_root, raw, "traffic", "traffic/online-boutique", "traffic"
     )
-    optimizer_module = load_module(
-        repo_root,
-        _component_module_path(raw, "optimizer", "optimizers/baseline"),
-        expected_type="optimizer",
+    optimizer_module = _load_and_validate(
+        repo_root, raw, "optimizer", "optimizers/baseline", "optimizer"
     )
 
     dataset_enabled = True
@@ -244,11 +199,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         dataset_enabled = bool(dataset["enabled"])
 
     dataset_module = (
-        load_module(
-            repo_root,
-            _component_module_path(raw, "dataset", "observability/analysis"),
-            expected_type="dataset",
-        )
+        _load_and_validate(repo_root, raw, "dataset", "observability/analysis", "dataset")
         if dataset_enabled
         else None
     )
@@ -271,10 +222,6 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     traffic_started = False
 
     env_vars = {
-        "KIND_NODE_IMAGE": str(env_cfg.get("node_image", "kindest/node:v1.34.0")),
-        "METALLB_IP_RANGE": str(env_cfg.get("metallb", {}).get("ip_range", "auto")),
-        "PROMETHEUS_LOCAL_PORT": str(observability.get("local_port", 9090)),
-        "PROMETHEUS_SCRAPE_TIMEOUT": str(observability.get("timeout_seconds", 10)),
         "BENCHMARK_RUN_DIR": str(paths.root),
         "BENCHMARK_LOG_DIR": str(paths.logs),
         "BENCHMARK_PID_DIR": str(paths.pids),
@@ -283,13 +230,13 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     }
 
     try:
-        workers_arg = f"count={workers['count']},cpu={workers['cpu']},memory={workers['memory']}"
-
         manifest.append_event({"time": utc_now_iso(), "type": "environment.create.start"})
         kubeconfig_path = capture_stdout(
-            environment_module.command("create", str(config.seed), f"--workers={workers_arg}"),
+            environment_module.command("create", str(config.seed)),
             cwd=repo_root,
-            env=_component_env(env_vars, env_cfg),
+            env=_component_env(
+                env_vars, env_cfg, paths.module_artifacts(environment_module.name)
+            ),
         )
         environment_created = True
 
@@ -302,21 +249,17 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 "type": "kind",
                 "kubeconfig": str(kubeconfig_copy),
                 "original_kubeconfig": kubeconfig_path,
-                "node_image": env_vars["KIND_NODE_IMAGE"],
             },
         )
         manifest.append_event({"time": utc_now_iso(), "type": "environment.create.complete"})
 
         manifest.append_event({"time": utc_now_iso(), "type": "observability.start"})
         run_command(
-            observability_module.command(
-                "start",
-                kubeconfig_path,
-                str(paths.metrics),
-                f"--frequency={observability['frequency_seconds']}",
-            ),
+            observability_module.command("start", kubeconfig_path, str(paths.metrics)),
             cwd=repo_root,
-            env=_component_env(env_vars, observability),
+            env=_component_env(
+                env_vars, observability, paths.module_artifacts(observability_module.name)
+            ),
             log_file=paths.logs / "observability-start.log",
         )
         observability_started = True
@@ -325,30 +268,26 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         run_command(
             stack_module.command("deploy", kubeconfig_path, str(config.seed)),
             cwd=repo_root,
-            env=_component_env(env_vars, raw["stack"]),
+            env=_component_env(env_vars, raw["stack"], paths.module_artifacts(stack_module.name)),
             log_file=paths.logs / "stack.log",
         )
         manifest.append_event({"time": utc_now_iso(), "type": "stack.deploy.complete"})
 
         manifest.set("optimizer", {"type": str(optimizer["type"])})
         run_command(
-            optimizer_module.command("start"),
+            optimizer_module.command("deploy", kubeconfig_path),
             cwd=repo_root,
-            env=_component_env(env_vars, optimizer),
+            env=_component_env(
+                env_vars, optimizer, paths.module_artifacts(optimizer_module.name)
+            ),
             log_file=paths.logs / "optimizer.log",
         )
 
         manifest.append_event({"time": utc_now_iso(), "type": "traffic.start"})
         run_command(
-            traffic_module.command(
-                "start",
-                kubeconfig_path,
-                str(config.seed),
-                f"--shape={traffic['shape']}",
-                f"--duration={traffic['cycle_minutes']}",
-            ),
+            traffic_module.command("start", kubeconfig_path, str(config.seed)),
             cwd=repo_root,
-            env=_component_env(env_vars, traffic),
+            env=_component_env(env_vars, traffic, paths.module_artifacts(traffic_module.name)),
             log_file=paths.logs / "traffic-start.log",
         )
         traffic_started = True
@@ -368,12 +307,14 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
 
     finally:
         if kubeconfig_path:
-            if traffic_started:
+            if traffic_started and traffic_module.supports("stop"):
                 manifest.append_event({"time": utc_now_iso(), "type": "traffic.stop"})
                 run_command(
                     traffic_module.command("stop", kubeconfig_path),
                     cwd=repo_root,
-                    env=_component_env(env_vars, traffic),
+                    env=_component_env(
+                        env_vars, traffic, paths.module_artifacts(traffic_module.name)
+                    ),
                     log_file=paths.logs / "traffic-stop.log",
                     check=False,
                 )
@@ -383,7 +324,9 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 run_command(
                     observability_module.command("stop", kubeconfig_path),
                     cwd=repo_root,
-                    env=_component_env(env_vars, observability),
+                    env=_component_env(
+                        env_vars, observability, paths.module_artifacts(observability_module.name)
+                    ),
                     log_file=paths.logs / "observability-stop.log",
                     check=False,
                 )
@@ -391,16 +334,16 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
             manifest.append_event({"time": utc_now_iso(), "type": "kubernetes.collect-state"})
             _collect_kubernetes_state(kubeconfig_path, paths, repo_root)
 
-            _generate_datasets_and_metadata(
-                paths, repo_root, env_vars, manifest, dataset_module, dataset
-            )
+            _generate_datasets(paths, repo_root, env_vars, manifest, dataset_module, dataset)
 
             if environment_created and config.cleanup_environment:
                 manifest.append_event({"time": utc_now_iso(), "type": "environment.destroy"})
                 run_command(
                     environment_module.command("destroy", str(config.seed)),
                     cwd=repo_root,
-                    env=_component_env(env_vars, env_cfg),
+                    env=_component_env(
+                        env_vars, env_cfg, paths.module_artifacts(environment_module.name)
+                    ),
                     log_file=paths.logs / "environment-destroy.log",
                     check=False,
                 )

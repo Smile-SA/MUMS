@@ -122,43 +122,15 @@ def load_config(path: str | Path) -> ScenarioConfig:
         "scenario.duration_seconds",
     )
 
+    # Component sections are validated at the framework envelope level only
+    # (`type` + optional `module`). Module-specific fields (e.g.
+    # environment.workers, observability.frequency_seconds, traffic.shape) are
+    # opaque to the core and validated by each module's own `args:` schema in
+    # module.yaml — see benchmark_platform.schema.validate_section.
     _validate_component(environment, "environment")
-    workers = _require_mapping(
-        _require_field(environment, "environment", "workers"),
-        "environment.workers",
-    )
-    _require_positive_int(
-        _require_field(workers, "environment.workers", "count"),
-        "environment.workers.count",
-    )
-    _require_non_empty_string(
-        _require_field(workers, "environment.workers", "cpu"),
-        "environment.workers.cpu",
-    )
-    _require_non_empty_string(
-        _require_field(workers, "environment.workers", "memory"),
-        "environment.workers.memory",
-    )
-
     _validate_component(stack, "stack")
-
     _validate_component(observability, "observability")
-    _require_positive_int(
-        _require_field(observability, "observability", "frequency_seconds"),
-        "observability.frequency_seconds",
-    )
-    if "local_port" in observability:
-        _require_positive_int(observability["local_port"], "observability.local_port")
-    if "timeout_seconds" in observability:
-        _require_positive_int(observability["timeout_seconds"], "observability.timeout_seconds")
-
     _validate_component(traffic, "traffic")
-    _require_non_empty_string(_require_field(traffic, "traffic", "shape"), "traffic.shape")
-    _require_positive_int(
-        _require_field(traffic, "traffic", "cycle_minutes"),
-        "traffic.cycle_minutes",
-    )
-
     _validate_component(optimizer, "optimizer")
 
     if dataset:

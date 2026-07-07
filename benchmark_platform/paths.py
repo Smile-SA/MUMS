@@ -16,6 +16,7 @@ class RunPaths:
     metrics: Path
     kubernetes: Path
     datasets: Path
+    artifacts: Path
 
     @classmethod
     def create(cls, root: Path) -> RunPaths:
@@ -30,6 +31,7 @@ class RunPaths:
             metrics=root / "metrics",
             kubernetes=root / "kubernetes",
             datasets=root / "datasets",
+            artifacts=root / "artifacts",
         )
 
         for path in (
@@ -40,7 +42,13 @@ class RunPaths:
             paths.metrics,
             paths.kubernetes,
             paths.datasets,
+            paths.artifacts,
         ):
             path.mkdir(parents=True, exist_ok=True)
 
         return paths
+
+    def module_artifacts(self, name: str) -> Path:
+        d = self.artifacts / name
+        d.mkdir(parents=True, exist_ok=True)
+        return d

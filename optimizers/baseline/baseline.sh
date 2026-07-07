@@ -1,30 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ACTION="${1:-start}"
+# Minimal optimizer contract: deploy onto the cluster and stop there.
+# Usage: ./baseline.sh deploy <kubeconfig>
+
+ACTION="${1:-deploy}"
 
 case "${ACTION}" in
-  prepare|start|deploy)
+  deploy)
     echo "=== Baseline optimizer: no additional optimization is applied ===" >&2
     echo "Kubernetes default scheduling and controller behavior remain active." >&2
     ;;
-  stop|destroy)
-    echo "=== Baseline optimizer: nothing to stop ===" >&2
-    ;;
-  status)
-    echo "baseline"
-    ;;
-  collect)
-    # No optimizer artifacts are produced by the baseline.
-    ;;
   -h|--help|help)
     cat <<USAGE
-Usage: $0 <prepare|start|deploy|stop|destroy|status|collect>
+Usage: $0 deploy <kubeconfig>
 
-Baseline optimizer adapter.
-
-This mode applies no additional optimization algorithm.
-Kubernetes default scheduling remains active.
+Baseline optimizer adapter (minimal contract).
+Deploys nothing: Kubernetes default scheduling remains active.
 USAGE
     ;;
   *)

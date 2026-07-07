@@ -1,0 +1,15 @@
+name: optimizers.koordinator
+type: optimizer
+entrypoint: run.sh
+
+lifecycle:
+  deploy: "run.sh deploy <kubeconfig>"
+
+dependencies:
+  python: []
+  commands:
+    - helm
+    - kubectl
+  utils:
+    - utils/koordinator
+    - utils/helm

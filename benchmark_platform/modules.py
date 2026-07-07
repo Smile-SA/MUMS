@@ -31,12 +31,29 @@ class ModuleSpec:
 
     @property
     def entrypoint(self) -> Path:
+        # Convention: modules ship a `run.sh`. Declare `entrypoint:` in module.yaml
+        # only to override (e.g. util modules using deploy.sh / validate_node_image.sh).
         entrypoint = str(self.descriptor.get("entrypoint", "run.sh"))
         return self.module_path / entrypoint
 
     @property
     def entrypoint_relative(self) -> str:
         return self.entrypoint.relative_to(self.repo_root).as_posix()
+
+    @property
+    def lifecycle(self) -> dict[str, Any]:
+        lc = self.descriptor.get("lifecycle", {})
+        return lc if isinstance(lc, dict) else {}
+
+    @property
+    def arg_schema(self) -> dict[str, Any]:
+        schema = self.descriptor.get("args", {})
+        return schema if isinstance(schema, dict) else {}
+
+    def supports(self, action: str) -> bool:
+        # A declared lifecycle map is authoritative; absent one, assume supported
+        # (back-compat with modules that predate this declaration).
+        return action in self.lifecycle if self.lifecycle else True
 
     def command(self, action: str, *args: str) -> list[str]:
         if not self.entrypoint.exists():

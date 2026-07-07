@@ -3,11 +3,16 @@ type: environment
 entrypoint: run.sh
 
 lifecycle:
-  create: "run.sh create <seed> [--workers=count=N,cpu=X,memory=YGi]"
+  create: "run.sh create <seed>"
   destroy: "run.sh destroy <seed>"
 
 outputs:
   create_stdout: kubeconfig_path
+
+args:
+  node_image: { required: false, type: string }
+  workers:    { required: false, type: mapping }
+  metallb:    { required: false, type: mapping }
 
 dependencies:
   python: []
