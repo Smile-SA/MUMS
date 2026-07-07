@@ -2,7 +2,9 @@ SHELL := /bin/bash
 
 PYTHON ?= python3
 VENV_DIR ?= .venv
-VENV_PYTHON := $(VENV_DIR)/bin/python
+# Prefer the venv if it exists (CREATE_VENV=false during setup skips it),
+# otherwise fall back to the active interpreter.
+VENV_PYTHON := $(shell [ -x "$(VENV_DIR)/bin/python" ] && echo "$(VENV_DIR)/bin/python" || echo "$(PYTHON)")
 
 .PHONY: help setup-core setup-dev setup-module check-prereqs check-module doctor install-system-deps-ubuntu check check-shell check-python lint validate-config run-basic test smoke clean clean-venv clean-env
 
@@ -10,6 +12,7 @@ help:
 	@echo "Benchmark platform developer commands"
 	@echo
 	@echo "  make setup-core     Create .venv and install core runtime dependencies"
+	@echo "                      (CREATE_VENV=false installs into the active Python environment instead)"
 	@echo "  make setup-dev      Create .venv and install core runtime + development dependencies"
 	@echo "  make setup-module   Create .venv and install modules dependencies"
 	@echo "  make check-prereqs  Validate required system tools and Python runtime imports"

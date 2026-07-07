@@ -170,12 +170,21 @@ fi
 
 if [[ "${SKIP_PYTHON_IMPORTS}" == "false" && ( "${MODE}" == "setup" || "${MODE}" == "all" ) ]]; then
   echo
-  echo "=== Python virtual environment dependencies ==="
+  echo "=== Python dependencies ==="
 
-  if [[ ! -x "${VENV_DIR}/bin/python" ]]; then
-    error "Virtual environment not found at ${VENV_DIR}. Run 'make setup-core' (or 'make setup-dev') first."
+  # The venv is a convenience (CREATE_VENV=false skips it); fall back to
+  # whatever Python interpreter is active when it doesn't exist.
+  if [[ -x "${VENV_DIR}/bin/python" ]]; then
+    CHECK_PYTHON="${VENV_DIR}/bin/python"
+    echo "Using virtual environment: ${VENV_DIR}"
   else
-    if "${VENV_DIR}/bin/python" - <<'PY'
+    CHECK_PYTHON="$(command -v python3 || true)"
+    echo "No virtual environment found at ${VENV_DIR}; checking the active interpreter."
+  fi
+
+  if [[ -z "${CHECK_PYTHON}" ]]; then
+    error "No Python interpreter found. Run 'make setup-core' (or 'make setup-dev'), or activate one manually."
+  elif "${CHECK_PYTHON}" - <<'PY'
 import importlib
 
 required_modules = ("yaml",)
@@ -188,15 +197,14 @@ for module_name in required_modules:
         missing.append(module_name)
 
 if missing:
-    raise SystemExit(f"Missing Python modules in virtual environment: {', '.join(missing)}")
+    raise SystemExit(f"Missing Python modules: {', '.join(missing)}")
 
 print("[OK] Runtime Python dependencies are importable.")
 PY
-    then
-      :
-    else
-      error "Python runtime dependency validation failed. Run 'make setup-core' (or 'make setup-dev') again."
-    fi
+  then
+    :
+  else
+    error "Python runtime dependency validation failed. Run 'make setup-core' (or 'make setup-dev') again."
   fi
 fi
 

@@ -32,6 +32,10 @@ make setup-core          # create .venv and install runtime deps
 make setup-dev           # also install dev/lint tools
 ```
 
+The virtual environment is a recommended convenience, not a requirement —
+`CREATE_VENV=false make setup-core` installs into whatever Python environment
+is already active instead.
+
 For module-specific dependencies (e.g. Locust extras):
 
 ```bash
@@ -77,11 +81,11 @@ The platform runs the following lifecycle sequence:
 1. `environment create` → kubeconfig
 2. `observability start`
 3. `stack deploy`
-4. `traffic start`
-5. `optimizer deploy`
+4. `optimizer deploy`
+5. `traffic start`
 6. wait `duration_seconds`
-7. `observability stop`
-8. `traffic stop`
+7. `traffic stop` (if the traffic module declares it supports `stop`)
+8. `observability stop`
 9. `environment destroy`
 
 Run output (metrics, manifest, dataset) lands in `output/runs/<run-id>/`.
@@ -136,5 +140,6 @@ make test       # Python unit tests (requires make setup-dev)
   resource metrics observed by the optimizer.
 - Use `http://127.0.0.1:9090` (not `localhost`) when pointing Grafana at the local
   Prometheus port-forward — Grafana has a DNS cache issue with `localhost`.
-- The Python venv must be active for manual CLI invocations (`source .venv/bin/activate`);
-  `make` targets activate it automatically.
+- Activate the Python venv for manual CLI invocations (`source .venv/bin/activate`);
+  `make` targets resolve it automatically, and fall back to the active
+  interpreter if you set up the platform with `CREATE_VENV=false`.

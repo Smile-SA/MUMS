@@ -41,7 +41,8 @@ make setup
 This command:
 
 1. Checks required host commands and Docker accessibility.
-2. Creates a local Python virtual environment under `.venv/`.
+2. Creates a local Python virtual environment under `.venv/` (recommended for
+   isolation, not required — see below).
 3. Installs runtime Python dependencies.
 4. Validates that runtime imports are available.
 
@@ -50,6 +51,18 @@ Activate the environment when running Python or Locust commands manually:
 ```bash
 source .venv/bin/activate
 ```
+
+### Skipping the virtual environment
+
+The venv is a convenience, not a hard requirement. If you already manage
+your own Python environment, install into it directly:
+
+```bash
+CREATE_VENV=false make setup-core
+```
+
+`make` targets (`make lint`, `make test`, `make run-basic`, …) fall back to
+the active `python3` interpreter automatically when `.venv/` does not exist.
 
 ## Development setup
 
