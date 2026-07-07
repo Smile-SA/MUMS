@@ -3,7 +3,12 @@
 A **module** is a self-contained directory that implements one family of
 benchmark-platform components (environment, stack, traffic, observability,
 optimizer, or dataset). The runner discovers and calls each module by reading
-`module.yaml` and invoking `run.sh <action> [args…]`.
+`module.yaml` and invoking its entrypoint (`run.sh` by convention).
+
+Modules are **self-describing**: they declare their own arguments
+(`args:`), dependencies, and supported lifecycle actions (`lifecycle:`). The
+core does not assemble module-specific CLI flags and does not know what
+fields a given module's YAML section contains.
 
 ---
 
@@ -12,7 +17,7 @@ optimizer, or dataset). The runner discovers and calls each module by reading
 ```
 <family>/<module-name>/
 ├── module.yaml   # descriptor — required
-├── run.sh        # entrypoint — required
+├── run.sh        # entrypoint — required by convention
 └── …             # any helpers your implementation needs
 ```
 
@@ -22,7 +27,8 @@ Examples from the existing codebase:
 - `traffic/online-boutique/` — Locust traffic generator
 - `observability/prometheus/` — Prometheus scraper
 - `optimizers/baseline/` — no-op baseline optimizer
-- `observability/analysis/` — OpenMetrics → CSV dataset generator
+- `optimizers/koordinator/` — Koordinator scheduler optimizer
+- `observability/analysis/` — OpenMetrics → CSV dataset generator (`type: dataset`)
 
 ---
 
@@ -31,20 +37,47 @@ Examples from the existing codebase:
 ```yaml
 name: <family>.<module-name>    # dotted label; used in the run manifest
 type: <family>                  # one of: environment, stack, traffic,
-                                #   observability, optimizer, dataset
-entrypoint: run.sh              # relative path inside the module dir (default: run.sh)
+                                 #   observability, optimizer, dataset
+entrypoint: run.sh              # relative path inside the module dir.
+                                 # Defaults to `run.sh` — declare this key only
+                                 # when your entrypoint is named differently.
 
-lifecycle:                      # optional documentation — not parsed by the runner
+lifecycle:                      # authoritative: which actions this module supports.
   <action>: "run.sh <action> <positional-args>"
+                                 # The runner calls mandatory actions for the
+                                 # family unconditionally (e.g. traffic.start,
+                                 # observability.start/stop). Actions the
+                                 # runner treats as optional (e.g.
+                                 # traffic.stop) are only called when declared
+                                 # here — see ModuleSpec.supports() in
+                                 # benchmark_platform/modules.py. A module with
+                                 # no `lifecycle:` block at all is assumed to
+                                 # support every action it's asked for
+                                 # (back-compat default).
+
+args:                            # optional: this module's own argument schema.
+  <field>:
+    required: false              # if true, the field must be present in the
+                                  #   scenario config section, or config
+                                  #   loading fails before anything runs.
+    default: <value>              # documentation only — the module itself
+                                  #   must apply this default; the core does
+                                  #   not inject it.
+    type: string|positive_int|bool|mapping  # enforced by
+                                  #   benchmark_platform.schema.validate_section
+                                  #   when the field is present.
 
 dependencies:                   # optional documentation — not enforced by the runner
-  commands: [kubectl, helm]
-  utils: [utils/helm]
-  python: []
+  commands: [kubectl, helm]      # must exist on PATH
+  utils: [utils/helm]            # recursively resolved by check_module_deps.sh /
+                                  #   install_module_deps.sh
+  modules: [observability/prometheus]  # recursively resolved, same as utils
+  python: [requirements.txt]
 ```
 
-The runner only reads `name`, `type`, and `entrypoint`. The `lifecycle` and
-`dependencies` blocks are documentation for humans.
+The runner reads `name`, `type`, `entrypoint`, `lifecycle`, and `args`. The
+`dependencies` block is documentation for humans and for
+`scripts/check_module_deps.sh` / `scripts/install_module_deps.sh`.
 
 ---
 
@@ -98,27 +131,32 @@ redirected to a log file by the runner. You do not need to silence debug output.
 
 ---
 
-## Environment variables
+## Positional arguments vs. module-specific config
 
-The runner injects these variables into every action:
+The runner passes only **framework-level positionals** to each action —
+values that are cross-cutting by nature (kubeconfig path, seed, output
+directory). See "Action signatures by family" below for the exact list per
+family.
 
-| Variable | Value |
-|----------|-------|
-| `BENCHMARK_RUN_DIR` | Root of the current run output directory |
-| `BENCHMARK_LOG_DIR` | `$BENCHMARK_RUN_DIR/logs/` |
-| `BENCHMARK_PID_DIR` | `$BENCHMARK_RUN_DIR/pids/` |
-| `BENCHMARK_TRAFFIC_DIR` | `$BENCHMARK_RUN_DIR/traffic/` |
-| `BENCHMARK_METRICS_DIR` | `$BENCHMARK_RUN_DIR/metrics/` |
-| `KIND_NODE_IMAGE` | Kind node image (from scenario config) |
-| `METALLB_IP_RANGE` | MetalLB IP range (from scenario config) |
-| `PROMETHEUS_LOCAL_PORT` | Prometheus local port (from scenario config) |
-| `PROMETHEUS_SCRAPE_TIMEOUT` | Prometheus scrape timeout in seconds |
-| `BENCHMARK_COMPONENT_CONFIG` | Full component section from the scenario config, JSON-encoded |
+Anything specific to your module (a traffic shape, a scrape frequency, a
+worker sizing) is **not** turned into a CLI flag by the runner. Instead, your
+module's entire scenario-config section is delivered as opaque JSON in the
+`BENCHMARK_COMPONENT_CONFIG` environment variable, and your module is
+responsible for reading it and applying its own defaults.
 
-### Reading extra parameters via `BENCHMARK_COMPONENT_CONFIG`
+### Reading arguments with `scripts/lib/component_config.sh`
 
-Any key you add to a component's section in the scenario config is automatically
-available to the module without changes to the runner.
+Source the shared helper and use `cfg_get <jq-filter> [default]`:
+
+```bash
+source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/lib/component_config.sh"
+
+SHAPE="$(cfg_get '.shape' 'day_profile')"
+CYCLE_MINUTES="$(cfg_get '.cycle_minutes' '60')"
+```
+
+`jq` is a required system dependency of the platform, so this helper is
+always available.
 
 ```yaml
 # scenario config
@@ -127,36 +165,47 @@ traffic:
   module: traffic/k6
   shape: day_profile
   cycle_minutes: 60
-  target_rps: 200        # custom field
+  target_rps: 200        # custom field — no runner change needed
 ```
-
-In `run.sh`, read it with `jq` (or any JSON parser):
 
 ```bash
-TARGET_RPS=$(echo "$BENCHMARK_COMPONENT_CONFIG" | jq -r '.target_rps // 100')
+TARGET_RPS="$(cfg_get '.target_rps' '100')"
 ```
 
-Or with Python:
+---
 
-```bash
-TARGET_RPS=$(python3 -c "import json,os; print(json.loads(os.environ['BENCHMARK_COMPONENT_CONFIG']).get('target_rps', 100))")
-```
+## Environment variables
 
-The standard positional arguments (kubeconfig, seed, --shape, etc.) are passed
-regardless — `BENCHMARK_COMPONENT_CONFIG` is an addition, not a replacement.
+The runner injects these variables into every action:
+
+| Variable | Value |
+|----------|-------|
+| `BENCHMARK_RUN_DIR` | Root of the current run output directory |
+| `BENCHMARK_LOG_DIR` | `$BENCHMARK_RUN_DIR/logs/` |
+| `BENCHMARK_PID_DIR` | `$BENCHMARK_RUN_DIR/runtime/pids/` |
+| `BENCHMARK_TRAFFIC_DIR` | `$BENCHMARK_RUN_DIR/traffic/` |
+| `BENCHMARK_METRICS_DIR` | `$BENCHMARK_RUN_DIR/metrics/` |
+| `BENCHMARK_ARTIFACT_DIR` | `$BENCHMARK_RUN_DIR/artifacts/<module-name>/` — this module's own namespaced artifact directory |
+| `BENCHMARK_COMPONENT_CONFIG` | This module's scenario-config section, JSON-encoded |
+
+There are no other module-specific env vars (no `KIND_NODE_IMAGE`,
+`PROMETHEUS_LOCAL_PORT`, etc.) — those values live in
+`BENCHMARK_COMPONENT_CONFIG` and are read with `cfg_get`, same as any other
+module-specific field.
 
 ---
 
 ## Action signatures by family
 
-These are the exact arguments the runner passes for each action. Your `run.sh`
-must accept them. The `module.yaml` lifecycle block is only documentation.
+These are the exact positional arguments the runner passes for each action.
+Your `run.sh` must accept them; anything beyond these positionals comes from
+`BENCHMARK_COMPONENT_CONFIG`.
 
 ### environment
 
 ```bash
 # stdout must print the kubeconfig file path (single line, stripped)
-run.sh create <seed> --workers=count=N,cpu=X,memory=YGi
+run.sh create <seed>
 
 # teardown (check=False)
 run.sh destroy <seed>
@@ -171,7 +220,7 @@ run.sh deploy <kubeconfig> <seed>
 ### observability
 
 ```bash
-run.sh start <kubeconfig> <metrics_dir> --frequency=<seconds>
+run.sh start <kubeconfig> <metrics_dir>
 
 # teardown (check=False)
 run.sh stop <kubeconfig>
@@ -180,22 +229,37 @@ run.sh stop <kubeconfig>
 ### traffic
 
 ```bash
-run.sh start <kubeconfig> <seed> --shape=<shape_name> --duration=<cycle_minutes>
+run.sh start <kubeconfig> <seed>
 
-# teardown (check=False)
+# teardown (check=False), only called if the module's lifecycle: declares `stop`
 run.sh stop <kubeconfig>
 ```
 
 ### optimizer
 
+Minimal contract: the optimizer deploys onto the cluster and stops there. It
+dies with the cluster on `environment destroy`; the runner never polls its
+status and never calls `stop`/`collect` on it. Only implement those as
+additional lifecycle actions if your optimizer runs a host-side process that
+needs explicit teardown — and declare them in `lifecycle:` if so.
+
 ```bash
-run.sh start
+run.sh deploy <kubeconfig>
 ```
 
 ### dataset
 
 ```bash
 run.sh generate <metrics_om_file> <datasets_output_dir>
+```
+
+The dataset module owns the "nothing to generate" case: if the metrics file
+is missing or empty, exit `0` without generating anything (do not fail the
+run). It also owns writing `datasets/dataset-metadata.yaml` once generation
+succeeds, via the metadata CLI:
+
+```bash
+python3 -m benchmark_platform.datasets.metadata "${BENCHMARK_RUN_DIR}"
 ```
 
 ---
@@ -238,8 +302,12 @@ type: traffic
 entrypoint: run.sh
 
 lifecycle:
-  start: "run.sh start <kubeconfig> <seed> --shape=<shape> --duration=<cycle_minutes>"
+  start: "run.sh start <kubeconfig> <seed>"
   stop:  "run.sh stop <kubeconfig>"
+
+args:
+  shape:         { required: false, default: day_profile, type: string }
+  cycle_minutes: { required: false, default: 60, type: positive_int }
 
 dependencies:
   commands: [k6, kubectl]
@@ -253,6 +321,7 @@ dependencies:
 #!/usr/bin/env bash
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/../../scripts/lib/component_config.sh"
 
 ACTION="${1:?action required}"
 shift
@@ -261,15 +330,8 @@ case "$ACTION" in
   start)
     KUBECONFIG="$1"
     SEED="$2"
-    # parse --shape= and --duration= from remaining args
-    SHAPE="day_profile"
-    DURATION_MINUTES=60
-    for arg in "${@:3}"; do
-      case "$arg" in
-        --shape=*)    SHAPE="${arg#--shape=}" ;;
-        --duration=*) DURATION_MINUTES="${arg#--duration=}" ;;
-      esac
-    done
+    SHAPE="$(cfg_get '.shape' 'day_profile')"
+    DURATION_MINUTES="$(cfg_get '.cycle_minutes' '60')"
 
     TARGET_URL="$(kubectl --kubeconfig="$KUBECONFIG" get svc frontend-external \
       -n default -o jsonpath='http://{.status.loadBalancer.ingress[0].ip}:80')"
@@ -312,4 +374,5 @@ benchmark-platform run configs/my-scenario.yaml
 ```
 
 The runner will resolve `traffic/k6/module.yaml`, verify `type: traffic`, and
-call `./traffic/k6/run.sh start …` when the traffic phase begins.
+call `./traffic/k6/run.sh start <kubeconfig> <seed>` when the traffic phase
+begins.

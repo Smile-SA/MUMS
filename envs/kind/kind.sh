@@ -22,6 +22,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 UTILS_DIR="$SCRIPT_DIR/../../utils"
+source "${REPO_ROOT}/scripts/lib/component_config.sh"
 
 ACTION=$1
 SEED=$2
@@ -29,10 +30,13 @@ shift 2
 
 CLUSTER_NAME="kind-test-${SEED}"
 KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
-KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-kindest/node:v1.34.0}"
+KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$(cfg_get '.node_image' 'kindest/node:v1.34.0')}"
 METALLB_IP_RANGE="${METALLB_IP_RANGE:-auto}"
 METALLB_POOL_SIZE="${METALLB_POOL_SIZE:-50}"
 
+# --workers= is accepted for manual/debug invocations; the runner itself
+# passes worker sizing via the environment.workers section of the scenario
+# config (BENCHMARK_COMPONENT_CONFIG), read below via cfg_get.
 WORKERS_PARAM=""
 
 while [[ "$#" -gt 0 ]]; do
@@ -41,6 +45,15 @@ while [[ "$#" -gt 0 ]]; do
         *)         shift ;;
     esac
 done
+
+if [ -z "$WORKERS_PARAM" ]; then
+    WORKERS_COUNT="$(cfg_get '.workers.count' '1')"
+    WORKERS_CPU="$(cfg_get '.workers.cpu' '')"
+    WORKERS_MEM="$(cfg_get '.workers.memory' '')"
+    WORKERS_PARAM="count=${WORKERS_COUNT}"
+    [ -n "$WORKERS_CPU" ] && WORKERS_PARAM="${WORKERS_PARAM},cpu=${WORKERS_CPU}"
+    [ -n "$WORKERS_MEM" ] && WORKERS_PARAM="${WORKERS_PARAM},memory=${WORKERS_MEM}"
+fi
 
 # ─── Resource helpers ─────────────────────────────────────────────────────────
 

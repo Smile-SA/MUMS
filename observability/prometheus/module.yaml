@@ -3,8 +3,13 @@ type: observability
 entrypoint: run.sh
 
 lifecycle:
-  start: "run.sh start <kubeconfig> <metrics_dir> [--frequency=<seconds>]"
+  start: "run.sh start <kubeconfig> <metrics_dir>"
   stop: "run.sh stop <kubeconfig>"
+
+args:
+  frequency_seconds: { required: false, default: 15, type: positive_int }
+  local_port:        { required: false, default: 9090, type: positive_int }
+  timeout_seconds:   { required: false, default: 10, type: positive_int }
 
 dependencies:
   python: []

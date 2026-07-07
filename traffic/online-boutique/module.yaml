@@ -2,6 +2,14 @@ name: traffic.online-boutique
 type: traffic
 entrypoint: run.sh
 
+lifecycle:
+  start: "run.sh start <kubeconfig> <seed>"
+  stop: "run.sh stop <kubeconfig>"
+
+args:
+  shape:         { required: false, default: day_profile, type: string }
+  cycle_minutes: { required: false, default: 60, type: positive_int }
+
 dependencies:
   python:
     - requirements.txt

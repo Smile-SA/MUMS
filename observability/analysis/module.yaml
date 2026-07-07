@@ -3,7 +3,10 @@ type: dataset
 entrypoint: run.sh
 
 lifecycle:
-  generate: "run.sh generate <metrics_file> <output_dir> [--lines=N]"
+  generate: "run.sh generate <metrics_file> <output_dir>"
+
+args:
+  enabled: { required: false, default: true, type: bool }
 
 dependencies:
   python: []

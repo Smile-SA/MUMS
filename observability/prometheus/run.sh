@@ -1,12 +1,17 @@
 #!/bin/bash
 # Manages observability: Prometheus port-forward + scraper.
 # Usage:
-#   ./run.sh start <kubeconfig> <output_dir> [--frequency=<seconds>]
+#   ./run.sh start <kubeconfig> <output_dir>
 #   ./run.sh stop  <kubeconfig>
+#
+# frequency_seconds / local_port / timeout_seconds are read from this
+# module's own scenario-config section (BENCHMARK_COMPONENT_CONFIG).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PROMETHEUS_DIR="$SCRIPT_DIR/../../utils/prometheus"
 SCRAPER="$SCRIPT_DIR/../../utils/scraper/scraper.py"
+source "${REPO_ROOT}/scripts/lib/component_config.sh"
 
 ACTION=$1
 shift
@@ -19,7 +24,7 @@ case "$ACTION" in
         shift 2
 
         if [ -z "$KUBECONFIG" ] || [ -z "$OUTPUT_DIR" ]; then
-            echo "Usage: $0 start <kubeconfig> <output_dir> [--frequency=<seconds>]" >&2
+            echo "Usage: $0 start <kubeconfig> <output_dir>" >&2
             exit 1
         fi
 
@@ -28,12 +33,7 @@ case "$ACTION" in
             exit 1
         fi
 
-        FREQUENCY=15
-        for arg in "$@"; do
-            case $arg in
-                --frequency=*) FREQUENCY="${arg#--frequency=}" ;;
-            esac
-        done
+        FREQUENCY="$(cfg_get '.frequency_seconds' '15')"
 
         NAME="$(basename "$KUBECONFIG")"
 
@@ -52,7 +52,7 @@ case "$ACTION" in
         SCRAPER_LOG_FILE="${BENCHMARK_LOG_DIR}/scraper.log"
         SCRAPER_PID_FILE="${BENCHMARK_PID_DIR}/scraper-${NAME}.pid"
 
-        PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-9090}"
+        PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-$(cfg_get '.local_port' '9090')}"
         PROMETHEUS_BASE_URL="${PROMETHEUS_BASE_URL:-http://127.0.0.1:${PROMETHEUS_LOCAL_PORT}}"
 
         export PROMETHEUS_LOCAL_PORT
@@ -67,7 +67,7 @@ case "$ACTION" in
         fi
 
         SCRAPE_METADATA_FILE="${BENCHMARK_METRICS_DIR}/scrapes.csv"
-        PROMETHEUS_SCRAPE_TIMEOUT="${PROMETHEUS_SCRAPE_TIMEOUT:-10}"
+        PROMETHEUS_SCRAPE_TIMEOUT="${PROMETHEUS_SCRAPE_TIMEOUT:-$(cfg_get '.timeout_seconds' '10')}"
 
         python3 "$SCRAPER" \
             --url "$PROMETHEUS_BASE_URL" \
@@ -113,7 +113,7 @@ case "$ACTION" in
 
     *)
         echo "Usage: $0 <start|stop> ..." >&2
-        echo "  start <kubeconfig> <output_dir> [--frequency=<seconds>]" >&2
+        echo "  start <kubeconfig> <output_dir>" >&2
         echo "  stop  <kubeconfig>" >&2
         exit 1
         ;;

@@ -1,16 +1,18 @@
 #!/bin/bash
 # Generates traffic against Online Boutique from the host machine.
 # Usage:
-#   ./run.sh start <kubeconfig> <seed> [--shape=<name>] [--duration=<minutes>] [options ...]
+#   ./run.sh start <kubeconfig> <seed>
 #   ./run.sh stop  <kubeconfig>
 #
-# Options (start):
-#   --shape=<name>      Traffic shape to use (default: day_profile)
-#   --duration=<min>    Cycle duration in minutes (overrides DURATION_MINUTES from the shape)
+# shape / cycle_minutes are read from this module's own scenario-config
+# section (BENCHMARK_COMPONENT_CONFIG):
+#   shape:          Traffic shape to use (default: day_profile)
+#   cycle_minutes:  Cycle duration in minutes (overrides DURATION_MINUTES from the shape)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TRAFFIC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "${REPO_ROOT}/scripts/lib/component_config.sh"
 
 ACTION=$1
 shift
@@ -23,7 +25,7 @@ case "$ACTION" in
         shift 2
 
         if [ -z "$KUBECONFIG" ] || [ -z "$SEED" ]; then
-            echo "Usage: $0 start <kubeconfig> <seed> [--shape=<name>] [--duration=<minutes>]" >&2
+            echo "Usage: $0 start <kubeconfig> <seed>" >&2
             exit 1
         fi
 
@@ -60,16 +62,8 @@ case "$ACTION" in
             rm -f "$PID_FILE"
         fi
 
-        SHAPE="day_profile"
-        DURATION=""
-
-        for arg in "$@"; do
-            case $arg in
-                --shape=*)    SHAPE="${arg#--shape=}" ;;
-                --duration=*) DURATION="${arg#--duration=}" ;;
-                *)  ;;
-            esac
-        done
+        SHAPE="$(cfg_get '.shape' 'day_profile')"
+        DURATION="$(cfg_get '.cycle_minutes' '')"
 
         SHAPE_FILE="$TRAFFIC_DIR/shapes/${SHAPE}.py"
         if [ ! -f "$SHAPE_FILE" ]; then
@@ -134,7 +128,7 @@ case "$ACTION" in
 
     *)
         echo "Usage: $0 <start|stop> ..." >&2
-        echo "  start <kubeconfig> <seed> [--shape=<name>] [--duration=<minutes>]" >&2
+        echo "  start <kubeconfig> <seed>" >&2
         echo "  stop  <kubeconfig>" >&2
         exit 1
         ;;
