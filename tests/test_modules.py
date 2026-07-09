@@ -23,7 +23,7 @@ def test_missing_module_fails() -> None:
         load_module(Path(".").resolve(), "does/not/exist")
 
 
-def test_supports_defaults_true_without_lifecycle_block(tmp_path: Path) -> None:
+def test_missing_lifecycle_raises(tmp_path: Path) -> None:
     module_dir = tmp_path / "traffic" / "notype"
     module_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text(
@@ -33,8 +33,8 @@ def test_supports_defaults_true_without_lifecycle_block(tmp_path: Path) -> None:
 
     module = load_module(tmp_path, "traffic/notype", expected_type="traffic")
 
-    assert module.supports("stop") is True
-    assert module.supports("anything") is True
+    with pytest.raises(ModuleError):
+        module.supports("stop")
 
 
 def test_supports_reflects_declared_lifecycle(tmp_path: Path) -> None:

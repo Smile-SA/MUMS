@@ -15,10 +15,9 @@ Every lifecycle action a family supports is either:
   family must implement it.
 - **OPTIONAL** — a module declares support for it in `module.yaml`'s
   `lifecycle:` map; the runner only calls it when declared (see
-  `ModuleSpec.supports()` in `benchmark_platform/modules.py`). A module that
-  omits the `lifecycle:` block entirely is treated as supporting whatever
-  it's asked for (back-compat default for modules written before this
-  declaration existed).
+  `ModuleSpec.supports()` in `benchmark_platform/modules.py`). The
+  `lifecycle:` map is mandatory for component modules: a module that omits
+  it fails loudly rather than being silently assumed to support everything.
 
 There are no other, undeclared lifecycle actions in the public contract.
 Anything not listed below is out of scope for this release.
@@ -32,8 +31,10 @@ Component adapters accept, directly or indirectly:
 - A kubeconfig path when interacting with Kubernetes.
 - A seed when randomness is involved.
 - An output or run directory when writing artifacts.
-- Their own scenario-config section, as opaque JSON in
-  `BENCHMARK_COMPONENT_CONFIG` (see [`writing-a-module.md`](writing-a-module.md)).
+- Their own scenario-config section, carried opaquely in
+  `BENCHMARK_COMPONENT_CONFIG` as flow-style YAML — a strict subset of
+  YAML 1.2 that is also valid JSON (see
+  [`writing-a-module.md`](writing-a-module.md)).
   The runner does not assemble module-specific CLI flags — every
   module-specific argument is optional and defaulted by the module itself.
 
@@ -228,6 +229,10 @@ Responsibilities:
 - Write `datasets/dataset-metadata.yaml` via
   `python3 -m benchmark_platform.datasets.metadata <run_dir>`.
 
+The runner no longer contains the "skip if `metrics.om` is empty" check nor
+the `write_metadata()` call — both moved into the dataset module, which is
+why a replacement module must implement them itself.
+
 Lifecycle:
 
 | Action | Contract | Signature |
@@ -238,8 +243,9 @@ Lifecycle:
 
 A module's `dependencies:` block in `module.yaml` is not a list of things
 that are nice to have — it is a list of things that are **installed on
-demand for the modules a scenario selects, and required whenever that
-module runs**:
+demand for the modules a scenario selects, and mandatory whenever that
+module runs**. Running only the Prometheus observability path never
+installs Locust's dependencies:
 
 ```yaml
 dependencies:
@@ -252,3 +258,9 @@ dependencies:
 `scripts/check_module_deps.sh` and `scripts/install_module_deps.sh` walk
 `utils` and `modules` recursively and are the source of truth for how
 dependency resolution actually behaves.
+
+The mechanism only works if modules declare what they actually use: a
+command that happens to be a global prerequisite (e.g. `jq`, pulled in by
+`scripts/lib/component_config.sh`) must still appear in the `commands:`
+list of every module that uses it, or `check_module_deps.sh` cannot verify
+it.

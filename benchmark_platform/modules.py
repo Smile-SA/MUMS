@@ -46,8 +46,13 @@ class ModuleSpec:
 
     @property
     def lifecycle(self) -> dict[str, Any]:
-        lc = self.descriptor.get("lifecycle", {})
-        return lc if isinstance(lc, dict) else {}
+        lc = self.descriptor.get("lifecycle")
+        if not isinstance(lc, dict) or not lc:
+            raise ModuleError(
+                f"Module '{self.relative_path}' must declare a non-empty 'lifecycle' "
+                f"map in module.yaml."
+            )
+        return lc
 
     @property
     def arg_schema(self) -> dict[str, Any]:
@@ -55,9 +60,7 @@ class ModuleSpec:
         return schema if isinstance(schema, dict) else {}
 
     def supports(self, action: str) -> bool:
-        # A declared lifecycle map is authoritative; absent one, assume supported
-        # (back-compat with modules that predate this declaration).
-        return action in self.lifecycle if self.lifecycle else True
+        return action in self.lifecycle
 
     def command(self, action: str, *args: str) -> list[str]:
         if not self.entrypoint.exists():

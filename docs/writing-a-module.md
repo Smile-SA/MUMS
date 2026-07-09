@@ -17,7 +17,7 @@ fields a given module's YAML section contains.
 ```
 <family>/<module-name>/
 ├── module.yaml   # descriptor — required
-├── run.sh        # entrypoint — required by convention
+├── run.sh        # entrypoint — declared via `entrypoint:` in module.yaml
 └── …             # any helpers your implementation needs
 ```
 
@@ -38,22 +38,24 @@ Examples from the existing codebase:
 name: <family>.<module-name>    # dotted label; used in the run manifest
 type: <family>                  # one of: environment, stack, traffic,
                                  #   observability, optimizer, dataset
-entrypoint: run.sh              # relative path inside the module dir.
-                                 # Defaults to `run.sh` — declare this key only
-                                 # when your entrypoint is named differently.
+entrypoint: run.sh              # REQUIRED: relative path inside the module dir.
+                                 # There is no default — a component module
+                                 # that omits this key fails to load.
 
-lifecycle:                      # authoritative: which actions this module supports.
-  <action>: "run.sh <action> <positional-args>"
-                                 # The runner calls mandatory actions for the
-                                 # family unconditionally (e.g. traffic.start,
+lifecycle:                      # REQUIRED: which actions this module supports.
+  <action>: "<positional-args>"
+                                 # The value documents the argument signature
+                                 # only — the runner reads just the keys.
+                                 # Mandatory actions for the family are called
+                                 # unconditionally (e.g. traffic.start,
                                  # observability.start/stop). Actions the
                                  # runner treats as optional (e.g.
                                  # traffic.stop) are only called when declared
                                  # here — see ModuleSpec.supports() in
-                                 # benchmark_platform/modules.py. A module with
-                                 # no `lifecycle:` block at all is assumed to
-                                 # support every action it's asked for
-                                 # (back-compat default).
+                                 # benchmark_platform/modules.py. A component
+                                 # module with no `lifecycle:` map fails
+                                 # loudly instead of being assumed to support
+                                 # everything.
 
 args:                            # optional: this module's own argument schema.
   <field>:
@@ -67,7 +69,9 @@ args:                            # optional: this module's own argument schema.
                                   #   benchmark_platform.schema.validate_section
                                   #   when the field is present.
 
-dependencies:                   # optional documentation — not enforced by the runner
+dependencies:                   # not read by the runner, but mandatory at
+                                 # runtime: enforced by check_module_deps.sh /
+                                 # install_module_deps.sh for selected modules
   commands: [kubectl, helm]      # must exist on PATH
   utils: [utils/helm]            # recursively resolved by check_module_deps.sh /
                                   #   install_module_deps.sh
@@ -78,6 +82,11 @@ dependencies:                   # optional documentation — not enforced by the
 The runner reads `name`, `type`, `entrypoint`, `lifecycle`, and `args`. The
 `dependencies` block is documentation for humans and for
 `scripts/check_module_deps.sh` / `scripts/install_module_deps.sh`.
+
+**Exemption for `utils/*` modules:** helper modules under `utils/` are never
+loaded through `load_module()` — the runner never invokes them directly.
+Their `module.yaml` exists only for recursive dependency resolution, so the
+`entrypoint:` and `lifecycle:` requirements above do not apply to them.
 
 ---
 
@@ -140,9 +149,24 @@ family.
 
 Anything specific to your module (a traffic shape, a scrape frequency, a
 worker sizing) is **not** turned into a CLI flag by the runner. Instead, your
-module's entire scenario-config section is delivered as opaque JSON in the
+module's entire scenario-config section is delivered opaquely in the
 `BENCHMARK_COMPONENT_CONFIG` environment variable, and your module is
 responsible for reading it and applying its own defaults.
+
+### The wire format is YAML-compatible
+
+The scenario config and `module.yaml` are **YAML** — users never author
+JSON. On the wire, `BENCHMARK_COMPONENT_CONFIG` carries the module's own
+section serialized in **YAML flow style** (a strict subset of YAML 1.2, also
+valid JSON), so it is parseable by `jq`, `yq`, and `yaml.safe_load()` alike —
+verified: PyYAML parses exactly what the runner emits.
+
+Module authors **never parse it directly** — use `cfg_get` from
+`scripts/lib/component_config.sh` (below). That helper is the abstraction
+boundary: swapping its `jq` backend for `yq` later would change one file,
+not every module. `jq` is already a declared system prerequisite; `yq` is
+not installed anywhere, so moving to block-style YAML on the wire would
+**add** a dependency, contrary to the goal of reducing them.
 
 ### Reading arguments with `scripts/lib/component_config.sh`
 
@@ -186,7 +210,7 @@ The runner injects these variables into every action:
 | `BENCHMARK_TRAFFIC_DIR` | `$BENCHMARK_RUN_DIR/traffic/` |
 | `BENCHMARK_METRICS_DIR` | `$BENCHMARK_RUN_DIR/metrics/` |
 | `BENCHMARK_ARTIFACT_DIR` | `$BENCHMARK_RUN_DIR/artifacts/<module-name>/` — this module's own namespaced artifact directory |
-| `BENCHMARK_COMPONENT_CONFIG` | This module's scenario-config section, JSON-encoded |
+| `BENCHMARK_COMPONENT_CONFIG` | This module's scenario-config section, serialized as flow-style YAML (valid JSON) — read it with `cfg_get` |
 
 There are no other module-specific env vars (no `KIND_NODE_IMAGE`,
 `PROMETHEUS_LOCAL_PORT`, etc.) — those values live in
@@ -302,8 +326,8 @@ type: traffic
 entrypoint: run.sh
 
 lifecycle:
-  start: "run.sh start <kubeconfig> <seed>"
-  stop:  "run.sh stop <kubeconfig>"
+  start: "<kubeconfig> <seed>"
+  stop:  "<kubeconfig>"
 
 args:
   shape:         { required: false, default: day_profile, type: string }

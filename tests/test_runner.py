@@ -9,11 +9,15 @@ from benchmark_platform.config import load_config
 from benchmark_platform.runner import run_scenario
 
 
-def _make_module(root: Path, rel_path: str, name: str, module_type: str) -> None:
+def _make_module(
+    root: Path, rel_path: str, name: str, module_type: str, actions: list[str]
+) -> None:
     d = root / rel_path
     d.mkdir(parents=True)
+    lifecycle = "lifecycle:\n" + "".join(f"  {action}: ''\n" for action in actions)
     (d / "module.yaml").write_text(
-        f"name: {name}\ntype: {module_type}\nentrypoint: run.sh\n", encoding="utf-8"
+        f"name: {name}\ntype: {module_type}\nentrypoint: run.sh\n{lifecycle}",
+        encoding="utf-8",
     )
     (d / "run.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
 
@@ -23,12 +27,12 @@ def _make_repo(tmp_path: Path) -> tuple[Path, Path]:
     repo.mkdir()
     output_dir = tmp_path / "output"
 
-    _make_module(repo, "envs/kind", "envs.kind", "environment")
-    _make_module(repo, "stacks/mystack", "stacks.mystack", "stack")
-    _make_module(repo, "observability/prometheus", "obs.prom", "observability")
-    _make_module(repo, "traffic/mytraffic", "traffic.mytraffic", "traffic")
-    _make_module(repo, "optimizers/baseline", "opt.baseline", "optimizer")
-    _make_module(repo, "observability/analysis", "obs.analysis", "dataset")
+    _make_module(repo, "envs/kind", "envs.kind", "environment", ["create", "destroy"])
+    _make_module(repo, "stacks/mystack", "stacks.mystack", "stack", ["deploy"])
+    _make_module(repo, "observability/prometheus", "obs.prom", "observability", ["start", "stop"])
+    _make_module(repo, "traffic/mytraffic", "traffic.mytraffic", "traffic", ["start", "stop"])
+    _make_module(repo, "optimizers/baseline", "opt.baseline", "optimizer", ["deploy"])
+    _make_module(repo, "observability/analysis", "obs.analysis", "dataset", ["generate"])
 
     config_path = repo / "scenario.yaml"
     config_path.write_text(
