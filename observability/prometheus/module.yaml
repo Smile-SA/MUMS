@@ -3,8 +3,8 @@ type: observability
 entrypoint: run.sh
 
 lifecycle:
-  start: "run.sh start <kubeconfig> <metrics_dir>"
-  stop: "run.sh stop <kubeconfig>"
+  start: "<kubeconfig> <metrics_dir>"
+  stop: "<kubeconfig>"
 
 args:
   frequency_seconds: { required: false, default: 15, type: positive_int }
@@ -14,6 +14,7 @@ args:
 dependencies:
   python: []
   commands:
+    - jq          # required by scripts/lib/component_config.sh (cfg_get)
     - kubectl
     - curl
   utils:

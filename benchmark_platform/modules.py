@@ -31,10 +31,14 @@ class ModuleSpec:
 
     @property
     def entrypoint(self) -> Path:
-        # Convention: modules ship a `run.sh`. Declare `entrypoint:` in module.yaml
-        # only to override (e.g. util modules using deploy.sh / validate_node_image.sh).
-        entrypoint = str(self.descriptor.get("entrypoint", "run.sh"))
-        return self.module_path / entrypoint
+        # `entrypoint` is REQUIRED for component modules: explicit beats implicit,
+        # and a missing declaration must fail loudly rather than silently assume run.sh.
+        entrypoint = self.descriptor.get("entrypoint")
+        if not entrypoint or not str(entrypoint).strip():
+            raise ModuleError(
+                f"Module '{self.relative_path}' must declare an 'entrypoint' in module.yaml."
+            )
+        return self.module_path / str(entrypoint)
 
     @property
     def entrypoint_relative(self) -> str:
@@ -42,8 +46,13 @@ class ModuleSpec:
 
     @property
     def lifecycle(self) -> dict[str, Any]:
-        lc = self.descriptor.get("lifecycle", {})
-        return lc if isinstance(lc, dict) else {}
+        lc = self.descriptor.get("lifecycle")
+        if not isinstance(lc, dict) or not lc:
+            raise ModuleError(
+                f"Module '{self.relative_path}' must declare a non-empty 'lifecycle' "
+                f"map in module.yaml."
+            )
+        return lc
 
     @property
     def arg_schema(self) -> dict[str, Any]:
@@ -51,9 +60,7 @@ class ModuleSpec:
         return schema if isinstance(schema, dict) else {}
 
     def supports(self, action: str) -> bool:
-        # A declared lifecycle map is authoritative; absent one, assume supported
-        # (back-compat with modules that predate this declaration).
-        return action in self.lifecycle if self.lifecycle else True
+        return action in self.lifecycle
 
     def command(self, action: str, *args: str) -> list[str]:
         if not self.entrypoint.exists():

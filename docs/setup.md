@@ -64,6 +64,13 @@ CREATE_VENV=false make setup-core
 `make` targets (`make lint`, `make test`, `make run-basic`, …) fall back to
 the active `python3` interpreter automatically when `.venv/` does not exist.
 
+The `observability/analysis` dataset module (`generate` action) imports
+`benchmark_platform.datasets.metadata` directly, so whichever Python
+interpreter runs it must have `benchmark_platform` importable. Either
+activate a virtual environment that has it installed, run `pip install -e .`
+into your own environment, or set `PYTHON_BIN=/path/to/python` when invoking
+the module so it points at an interpreter that can import it.
+
 ## Development setup
 
 To install development validation tools as well:

@@ -23,7 +23,7 @@ def test_missing_module_fails() -> None:
         load_module(Path(".").resolve(), "does/not/exist")
 
 
-def test_supports_defaults_true_without_lifecycle_block(tmp_path: Path) -> None:
+def test_missing_lifecycle_raises(tmp_path: Path) -> None:
     module_dir = tmp_path / "traffic" / "notype"
     module_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text(
@@ -33,8 +33,8 @@ def test_supports_defaults_true_without_lifecycle_block(tmp_path: Path) -> None:
 
     module = load_module(tmp_path, "traffic/notype", expected_type="traffic")
 
-    assert module.supports("stop") is True
-    assert module.supports("anything") is True
+    with pytest.raises(ModuleError):
+        module.supports("stop")
 
 
 def test_supports_reflects_declared_lifecycle(tmp_path: Path) -> None:
@@ -42,7 +42,7 @@ def test_supports_reflects_declared_lifecycle(tmp_path: Path) -> None:
     module_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text(
         "name: traffic.declared\ntype: traffic\nentrypoint: run.sh\n"
-        "lifecycle:\n  start: run.sh start\n",
+        "lifecycle:\n  start: '<kubeconfig>'\n",
         encoding="utf-8",
     )
     (module_dir / "run.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
@@ -51,6 +51,15 @@ def test_supports_reflects_declared_lifecycle(tmp_path: Path) -> None:
 
     assert module.supports("start") is True
     assert module.supports("stop") is False
+
+
+def test_missing_entrypoint_raises(tmp_path: Path) -> None:
+    module_dir = tmp_path / "traffic" / "noentry"
+    module_dir.mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("name: t\ntype: traffic\n", encoding="utf-8")
+
+    with pytest.raises(ModuleError):
+        load_module(tmp_path, "traffic/noentry", expected_type="traffic")
 
 
 def test_arg_schema_defaults_to_empty_mapping() -> None:

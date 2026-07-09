@@ -3,7 +3,7 @@ type: optimizer
 entrypoint: run.sh
 
 lifecycle:
-  deploy: "run.sh deploy <kubeconfig>"
+  deploy: "<kubeconfig>"
 
 dependencies:
   python: []

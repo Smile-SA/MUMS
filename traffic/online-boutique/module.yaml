@@ -3,8 +3,8 @@ type: traffic
 entrypoint: run.sh
 
 lifecycle:
-  start: "run.sh start <kubeconfig> <seed>"
-  stop: "run.sh stop <kubeconfig>"
+  start: "<kubeconfig> <seed>"
+  stop: "<kubeconfig>"
 
 args:
   shape:         { required: false, default: day_profile, type: string }
@@ -13,5 +13,6 @@ args:
 dependencies:
   python:
     - requirements.txt
-  commands: []
+  commands:
+    - jq          # required by scripts/lib/component_config.sh (cfg_get)
   utils: []

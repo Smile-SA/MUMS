@@ -3,7 +3,7 @@ type: dataset
 entrypoint: run.sh
 
 lifecycle:
-  generate: "run.sh generate <metrics_file> <output_dir>"
+  generate: "<metrics_file> <output_dir>"
 
 args:
   enabled: { required: false, default: true, type: bool }
