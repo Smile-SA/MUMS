@@ -13,5 +13,6 @@ args:
 dependencies:
   python:
     - requirements.txt
-  commands: []
+  commands:
+    - jq          # required by scripts/lib/component_config.sh (cfg_get)
   utils: []

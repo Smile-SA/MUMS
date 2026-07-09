@@ -17,6 +17,7 @@ args:
 dependencies:
   python: []
   commands:
+    - jq          # required by scripts/lib/component_config.sh (cfg_get)
     - docker
     - kind
     - kubectl
