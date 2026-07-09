@@ -79,8 +79,8 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `create` | REQUIRED | `run.sh create <seed>` — must print the kubeconfig path to stdout |
-| `destroy` | REQUIRED | `run.sh destroy <seed>` |
+| `create` | REQUIRED | `<seed>` — must print the kubeconfig path to stdout |
+| `destroy` | REQUIRED | `<seed>` |
 
 ## 3. Stack components
 
@@ -107,7 +107,7 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `deploy` | REQUIRED | `run.sh deploy <kubeconfig> <seed>` |
+| `deploy` | REQUIRED | `<kubeconfig> <seed>` |
 
 The runner relies on whole-environment destruction (`environment destroy`)
 for stack teardown; there is no `stop`/`destroy` action in the current
@@ -138,8 +138,8 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `start` | REQUIRED | `run.sh start <kubeconfig> <metrics_dir>` |
-| `stop` | REQUIRED | `run.sh stop <kubeconfig>` (called with `check=False`) |
+| `start` | REQUIRED | `<kubeconfig> <metrics_dir>` |
+| `stop` | REQUIRED | `<kubeconfig>` (called with `check=False`) |
 
 ## 5. Traffic components
 
@@ -166,8 +166,8 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `start` | REQUIRED | `run.sh start <kubeconfig> <seed>` |
-| `stop` | OPTIONAL | `run.sh stop <kubeconfig>` (called with `check=False`, only if declared in `lifecycle:`) |
+| `start` | REQUIRED | `<kubeconfig> <seed>` |
+| `stop` | OPTIONAL | `<kubeconfig>` (called with `check=False`, only if declared in `lifecycle:`) |
 
 ## 6. Optimizer components
 
@@ -194,7 +194,7 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `deploy` | REQUIRED | `run.sh deploy <kubeconfig>` |
+| `deploy` | REQUIRED | `<kubeconfig>` |
 
 This is intentionally minimal. The optimizer dies with the cluster on
 `environment destroy` — the runner never polls its status, and metric
@@ -232,7 +232,7 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `generate` | REQUIRED (when the dataset section is enabled) | `run.sh generate <metrics_om_file> <datasets_output_dir>` |
+| `generate` | REQUIRED (when the dataset section is enabled) | `<metrics_om_file> <datasets_output_dir>` |
 
 ## 8. Module dependencies
 

@@ -3,10 +3,8 @@ type: stack
 entrypoint: run.sh
 
 lifecycle:
-  prepare: "run.sh prepare"
-  deploy: "run.sh deploy <kubeconfig> <seed>"
-  stop: "run.sh stop <kubeconfig>"
-  destroy: "run.sh destroy <kubeconfig>"
+  prepare: ""                       # OPTIONAL, invoked by prepare tooling
+  deploy: "<kubeconfig> <seed>"     # REQUIRED
 
 dependencies:
   python: []

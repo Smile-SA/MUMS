@@ -42,7 +42,7 @@ def test_supports_reflects_declared_lifecycle(tmp_path: Path) -> None:
     module_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text(
         "name: traffic.declared\ntype: traffic\nentrypoint: run.sh\n"
-        "lifecycle:\n  start: run.sh start\n",
+        "lifecycle:\n  start: '<kubeconfig>'\n",
         encoding="utf-8",
     )
     (module_dir / "run.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")

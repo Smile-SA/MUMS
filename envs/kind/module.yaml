@@ -3,8 +3,8 @@ type: environment
 entrypoint: run.sh
 
 lifecycle:
-  create: "run.sh create <seed>"
-  destroy: "run.sh destroy <seed>"
+  create: "<seed>"
+  destroy: "<seed>"
 
 outputs:
   create_stdout: kubeconfig_path
