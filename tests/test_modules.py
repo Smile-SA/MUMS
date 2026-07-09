@@ -53,6 +53,15 @@ def test_supports_reflects_declared_lifecycle(tmp_path: Path) -> None:
     assert module.supports("stop") is False
 
 
+def test_missing_entrypoint_raises(tmp_path: Path) -> None:
+    module_dir = tmp_path / "traffic" / "noentry"
+    module_dir.mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("name: t\ntype: traffic\n", encoding="utf-8")
+
+    with pytest.raises(ModuleError):
+        load_module(tmp_path, "traffic/noentry", expected_type="traffic")
+
+
 def test_arg_schema_defaults_to_empty_mapping() -> None:
     module = load_module(Path(".").resolve(), "traffic/online-boutique", expected_type="traffic")
 

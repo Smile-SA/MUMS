@@ -31,10 +31,14 @@ class ModuleSpec:
 
     @property
     def entrypoint(self) -> Path:
-        # Convention: modules ship a `run.sh`. Declare `entrypoint:` in module.yaml
-        # only to override (e.g. util modules using deploy.sh / validate_node_image.sh).
-        entrypoint = str(self.descriptor.get("entrypoint", "run.sh"))
-        return self.module_path / entrypoint
+        # `entrypoint` is REQUIRED for component modules: explicit beats implicit,
+        # and a missing declaration must fail loudly rather than silently assume run.sh.
+        entrypoint = self.descriptor.get("entrypoint")
+        if not entrypoint or not str(entrypoint).strip():
+            raise ModuleError(
+                f"Module '{self.relative_path}' must declare an 'entrypoint' in module.yaml."
+            )
+        return self.module_path / str(entrypoint)
 
     @property
     def entrypoint_relative(self) -> str:
