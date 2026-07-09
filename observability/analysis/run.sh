@@ -6,16 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 ACTION="${1:-}"
 shift || true
 
-# Prefer the platform's own virtual environment so benchmark_platform (and its
-# PyYAML dependency) is importable regardless of the caller's active shell.
-PYTHON_BIN="${PYTHON_BIN:-}"
-if [ -z "${PYTHON_BIN}" ]; then
-    if [ -x "${REPO_ROOT}/.venv/bin/python" ]; then
-        PYTHON_BIN="${REPO_ROOT}/.venv/bin/python"
-    else
-        PYTHON_BIN="$(command -v python3 || true)"
-    fi
-fi
+PYTHON_BIN="${PYTHON_BIN:-$(command -v python3 || true)}"
 
 case "${ACTION}" in
   generate)
