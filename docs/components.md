@@ -195,15 +195,20 @@ Lifecycle:
 | Action | Contract | Signature |
 |--------|----------|-----------|
 | `deploy` | REQUIRED | `run.sh deploy <kubeconfig>` |
+| `start` | OPTIONAL | `run.sh start <kubeconfig>` (only called if declared in `lifecycle:`) |
+| `stop` | OPTIONAL | `run.sh stop <kubeconfig>` (called with `check=False`, only if declared in `lifecycle:`) |
 
-This is intentionally minimal. The optimizer dies with the cluster on
-`environment destroy` — the runner never polls its status, and metric
-collection is always the observability module's job, never the optimizer's.
-`stop`/`status`/`collect` are **not** part of the public contract; an
-optimizer that genuinely needs one of them (e.g. a host-side process that
-must flush a decision log before exiting) may implement it as an
-undeclared, module-specific escape hatch, but it will never be called by the
-runner in this release.
+`deploy` remains the only required action — the baseline/Koordinator
+optimizers deploy onto the cluster and stop there, and the runner never
+polls their status. `start`/`stop` exist for an optimizer that runs a
+host-side process for the duration of the run (e.g. an online optimizer
+consuming live metrics and emitting placement decisions): when declared,
+the runner calls `start` right after `deploy` (before traffic begins) and
+`stop` during teardown, after `traffic.stop` and before
+`observability.stop` — so the optimizer stops acting on the cluster before
+the metrics source goes away. An optimizer that omits `start`/`stop` from
+`lifecycle:` still dies with the cluster on `environment destroy`, exactly
+as before.
 
 ## 7. Dataset components
 

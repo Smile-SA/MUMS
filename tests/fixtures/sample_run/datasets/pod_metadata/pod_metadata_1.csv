@@ -1,0 +1,4 @@
+pod,namespace,node,controller_kind,controller_name,qos_class,created_time,scheduled_time,running_time,ready_time,succeeded_time,failed_time
+frontend-1,online-boutique,node-a,ReplicaSet,frontend,Burstable,900.0,905.0,910.0,915.0,,
+cartservice-1,online-boutique,node-b,ReplicaSet,cartservice,Burstable,900.0,905.0,910.0,915.0,,
+kindnet-1,kube-system,node-a,DaemonSet,kindnet,Burstable,900.0,905.0,910.0,915.0,,

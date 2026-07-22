@@ -11,6 +11,7 @@ from benchmark_platform.config import ScenarioConfig
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
+from benchmark_platform.provenance import build_provenance
 from benchmark_platform.schema import validate_section
 from benchmark_platform.shell import capture_stdout, run_command
 
@@ -219,6 +220,7 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     environment_created = False
     observability_started = False
     traffic_started = False
+    optimizer_started = False
 
     env_vars = {
         "BENCHMARK_RUN_DIR": str(paths.root),
@@ -282,6 +284,18 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
             log_file=paths.logs / "optimizer.log",
         )
 
+        if optimizer_module.supports("start"):
+            manifest.append_event({"time": utc_now_iso(), "type": "optimizer.start"})
+            run_command(
+                optimizer_module.command("start", kubeconfig_path),
+                cwd=repo_root,
+                env=_component_env(
+                    env_vars, optimizer, paths.module_artifacts(optimizer_module.name)
+                ),
+                log_file=paths.logs / "optimizer-start.log",
+            )
+            optimizer_started = True
+
         manifest.append_event({"time": utc_now_iso(), "type": "traffic.start"})
         run_command(
             traffic_module.command("start", kubeconfig_path, str(config.seed)),
@@ -318,6 +332,18 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                     check=False,
                 )
 
+            if optimizer_started and optimizer_module.supports("stop"):
+                manifest.append_event({"time": utc_now_iso(), "type": "optimizer.stop"})
+                run_command(
+                    optimizer_module.command("stop", kubeconfig_path),
+                    cwd=repo_root,
+                    env=_component_env(
+                        env_vars, optimizer, paths.module_artifacts(optimizer_module.name)
+                    ),
+                    log_file=paths.logs / "optimizer-stop.log",
+                    check=False,
+                )
+
             if observability_started:
                 manifest.append_event({"time": utc_now_iso(), "type": "observability.stop"})
                 run_command(
@@ -332,6 +358,18 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
 
             manifest.append_event({"time": utc_now_iso(), "type": "kubernetes.collect-state"})
             _collect_kubernetes_state(kubeconfig_path, paths, repo_root)
+
+            manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
+            try:
+                provenance = build_provenance(
+                    pods_yaml_path=paths.kubernetes / "pods.yaml",
+                    kubeconfig=kubeconfig_path,
+                    artifacts_dir=paths.artifacts,
+                    cleanup_environment=config.cleanup_environment,
+                )
+                manifest.set("provenance", provenance)
+            except Exception as exc:  # provenance capture must never fail the run
+                manifest.set("provenance", {"error": str(exc)})
 
             _generate_datasets(paths, repo_root, env_vars, manifest, dataset_module, dataset)
 
