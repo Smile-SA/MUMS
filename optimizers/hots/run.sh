@@ -38,18 +38,21 @@ shift || true
 
 stop_pid_file() {
     local pid_file="$1" label="$2"
-    if [ -f "$pid_file" ]; then
-        local pid
-        pid="$(cat "$pid_file")"
-        if kill "$pid" 2>/dev/null; then
-            echo "=== ${label} stopped (PID ${pid})" >&2
-        else
-            echo "WARNING: ${label} (PID ${pid}) already stopped" >&2
-        fi
-        rm -f "$pid_file"
+    [ -f "$pid_file" ] || { echo "WARNING: no PID file for ${label}" >&2; return; }
+    local pid; pid="$(cat "$pid_file")"
+    if kill "$pid" 2>/dev/null; then
+        # Wait for a clean exit before the caller tears down shared
+        # infrastructure (the Kafka broker) out from under it.
+        for _ in $(seq 1 10); do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.5
+        done
+        kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+        echo "=== ${label} stopped (PID ${pid})" >&2
     else
-        echo "WARNING: no PID file found for ${label} (${pid_file})" >&2
+        echo "WARNING: ${label} (PID ${pid}) already stopped" >&2
     fi
+    rm -f "$pid_file"
 }
 
 case "$ACTION" in
