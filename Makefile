@@ -83,10 +83,10 @@ lint:
 		benchmark_platform tests traffic observability utils
 
 validate-config:
-	$(VENV_PYTHON) -m benchmark_platform.cli validate configs/basic-online-boutique.yaml
+	benchmark-platform validate configs/basic-online-boutique.yaml
 
 run-basic:
-	$(VENV_PYTHON) -m benchmark_platform.cli run configs/basic-online-boutique.yaml
+	benchmark-platform run configs/basic-online-boutique.yaml
 
 test:
 	@if find tests -type f -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then \
