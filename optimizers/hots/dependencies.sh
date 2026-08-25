@@ -46,4 +46,4 @@ echo "=== Installing HOTS from ${HOTS_REPO_PATH} ===" >&2
 "${PYTHON_BIN}" -m pip install -e "${HOTS_REPO_PATH}[kafka]"
 
 echo "=== Installing hots-connector from ${HOTS_CONNECTOR_REPO_PATH} ===" >&2
-"${PYTHON_BIN}" -m pip install -e "${HOTS_CONNECTOR_REPO_PATH}[kafka,kubernetes]"
+"${PYTHON_BIN}" -m pip install -e "${HOTS_CONNECTOR_REPO_PATH}[kafka,kubernetes,docker]"
