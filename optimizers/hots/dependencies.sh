@@ -28,11 +28,17 @@ if [ -z "${PYTHON_BIN}" ]; then
 fi
 
 if [ ! -d "${HOTS_REPO_PATH}" ]; then
-    echo "[ERROR] HOTS repo not found at ${HOTS_REPO_PATH}. Set HOTS_REPO_PATH." >&2
+    echo "[ERROR] HOTS repo not found at '${HOTS_REPO_PATH}'." >&2
+    echo "  Tried: ${HOTS_REPO_PATH}" >&2
+    echo "  Fix option A: clone/symlink hots next to this repo as 'hots'" >&2
+    echo "  Fix option B: export HOTS_REPO_PATH=/absolute/path/to/your/hots/checkout" >&2
     exit 1
 fi
 if [ ! -d "${HOTS_CONNECTOR_REPO_PATH}" ]; then
-    echo "[ERROR] hots-connector repo not found at ${HOTS_CONNECTOR_REPO_PATH}. Set HOTS_CONNECTOR_REPO_PATH." >&2
+    echo "[ERROR] hots-connector repo not found at '${HOTS_CONNECTOR_REPO_PATH}'." >&2
+    echo "  Tried: ${HOTS_CONNECTOR_REPO_PATH}" >&2
+    echo "  Fix option A: clone/symlink hots-connector next to this repo as 'hots-connector'" >&2
+    echo "  Fix option B: export HOTS_CONNECTOR_REPO_PATH=/absolute/path/to/your/hots-connector/checkout" >&2
     exit 1
 fi
 

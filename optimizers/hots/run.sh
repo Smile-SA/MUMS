@@ -94,6 +94,16 @@ case "$ACTION" in
         TOPIC_DATA="hots_data"
         TOPIC_MOVES="hots_moves"
 
+        # The observability module exposes its port via the port-forward; we can at
+        # least check the connector can reach Prometheus before launching HOTS.
+        echo "=== Pre-flight: checking Prometheus reachability at ${PROMETHEUS_URL} ===" >&2
+        if ! curl -fsS --max-time 5 "${PROMETHEUS_URL}/-/healthy" >/dev/null 2>&1; then
+            echo "ERROR: Prometheus not reachable at ${PROMETHEUS_URL}." >&2
+            echo "  Confirm observability/prometheus port-forward is running and" >&2
+            echo "  optimizer.prometheus_url matches observability.local_port." >&2
+            exit 1
+        fi
+
         echo "=== Starting per-run Kafka broker ===" >&2
         "${REPO_ROOT}/utils/kafka/broker.sh" start "$NAME" "$KAFKA_PORT"
 
@@ -169,16 +179,58 @@ case "$ACTION" in
             exit 1
         fi
 
-        curl -fsS "http://127.0.0.1:${CONNECTOR_API_PORT}/check" >&2 || true
+        echo "=== Checking hots-connector backends ===" >&2
+        CHECK_RESULT="$(curl -fsS "http://127.0.0.1:${CONNECTOR_API_PORT}/check" 2>/dev/null || echo '{}')"
+        echo "$CHECK_RESULT" >&2
+
+        # Fail fast if any backend reported an error: HOTS would otherwise start,
+        # get no telemetry, and exit cleanly after one empty poll -- with no
+        # obvious error pointing back to the connector misconfiguration.
+        if echo "$CHECK_RESULT" | grep -q '"error'; then
+            echo "ERROR: hots-connector /check reported backend failures (see above)." >&2
+            echo "  Fix the reported errors before starting the optimizer." >&2
+            exit 1
+        fi
+
         curl -fsS -X POST "http://127.0.0.1:${CONNECTOR_API_PORT}/stream/start" >&2 \
             || echo "WARNING: failed to start hots-connector's stream loop" >&2
 
         echo "=== Starting HOTS ===" >&2
         HOTS_LOG="${BENCHMARK_LOG_DIR}/hots.log"
         HOTS_PID_FILE="${BENCHMARK_PID_DIR}/hots-${NAME}.pid"
-        "$(command -v hots)" --config "${BENCHMARK_ARTIFACT_DIR}/hots-config.json" \
-            > "$HOTS_LOG" 2>&1 &
-        echo $! > "$HOTS_PID_FILE"
+        # The KRaft single-node broker occasionally fails to elect a group
+        # coordinator in time, causing HOTS to hit the bootstrap timeout. Give
+        # it a second attempt before failing the start.
+        HOTS_MAX_ATTEMPTS=2
+        HOTS_STARTED=0
+        for attempt in $(seq 1 "$HOTS_MAX_ATTEMPTS"); do
+            : > "$HOTS_LOG"
+            "$(command -v hots)" --config "${BENCHMARK_ARTIFACT_DIR}/hots-config.json" \
+                > "$HOTS_LOG" 2>&1 &
+            HOTS_PID=$!
+            echo "$HOTS_PID" > "$HOTS_PID_FILE"
+
+            # Wait briefly and check for the known bootstrap failure
+            sleep 15
+            if kill -0 "$HOTS_PID" 2>/dev/null; then
+                HOTS_STARTED=1
+                break
+            fi
+            if grep -q "Kafka bootstrap failed" "$HOTS_LOG" 2>/dev/null; then
+                echo "WARNING: HOTS bootstrap failed (attempt ${attempt}/${HOTS_MAX_ATTEMPTS}). Retrying..." >&2
+                rm -f "$HOTS_PID_FILE"
+                sleep 5
+            else
+                echo "ERROR: HOTS exited unexpectedly on attempt ${attempt}. Check ${HOTS_LOG}." >&2
+                cat "$HOTS_LOG" >&2
+                exit 1
+            fi
+        done
+        if [ "$HOTS_STARTED" -ne 1 ]; then
+            echo "ERROR: HOTS failed to start after ${HOTS_MAX_ATTEMPTS} attempts." >&2
+            cat "$HOTS_LOG" >&2
+            exit 1
+        fi
 
         echo "=== Starting moves recorder ===" >&2
         RECORDER_LOG="${BENCHMARK_LOG_DIR}/hots-moves-recorder.log"

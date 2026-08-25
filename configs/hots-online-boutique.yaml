@@ -24,7 +24,7 @@ observability:
   type: prometheus
   module: observability/prometheus
   frequency_seconds: 15
-  local_port: 9090
+  local_port: 9090         # <-- if you change this, update optimizer.prometheus_url below
   timeout_seconds: 10
 
 traffic:
@@ -36,8 +36,7 @@ traffic:
 optimizer:
   type: hots
   module: optimizers/hots
-  # Must match observability.local_port above -- see optimizers/hots/README.md.
-  prometheus_url: http://127.0.0.1:9090
+  prometheus_url: http://127.0.0.1:9090   # <-- must match observability.local_port above
   kafka_port: 9092
   namespace: online-boutique
   metric: cpu
