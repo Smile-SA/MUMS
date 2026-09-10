@@ -20,6 +20,19 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--repo-root", default=".", help="Repository root. Defaults to current directory."
     )
+    verbosity = run.add_mutually_exclusive_group()
+    verbosity.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show component command output in the terminal.",
+    )
+    verbosity.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Suppress benchmark progress output.",
+    )
 
     return parser
 
@@ -36,7 +49,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "run":
-            run_dir = run_scenario(config, repo_root=Path(args.repo_root).resolve())
+            run_dir = run_scenario(
+                config,
+                repo_root=Path(args.repo_root).resolve(),
+                verbose=args.verbose,
+                quiet=args.quiet,
+            )
             print(f"Run completed: {run_dir}")
             return 0
 

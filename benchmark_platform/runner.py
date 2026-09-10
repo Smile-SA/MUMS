@@ -4,6 +4,7 @@ import json
 import shutil
 import subprocess
 import time
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
 from benchmark_platform.schema import validate_section
-from benchmark_platform.shell import capture_stdout, run_command
+from benchmark_platform.shell import run_command
 
 
 class RunnerInterrupted(RuntimeError):
@@ -37,7 +38,11 @@ def build_run_id(config: ScenarioConfig) -> str:
     return f"{_safe_name(config.name)}-{_utc_timestamp()}-seed{config.seed}"
 
 
-def _component_module_path(raw: dict[str, object], section: str, default: str) -> str:
+def _component_module_path(
+    raw: dict[str, object],
+    section: str,
+    default: str,
+) -> str:
     section_data = raw.get(section, {})
     if isinstance(section_data, dict):
         value = section_data.get("module")
@@ -47,20 +52,56 @@ def _component_module_path(raw: dict[str, object], section: str, default: str) -
 
 
 def _load_and_validate(
-    repo_root: Path, raw: dict[str, object], section: str, default: str, expected_type: str
+    repo_root: Path,
+    raw: dict[str, object],
+    section: str,
+    default: str,
+    expected_type: str,
 ) -> ModuleSpec:
     module = load_module(
-        repo_root, _component_module_path(raw, section, default), expected_type=expected_type
+        repo_root,
+        _component_module_path(raw, section, default),
+        expected_type=expected_type,
     )
     validate_section(raw.get(section, {}), module.arg_schema, section)
     return module
 
 
-def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths, repo_root: Path) -> None:
+def _collect_kubernetes_state(
+    kubeconfig: str,
+    paths: RunPaths,
+    repo_root: Path,
+) -> None:
     commands = {
-        "nodes.yaml": ["kubectl", "--kubeconfig", kubeconfig, "get", "nodes", "-o", "yaml"],
-        "pods.yaml": ["kubectl", "--kubeconfig", kubeconfig, "get", "pods", "-A", "-o", "yaml"],
-        "services.yaml": ["kubectl", "--kubeconfig", kubeconfig, "get", "svc", "-A", "-o", "yaml"],
+        "nodes.yaml": [
+            "kubectl",
+            "--kubeconfig",
+            kubeconfig,
+            "get",
+            "nodes",
+            "-o",
+            "yaml",
+        ],
+        "pods.yaml": [
+            "kubectl",
+            "--kubeconfig",
+            kubeconfig,
+            "get",
+            "pods",
+            "-A",
+            "-o",
+            "yaml",
+        ],
+        "services.yaml": [
+            "kubectl",
+            "--kubeconfig",
+            kubeconfig,
+            "get",
+            "svc",
+            "-A",
+            "-o",
+            "yaml",
+        ],
         "deployments.yaml": [
             "kubectl",
             "--kubeconfig",
@@ -95,6 +136,72 @@ def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths, repo_root: Path)
             )
 
 
+def _print_step(
+    component: str,
+    action: str,
+    status: str,
+    *,
+    verbose: bool = False,
+) -> None:
+    if verbose:
+        print(
+            f"[{component}]"
+            f"{' ' * (16 - len(component))}"
+            f"{action:<10} {status}",
+            flush=True,
+        )
+    else:
+        print(
+            f"\r\033[K[{component}]"
+            f"{' ' * (16 - len(component))}"
+            f"{action:<10} {status}",
+            end="",
+            flush=True,
+        )
+
+
+def _run_step(
+    component: str,
+    action: str,
+    command: Sequence[str],
+    *,
+    cwd: Path,
+    env: Mapping[str, str] | None = None,
+    log_file: Path | None = None,
+    verbose: bool = False,
+    quiet: bool = False,
+    check: bool = True,
+    capture_stdout: bool = False,
+) -> subprocess.CompletedProcess[str]:
+
+    if not quiet:
+        _print_step(component, action, "...", verbose=verbose)
+
+    try:
+        result = run_command(
+            command,
+            cwd=cwd,
+            env=env,
+            log_file=log_file,
+            check=check,
+            verbose=verbose,
+            capture_stdout=capture_stdout,
+        )
+
+        if not quiet:
+            _print_step(component, action, "✓", verbose=verbose)
+            print()
+
+        return result
+
+    except BaseException:
+        if not quiet:
+            _print_step(component, action, "ERROR", verbose=verbose)
+            print()
+
+        raise
+
+
 def _generate_datasets(
     paths: RunPaths,
     repo_root: Path,
@@ -102,47 +209,96 @@ def _generate_datasets(
     manifest: RunManifest,
     dataset_module: ModuleSpec | None,
     dataset_section: dict,
+    *,
+    verbose: bool,
+    quiet: bool,
 ) -> None:
     if dataset_module is None:
-        manifest.set("dataset_generation", {"status": "skipped", "reason": "module disabled"})
+        manifest.set(
+            "dataset_generation",
+            {
+                "status": "skipped",
+                "reason": "module disabled",
+            },
+        )
         return
 
-    manifest.append_event({"time": utc_now_iso(), "type": "dataset.generate.start"})
+    manifest.append_event(
+        {
+            "time": utc_now_iso(),
+            "type": "dataset.generate.start",
+        }
+    )
 
     command = dataset_module.command(
-        "generate", str(paths.metrics / "metrics.om"), str(paths.datasets)
+        "generate",
+        str(paths.metrics / "metrics.om"),
+        str(paths.datasets),
     )
-    result = run_command(
-        command,
+
+    result = _run_step(
+        component="dataset",
+        action="generate",
+        command=command,
         cwd=repo_root,
         env=_component_env(
-            env_vars, dataset_section, paths.module_artifacts(dataset_module.name)
+            env_vars,
+            dataset_section,
+            paths.module_artifacts(dataset_module.name),
         ),
         log_file=paths.logs / "datasets.log",
         check=False,
+        verbose=verbose,
+        quiet=quiet,
     )
 
     status = "completed" if result.returncode == 0 else "failed"
-    manifest.set("dataset_generation", {"status": status, "returncode": result.returncode})
-    manifest.append_event({"time": utc_now_iso(), "type": f"dataset.generate.{status}"})
+
+    manifest.set(
+        "dataset_generation",
+        {
+            "status": status,
+            "returncode": result.returncode,
+        },
+    )
+    manifest.append_event(
+        {
+            "time": utc_now_iso(),
+            "type": f"dataset.generate.{status}",
+        }
+    )
 
 
 def _sleep_with_interrupt(duration_seconds: int) -> None:
     end = time.monotonic() + duration_seconds
+
     while time.monotonic() < end:
         time.sleep(min(1.0, end - time.monotonic()))
 
 
 def _component_env(
-    base: dict[str, str], section: dict, artifact_dir: Path | None = None
+    base: dict[str, str],
+    section: dict,
+    artifact_dir: Path | None = None,
 ) -> dict[str, str]:
-    env = {**base, "BENCHMARK_COMPONENT_CONFIG": json.dumps(section)}
+    env = {
+        **base,
+        "BENCHMARK_COMPONENT_CONFIG": json.dumps(section),
+    }
+
     if artifact_dir is not None:
         env["BENCHMARK_ARTIFACT_DIR"] = str(artifact_dir)
+
     return env
 
 
-def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
+def run_scenario(
+    config: ScenarioConfig,
+    *,
+    repo_root: Path,
+    verbose: bool = False,
+    quiet: bool = False,
+) -> Path:
     run_id = build_run_id(config)
     paths = RunPaths.create(config.output_root / run_id)
 
@@ -170,35 +326,66 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     )
 
     raw = config.raw
+
     env_cfg = raw["environment"]
     observability = raw["observability"]
     traffic = raw["traffic"]
     optimizer = raw["optimizer"]
-
     dataset = raw.get("dataset", {})
 
     environment_module = _load_and_validate(
-        repo_root, raw, "environment", "envs/kind", "environment"
+        repo_root,
+        raw,
+        "environment",
+        "envs/kind",
+        "environment",
     )
+
     stack_module = _load_and_validate(
-        repo_root, raw, "stack", "stacks/online-boutique", "stack"
+        repo_root,
+        raw,
+        "stack",
+        "stacks/online-boutique",
+        "stack",
     )
+
     observability_module = _load_and_validate(
-        repo_root, raw, "observability", "observability/prometheus", "observability"
+        repo_root,
+        raw,
+        "observability",
+        "observability/prometheus",
+        "observability",
     )
+
     traffic_module = _load_and_validate(
-        repo_root, raw, "traffic", "traffic/online-boutique", "traffic"
+        repo_root,
+        raw,
+        "traffic",
+        "traffic/online-boutique",
+        "traffic",
     )
+
     optimizer_module = _load_and_validate(
-        repo_root, raw, "optimizer", "optimizers/baseline", "optimizer"
+        repo_root,
+        raw,
+        "optimizer",
+        "optimizers/baseline",
+        "optimizer",
     )
 
     dataset_enabled = True
+
     if isinstance(dataset, dict) and "enabled" in dataset:
         dataset_enabled = bool(dataset["enabled"])
 
     dataset_module = (
-        _load_and_validate(repo_root, raw, "dataset", "observability/analysis", "dataset")
+        _load_and_validate(
+            repo_root,
+            raw,
+            "dataset",
+            "observability/analysis",
+            "dataset",
+        )
         if dataset_enabled
         else None
     )
@@ -211,7 +398,11 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
             "observability": observability_module.as_manifest_record(),
             "traffic": traffic_module.as_manifest_record(),
             "optimizer": optimizer_module.as_manifest_record(),
-            "dataset": dataset_module.as_manifest_record() if dataset_module else None,
+            "dataset": (
+                dataset_module.as_manifest_record()
+                if dataset_module
+                else None
+            ),
         },
     )
 
@@ -229,14 +420,42 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
     }
 
     try:
-        manifest.append_event({"time": utc_now_iso(), "type": "environment.create.start"})
-        kubeconfig_path = capture_stdout(
-            environment_module.command("create", str(config.seed)),
+        # Environment
+        manifest.append_event(
+            {
+                "time": utc_now_iso(),
+                "type": "environment.create.start",
+            }
+        )
+
+        result = _run_step(
+            component="env",
+            action="create",
+            command=environment_module.command(
+                "create",
+                str(config.seed),
+            ),
             cwd=repo_root,
             env=_component_env(
-                env_vars, env_cfg, paths.module_artifacts(environment_module.name)
+                env_vars,
+                env_cfg,
+                paths.module_artifacts(environment_module.name),
             ),
+            log_file=paths.logs / "environment-create.log",
+            verbose=verbose,
+            quiet=quiet,
+            capture_stdout=True,
         )
+
+        stdout = result.stdout or ""
+        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+
+        if not lines:
+            raise RuntimeError(
+                "Environment create did not return a kubeconfig path."
+            )
+
+        kubeconfig_path = lines[-1]
         environment_created = True
 
         kubeconfig_copy = paths.runtime / "kubeconfig"
@@ -250,45 +469,130 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
                 "original_kubeconfig": kubeconfig_path,
             },
         )
-        manifest.append_event({"time": utc_now_iso(), "type": "environment.create.complete"})
 
-        manifest.append_event({"time": utc_now_iso(), "type": "observability.start"})
-        run_command(
-            observability_module.command("start", kubeconfig_path, str(paths.metrics)),
+        manifest.append_event(
+            {
+                "time": utc_now_iso(),
+                "type": "environment.create.complete",
+            }
+        )
+
+        # Observability
+        manifest.append_event(
+            {
+                "time": utc_now_iso(),
+                "type": "observability.start",
+            }
+        )
+
+        _run_step(
+            component="observability",
+            action="start",
+            command=observability_module.command(
+                "start",
+                kubeconfig_path,
+                str(paths.metrics),
+            ),
             cwd=repo_root,
             env=_component_env(
-                env_vars, observability, paths.module_artifacts(observability_module.name)
+                env_vars,
+                observability,
+                paths.module_artifacts(observability_module.name),
             ),
             log_file=paths.logs / "observability-start.log",
+            verbose=verbose,
+            quiet=quiet,
         )
+
         observability_started = True
 
-        manifest.append_event({"time": utc_now_iso(), "type": "stack.deploy.start"})
-        run_command(
-            stack_module.command("deploy", kubeconfig_path, str(config.seed)),
-            cwd=repo_root,
-            env=_component_env(env_vars, raw["stack"], paths.module_artifacts(stack_module.name)),
-            log_file=paths.logs / "stack.log",
+        # Stack
+        manifest.append_event(
+            {
+                "time": utc_now_iso(),
+                "type": "stack.deploy.start",
+            }
         )
-        manifest.append_event({"time": utc_now_iso(), "type": "stack.deploy.complete"})
 
-        manifest.set("optimizer", {"type": str(optimizer["type"])})
-        run_command(
-            optimizer_module.command("deploy", kubeconfig_path),
+        _run_step(
+            component="stack",
+            action="deploy",
+            command=stack_module.command(
+                "deploy",
+                kubeconfig_path,
+                str(config.seed),
+            ),
             cwd=repo_root,
             env=_component_env(
-                env_vars, optimizer, paths.module_artifacts(optimizer_module.name)
+                env_vars,
+                raw["stack"],
+                paths.module_artifacts(stack_module.name),
             ),
-            log_file=paths.logs / "optimizer.log",
+            log_file=paths.logs / "stack.log",
+            verbose=verbose,
+            quiet=quiet,
         )
 
-        manifest.append_event({"time": utc_now_iso(), "type": "traffic.start"})
-        run_command(
-            traffic_module.command("start", kubeconfig_path, str(config.seed)),
-            cwd=repo_root,
-            env=_component_env(env_vars, traffic, paths.module_artifacts(traffic_module.name)),
-            log_file=paths.logs / "traffic-start.log",
+        manifest.append_event(
+            {
+                "time": utc_now_iso(),
+                "type": "stack.deploy.complete",
+            }
         )
+
+        # Optimizer
+        manifest.set(
+            "optimizer",
+            {
+                "type": str(optimizer["type"]),
+            },
+        )
+
+        _run_step(
+            component="optimizer",
+            action="deploy",
+            command=optimizer_module.command(
+                "deploy",
+                kubeconfig_path,
+            ),
+            cwd=repo_root,
+            env=_component_env(
+                env_vars,
+                optimizer,
+                paths.module_artifacts(optimizer_module.name),
+            ),
+            log_file=paths.logs / "optimizer.log",
+            verbose=verbose,
+            quiet=quiet,
+        )
+
+        # Traffic
+        manifest.append_event(
+            {
+                "time": utc_now_iso(),
+                "type": "traffic.start",
+            }
+        )
+
+        _run_step(
+            component="traffic",
+            action="start",
+            command=traffic_module.command(
+                "start",
+                kubeconfig_path,
+                str(config.seed),
+            ),
+            cwd=repo_root,
+            env=_component_env(
+                env_vars,
+                traffic,
+                paths.module_artifacts(traffic_module.name),
+            ),
+            log_file=paths.logs / "traffic-start.log",
+            verbose=verbose,
+            quiet=quiet,
+        )
+
         traffic_started = True
 
         _sleep_with_interrupt(config.duration_seconds)
@@ -297,54 +601,132 @@ def run_scenario(config: ScenarioConfig, *, repo_root: Path) -> Path:
         return paths.root
 
     except KeyboardInterrupt as exc:
-        manifest.update(status="interrupted", error="Interrupted by user")
-        raise RunnerInterrupted("Benchmark run interrupted by user.") from exc
+        manifest.update(
+            status="interrupted",
+            error="Interrupted by user",
+        )
+        raise RunnerInterrupted(
+            "Benchmark run interrupted by user."
+        ) from exc
 
     except BaseException as exc:
-        manifest.update(status="failed", error=str(exc))
+        manifest.update(
+            status="failed",
+            error=str(exc),
+        )
         raise
 
     finally:
         if kubeconfig_path:
+            # Traffic cleanup
             if traffic_started and traffic_module.supports("stop"):
-                manifest.append_event({"time": utc_now_iso(), "type": "traffic.stop"})
-                run_command(
-                    traffic_module.command("stop", kubeconfig_path),
+                manifest.append_event(
+                    {
+                        "time": utc_now_iso(),
+                        "type": "traffic.stop",
+                    }
+                )
+
+                _run_step(
+                    component="traffic",
+                    action="stop",
+                    command=traffic_module.command(
+                        "stop",
+                        kubeconfig_path,
+                    ),
                     cwd=repo_root,
                     env=_component_env(
-                        env_vars, traffic, paths.module_artifacts(traffic_module.name)
+                        env_vars,
+                        traffic,
+                        paths.module_artifacts(traffic_module.name),
                     ),
                     log_file=paths.logs / "traffic-stop.log",
                     check=False,
+                    verbose=verbose,
+                    quiet=quiet,
                 )
 
+            # Observability cleanup
             if observability_started:
-                manifest.append_event({"time": utc_now_iso(), "type": "observability.stop"})
-                run_command(
-                    observability_module.command("stop", kubeconfig_path),
+                manifest.append_event(
+                    {
+                        "time": utc_now_iso(),
+                        "type": "observability.stop",
+                    }
+                )
+
+                _run_step(
+                    component="observability",
+                    action="stop",
+                    command=observability_module.command(
+                        "stop",
+                        kubeconfig_path,
+                    ),
                     cwd=repo_root,
                     env=_component_env(
-                        env_vars, observability, paths.module_artifacts(observability_module.name)
+                        env_vars,
+                        observability,
+                        paths.module_artifacts(observability_module.name),
                     ),
                     log_file=paths.logs / "observability-stop.log",
                     check=False,
+                    verbose=verbose,
+                    quiet=quiet,
                 )
 
-            manifest.append_event({"time": utc_now_iso(), "type": "kubernetes.collect-state"})
-            _collect_kubernetes_state(kubeconfig_path, paths, repo_root)
+            # Kubernetes state collection is internal runner bookkeeping,
+            # so it is deliberately not displayed in the progress dashboard.
+            manifest.append_event(
+                {
+                    "time": utc_now_iso(),
+                    "type": "kubernetes.collect-state",
+                }
+            )
 
-            _generate_datasets(paths, repo_root, env_vars, manifest, dataset_module, dataset)
+            _collect_kubernetes_state(
+                kubeconfig_path,
+                paths,
+                repo_root,
+            )
 
+            # Dataset generation
+            _generate_datasets(
+                paths,
+                repo_root,
+                env_vars,
+                manifest,
+                dataset_module,
+                dataset,
+                verbose=verbose,
+                quiet=quiet,
+            )
+
+            # Environment cleanup
             if environment_created and config.cleanup_environment:
-                manifest.append_event({"time": utc_now_iso(), "type": "environment.destroy"})
-                run_command(
-                    environment_module.command("destroy", str(config.seed)),
+                manifest.append_event(
+                    {
+                        "time": utc_now_iso(),
+                        "type": "environment.destroy",
+                    }
+                )
+
+                _run_step(
+                    component="env",
+                    action="destroy",
+                    command=environment_module.command(
+                        "destroy",
+                        str(config.seed),
+                    ),
                     cwd=repo_root,
                     env=_component_env(
-                        env_vars, env_cfg, paths.module_artifacts(environment_module.name)
+                        env_vars,
+                        env_cfg,
+                        paths.module_artifacts(environment_module.name),
                     ),
                     log_file=paths.logs / "environment-destroy.log",
                     check=False,
+                    verbose=verbose,
+                    quiet=quiet,
                 )
 
         manifest.update(ended_at=utc_now_iso())

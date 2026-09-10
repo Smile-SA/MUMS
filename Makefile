@@ -23,6 +23,7 @@ help:
 	@echo "  make lint           Run Ruff lint checks (requires make setup-dev)"
 	@echo "  make validate-config  Check configuration file format"
 	@echo "  make run-basic      Run basic test scenario"
+	@echo "                      Pass CLI arguments with ARGS (e.g. ARGS=-v for verbose mode, ARGS=-q for quiet mode)"
 	@echo "  make test           Run Python tests when present (requires make setup-dev)"
 	@echo "  make smoke          End-to-end smoke test on a real cluster (requires Kind)"
 	@echo "  make clean          Remove caches only; preserves virtual env and benchmark outputs"
@@ -86,7 +87,7 @@ validate-config:
 	$(VENV_PYTHON) -m benchmark_platform.cli validate configs/basic-online-boutique.yaml
 
 run-basic:
-	$(VENV_PYTHON) -m benchmark_platform.cli run configs/basic-online-boutique.yaml
+	$(VENV_PYTHON) -m benchmark_platform.cli run configs/basic-online-boutique.yaml $(ARGS)
 
 test:
 	@if find tests -type f -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then \
