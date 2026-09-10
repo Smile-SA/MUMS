@@ -83,10 +83,12 @@ sudo mv /tmp/kubectl /usr/local/bin/kubectl
 
 echo
 echo "=== Installing kind ==="
+ARCH=$(uname -m)
+[[ "$ARCH" == "aarch64" ]] && ARCH="arm64" || ARCH="amd64"
 if [[ "${KIND_VERSION}" == "latest" ]]; then
-  KIND_URL="https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64"
+  KIND_URL="https://kind.sigs.k8s.io/dl/latest/kind-linux-${ARCH}"
 else
-  KIND_URL="https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
+  KIND_URL="https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH}"
 fi
 
 curl -fsSLo /tmp/kind "${KIND_URL}"
