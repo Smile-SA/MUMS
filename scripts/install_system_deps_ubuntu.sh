@@ -24,7 +24,8 @@ case "${ID_LIKE:-${ID}}" in
     ;;
 esac
 
-ARCH="$(dpkg --print-architecture)"
+ARCH=$(uname -m)
+[[ "$ARCH" == "aarch64" ]] && ARCH="arm64" || ARCH="amd64"
 KIND_VERSION="${KIND_VERSION:-latest}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-stable}"
 INSTALL_DOCKER="${INSTALL_DOCKER:-true}"
@@ -77,14 +78,12 @@ if [[ "${KUBECTL_VERSION}" == "stable" ]]; then
 fi
 
 curl -fsSLo /tmp/kubectl \
-  "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+  "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl"
 chmod +x /tmp/kubectl
 sudo mv /tmp/kubectl /usr/local/bin/kubectl
 
 echo
 echo "=== Installing kind ==="
-ARCH=$(uname -m)
-[[ "$ARCH" == "aarch64" ]] && ARCH="arm64" || ARCH="amd64"
 if [[ "${KIND_VERSION}" == "latest" ]]; then
   KIND_URL="https://kind.sigs.k8s.io/dl/latest/kind-linux-${ARCH}"
 else
