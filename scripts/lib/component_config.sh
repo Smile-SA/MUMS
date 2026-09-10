@@ -13,7 +13,13 @@
 # Usage: cfg_get <jq-filter> [default]
 cfg_get() {
     local filter="$1" default="${2-}"
+    local cfg="${BENCHMARK_COMPONENT_CONFIG:-}"
     local value
-    value="$(printf '%s' "${BENCHMARK_COMPONENT_CONFIG:-{}}" | jq -r "${filter} // empty")"
+
+    if [[ -z "$cfg" ]]; then
+        cfg='{}'
+    fi
+
+    value="$(printf '%s' "$cfg" | jq -r "${filter} // empty")"
     printf '%s' "${value:-$default}"
 }
