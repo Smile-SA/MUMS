@@ -599,7 +599,14 @@ def run_scenario(
 
         traffic_started = True
 
+        if not quiet:
+            _print_step("run", "wait", "...", verbose=verbose)
+
         _sleep_with_interrupt(config.duration_seconds)
+
+        if not quiet:
+            _print_step("run", "wait", "✓", verbose=verbose)
+            print()
 
         manifest.update(status="completed")
         return paths.root
