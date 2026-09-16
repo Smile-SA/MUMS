@@ -80,7 +80,7 @@ Lifecycle:
 
 | Action | Contract | Signature |
 |--------|----------|-----------|
-| `create` | REQUIRED | `<seed>` — must print the kubeconfig path to stdout |
+| `create` | REQUIRED | `<seed>` `<result_file>` — must write the generated kubeconfig path to `result_file`|
 | `destroy` | REQUIRED | `<seed>` |
 
 ## 3. Stack components

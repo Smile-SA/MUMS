@@ -3,11 +3,8 @@ type: environment
 entrypoint: run.sh
 
 lifecycle:
-  create: "<seed>"
+  create: "<seed> <result_file>"
   destroy: "<seed>"
-
-outputs:
-  create_stdout: kubeconfig_path
 
 args:
   node_image: { required: false, type: string }

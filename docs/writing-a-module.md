@@ -130,13 +130,18 @@ steps from running.
 
 ### Stdout and stderr
 
-| Action | stdout | stderr |
-|--------|--------|--------|
-| `environment create` | **Must print the kubeconfig file path** (single line) | goes to the terminal |
-| all others | appended to a log file in `$BENCHMARK_LOG_DIR` | same log file |
+Lifecycle actions may write to stdout and stderr for informational messages, progress, warnings, and errors.
 
-For every action except `environment create`, stdout and stderr are both
-redirected to a log file by the runner. You do not need to silence debug output.
+The runner does not interpret stdout or stderr as structured return values. Their contents may be displayed in verbose mode and/or recorded in the component logs.
+
+Modules should therefore not rely on a particular stdout or stderr format for communication with the runner.
+
+### Result passing
+
+When a lifecycle action produces a value that must be consumed by the runner or by another component, the value must be passed using the mechanism defined by the module type's contract.
+
+Result-passing mechanisms are part of the module type contract and must be declared or documented independently of stdout and stderr.
+
 
 ---
 
@@ -229,11 +234,13 @@ Your `run.sh` must accept them; anything beyond these positionals comes from
 
 ```bash
 # stdout must print the kubeconfig file path (single line, stripped)
-run.sh create <seed>
+run.sh create <seed> <result_file>
 
 # teardown (check=False)
 run.sh destroy <seed>
 ```
+For environment modules, the `create` action receives a `result_file`.
+The module must write the path of the generated kubeconfig to `result_file`.
 
 ### stack
 

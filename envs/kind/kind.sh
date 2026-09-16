@@ -1,5 +1,7 @@
 #!/bin/bash
-# Usage: ./kind.sh <action> <seed> [options]
+# Usage:
+#   ./kind.sh create <seed> <result_file> [options]
+#   ./kind.sh destroy <seed>
 # Actions: create, destroy
 #
 # Options:
@@ -14,8 +16,6 @@
 #   --memory` after cluster creation, which reduces the real Capacity instead of
 #   Allocatable. Useful when schedulers read Capacity directly (e.g. Koordinator).
 #   See kind_v2.sh in git history for a reference implementation.
-#
-# Prints the kubeconfig path to stdout.
 
 set -e
 
@@ -27,6 +27,16 @@ source "${REPO_ROOT}/scripts/lib/component_config.sh"
 ACTION=$1
 SEED=$2
 shift 2
+
+RESULT_FILE=""
+if [ "$ACTION" = "create" ]; then
+    RESULT_FILE=$1
+    shift
+    if [ -z "$RESULT_FILE" ]; then
+        echo "ERROR: result file is required for create" >&2
+        exit 1
+    fi
+fi
 
 CLUSTER_NAME="kind-test-${SEED}"
 KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
@@ -181,16 +191,16 @@ case "$ACTION" in
             exit 1
         fi
 
-        echo "=== Creating Kind cluster: $CLUSTER_NAME ===" >&2
-        echo "    Host: ${HOST_CPU} CPUs (${HOST_CPU_MILLI}m), ${HOST_MEM_MI}Mi RAM" >&2
+        echo "=== Creating Kind cluster: $CLUSTER_NAME ==="
+        echo "    Host: ${HOST_CPU} CPUs (${HOST_CPU_MILLI}m), ${HOST_MEM_MI}Mi RAM"
 
         TEMP_YAML=$(mktemp)
         generate_kind_yaml > "$TEMP_YAML"
 
         if [ "${VERBOSE:-0}" = "1" ]; then
-            echo "--- Kind config ---" >&2
-            cat "$TEMP_YAML" >&2
-            echo "-------------------" >&2
+            echo "--- Kind config ---"
+            cat "$TEMP_YAML"
+            echo "-------------------"
         fi
 
         KIND_NODE_IMAGE="$(
@@ -198,7 +208,7 @@ case "$ACTION" in
             "${REPO_ROOT}/utils/kind/validate_node_image.sh"
         )"
 
-        echo "    Kind node image: ${KIND_NODE_IMAGE}" >&2
+        echo "    Kind node image: ${KIND_NODE_IMAGE}"
         # WARNING: KIND_EXPERIMENTAL_DOCKER_NETWORK is an experimental Kind feature.
         # (cf. https://github.com/kubernetes-sigs/kind/issues/273)
         export KIND_EXPERIMENTAL_DOCKER_NETWORK="$DOCKER_NETWORK"
@@ -237,26 +247,26 @@ case "$ACTION" in
 
             RANGE6="${BASH_REMATCH[1]}:1::/80"
 
-            echo "    MetalLB address ranges: ${RANGE4}, ${RANGE6}" >&2
-            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6" >&2
+            echo "    MetalLB address ranges: ${RANGE4}, ${RANGE6}" 
+            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6"
         else
-            echo "    MetalLB address range: ${RANGE4}" >&2
-            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" >&2
+            echo "    MetalLB address range: ${RANGE4}"
+            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4"
         fi
-        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH" >&2
+        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH"
 
-        echo "$KUBECONFIG_PATH"
+        echo "$KUBECONFIG_PATH" > "$RESULT_FILE"
         ;;
 
     destroy)
-        echo "=== Destroying Kind cluster: $CLUSTER_NAME ===" >&2
+        echo "=== Destroying Kind cluster: $CLUSTER_NAME ==="
         kind delete cluster --name "$CLUSTER_NAME"
         docker network rm "$CLUSTER_NAME" >/dev/null 2>&1 || true
         [ -f "$KUBECONFIG_PATH" ] && rm "$KUBECONFIG_PATH"
         ;;
 
     *)
-        echo "Usage: $0 <create|destroy> <seed> [--workers \"count=N,cpu=X,memory=YGi;...\"]" >&2
-        exit 1
+        echo "  $0 create <seed> <result_file> [--workers \"count=N,cpu=X,memory=YGi;...\"]" >&2
+        echo "  $0 destroy <seed>" >&2
         ;;
 esac

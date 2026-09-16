@@ -171,7 +171,6 @@ def _run_step(
     verbose: bool = False,
     quiet: bool = False,
     check: bool = True,
-    capture_stdout: bool = False,
 ) -> subprocess.CompletedProcess[str]:
 
     if not quiet:
@@ -185,7 +184,6 @@ def _run_step(
             log_file=log_file,
             check=check,
             verbose=verbose,
-            capture_stdout=capture_stdout,
         )
 
         if not quiet:
@@ -410,6 +408,7 @@ def run_scenario(
     environment_created = False
     observability_started = False
     traffic_started = False
+    environment_result_file = paths.runtime / f".environment-result-{config.seed}"
 
     env_vars = {
         "BENCHMARK_RUN_DIR": str(paths.root),
@@ -428,12 +427,13 @@ def run_scenario(
             }
         )
 
-        result = _run_step(
+        _run_step(
             component="env",
             action="create",
             command=environment_module.command(
                 "create",
                 str(config.seed),
+                str(environment_result_file),
             ),
             cwd=repo_root,
             env=_component_env(
@@ -444,18 +444,22 @@ def run_scenario(
             log_file=paths.logs / "environment-create.log",
             verbose=verbose,
             quiet=quiet,
-            capture_stdout=True,
         )
 
-        stdout = result.stdout or ""
-        lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-
-        if not lines:
+        if not environment_result_file.is_file():
             raise RuntimeError(
-                "Environment create did not return a kubeconfig path."
+                "Environment create did not produce a result file."
             )
 
-        kubeconfig_path = lines[-1]
+        kubeconfig_path = environment_result_file.read_text(
+            encoding="utf-8"
+        ).strip()
+        environment_result_file.unlink()
+
+        if not kubeconfig_path:
+            raise RuntimeError(
+                "Environment create produced an empty result file."
+            )
         environment_created = True
 
         kubeconfig_copy = paths.runtime / "kubeconfig"

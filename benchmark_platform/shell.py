@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -25,7 +24,6 @@ def run_command(
     log_file: Path | None = None,
     check: bool = True,
     verbose: bool = False,
-    capture_stdout: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     merged_env = os.environ.copy()
 
@@ -47,67 +45,9 @@ def run_command(
             log_stream.flush()
 
         # ------------------------------------------------------------------
-        # Capture stdout separately.
-        #
-        # This is mainly used by env:create, where stdout contains the
-        # kubeconfig path while stderr contains technical logs.
+        # Verbose mode: show command output
         # ------------------------------------------------------------------
-        if capture_stdout:
-            process = subprocess.Popen(
-                list(command),
-                cwd=str(cwd),
-                env=merged_env,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=1,
-            )
-
-            captured_lines: list[str] = []
-
-            def read_stdout() -> None:
-                assert process.stdout is not None
-
-                for line in process.stdout:
-                    captured_lines.append(line)
-
-                    if log_stream is not None:
-                        log_stream.write(line)
-                        log_stream.flush()
-
-            def read_stderr() -> None:
-                assert process.stderr is not None
-
-                for line in process.stderr:
-                    if log_stream is not None:
-                        log_stream.write(line)
-                        log_stream.flush()
-
-                    if verbose:
-                        sys.stdout.write(line)
-                        sys.stdout.flush()
-
-            stdout_thread = threading.Thread(target=read_stdout)
-            stderr_thread = threading.Thread(target=read_stderr)
-
-            stdout_thread.start()
-            stderr_thread.start()
-
-            returncode = process.wait()
-
-            stdout_thread.join()
-            stderr_thread.join()
-
-            result = subprocess.CompletedProcess(
-                args=list(command),
-                returncode=returncode,
-                stdout="".join(captured_lines),
-            )
-
-        # ------------------------------------------------------------------
-        # No stdout capture.
-        # ------------------------------------------------------------------
-        elif verbose:
+        if verbose:
             process = subprocess.Popen(
                 list(command),
                 cwd=str(cwd),
