@@ -30,7 +30,13 @@ def _make_repo(tmp_path: Path) -> tuple[Path, Path]:
     _make_module(repo, "envs/kind", "envs.kind", "environment")
     _make_module(repo, "stacks/mystack", "stacks.mystack", "stack")
     _make_module(repo, "observability/prometheus", "obs.prom", "observability")
-    _make_module(repo, "traffic/mytraffic", "traffic.mytraffic", "traffic")
+    _make_module(
+        repo,
+        "traffic/mytraffic",
+        "traffic.mytraffic",
+        "traffic",
+        lifecycle="lifecycle:\n  start: run.sh start\n  stop: run.sh stop\n",
+    )
     _make_module(
         repo,
         "optimizers/baseline",
@@ -91,21 +97,16 @@ def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
     dispatched: list[tuple[str, str]] = []  # (module_dir, action)
     call_envs: list[dict] = []
 
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True):
+    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
         module_dir = Path(command[0]).parent.name
         action = command[1]
         dispatched.append((module_dir, action))
         call_envs.append(dict(env or {}))
+        if action == "create" and len(command) > 3:
+            Path(command[3]).write_text("/fake/kubeconfig")
         return subprocess.CompletedProcess(list(command), 0)
 
-    captured_envs: list[dict] = []
-
-    def fake_capture_stdout(command, *, cwd, env=None, check=True):
-        captured_envs.append(dict(env or {}))
-        return "/fake/kubeconfig"
-
     with (
-        patch("benchmark_platform.runner.capture_stdout", side_effect=fake_capture_stdout),
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
@@ -116,6 +117,7 @@ def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
         run_scenario(config, repo_root=repo)
 
     assert dispatched == [
+        ("kind", "create"),  # environment.create
         ("prometheus", "start"),  # observability.start
         ("mystack", "deploy"),  # stack.deploy
         ("baseline", "deploy"),  # optimizer.deploy
@@ -143,17 +145,15 @@ def test_runner_dispatches_optional_optimizer_start_stop(tmp_path: Path) -> None
 
     dispatched: list[tuple[str, str]] = []
 
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True):
+    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
         module_dir = Path(command[0]).parent.name
         action = command[1]
         dispatched.append((module_dir, action))
+        if action == "create" and len(command) > 3:
+            Path(command[3]).write_text("/fake/kubeconfig")
         return subprocess.CompletedProcess(list(command), 0)
 
-    def fake_capture_stdout(command, *, cwd, env=None, check=True):
-        return "/fake/kubeconfig"
-
     with (
-        patch("benchmark_platform.runner.capture_stdout", side_effect=fake_capture_stdout),
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
@@ -164,6 +164,7 @@ def test_runner_dispatches_optional_optimizer_start_stop(tmp_path: Path) -> None
         run_scenario(config, repo_root=repo)
 
     assert dispatched == [
+        ("kind", "create"),  # environment.create
         ("prometheus", "start"),  # observability.start
         ("mystack", "deploy"),  # stack.deploy
         ("baseline", "deploy"),  # optimizer.deploy
@@ -182,18 +183,13 @@ def test_runner_injects_component_config_env(tmp_path: Path) -> None:
 
     call_envs: list[dict] = []
 
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True):
+    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
         call_envs.append(dict(env or {}))
+        if command[1] == "create" and len(command) > 3:
+            Path(command[3]).write_text("/fake/kubeconfig")
         return subprocess.CompletedProcess(list(command), 0)
 
-    capture_envs: list[dict] = []
-
-    def fake_capture_stdout(command, *, cwd, env=None, check=True):
-        capture_envs.append(dict(env or {}))
-        return "/fake/kubeconfig"
-
     with (
-        patch("benchmark_platform.runner.capture_stdout", side_effect=fake_capture_stdout),
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
@@ -203,8 +199,7 @@ def test_runner_injects_component_config_env(tmp_path: Path) -> None:
     ):
         run_scenario(config, repo_root=repo)
 
-    all_envs = capture_envs + call_envs
-    for env in all_envs:
+    for env in call_envs:
         assert "BENCHMARK_COMPONENT_CONFIG" in env, (
             "BENCHMARK_COMPONENT_CONFIG missing from env for a module call"
         )
@@ -212,7 +207,7 @@ def test_runner_injects_component_config_env(tmp_path: Path) -> None:
         assert isinstance(parsed, dict)
 
     # environment section contains workers config
-    env_config = json.loads(capture_envs[0]["BENCHMARK_COMPONENT_CONFIG"])
+    env_config = json.loads(call_envs[0]["BENCHMARK_COMPONENT_CONFIG"])
     assert env_config["workers"]["count"] == 1
 
     # traffic section contains shape
@@ -226,16 +221,14 @@ def test_runner_writes_provenance_to_manifest(tmp_path: Path) -> None:
     repo, config_path = _make_repo(tmp_path)
     config = load_config(config_path)
 
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True):
+    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
+        if command[1] == "create" and len(command) > 3:
+            Path(command[3]).write_text("/fake/kubeconfig")
         return subprocess.CompletedProcess(list(command), 0)
-
-    def fake_capture_stdout(command, *, cwd, env=None, check=True):
-        return "/fake/kubeconfig"
 
     fake_provenance = {"tool_versions": {"kubectl": "v1.99.0"}, "notes": []}
 
     with (
-        patch("benchmark_platform.runner.capture_stdout", side_effect=fake_capture_stdout),
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
@@ -259,14 +252,12 @@ def test_runner_records_provenance_error_without_failing_run(tmp_path: Path) -> 
     repo, config_path = _make_repo(tmp_path)
     config = load_config(config_path)
 
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True):
+    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
+        if command[1] == "create" and len(command) > 3:
+            Path(command[3]).write_text("/fake/kubeconfig")
         return subprocess.CompletedProcess(list(command), 0)
 
-    def fake_capture_stdout(command, *, cwd, env=None, check=True):
-        return "/fake/kubeconfig"
-
     with (
-        patch("benchmark_platform.runner.capture_stdout", side_effect=fake_capture_stdout),
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
