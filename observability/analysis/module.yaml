@@ -1,9 +1,9 @@
-name: datasets.refined-csv
-type: dataset
+name: post-processing.refined-csv
+type: post-processing
 entrypoint: run.sh
 
 lifecycle:
-  generate: "<metrics_file> <output_dir>"
+  process: "<run_output_dir>"
 
 args:
   enabled: { required: false, default: true, type: bool }

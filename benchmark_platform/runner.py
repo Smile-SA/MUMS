@@ -200,20 +200,20 @@ def _run_step(
         raise
 
 
-def _generate_datasets(
+def _post_process(
     paths: RunPaths,
     repo_root: Path,
     env_vars: dict[str, str],
     manifest: RunManifest,
-    dataset_module: ModuleSpec | None,
-    dataset_section: dict,
+    post_processing_module: ModuleSpec | None,
+    post_processing_section: dict,
     *,
     verbose: bool,
     quiet: bool,
 ) -> None:
-    if dataset_module is None:
+    if post_processing_module is None:
         manifest.set(
-            "dataset_generation",
+            "post-processing_generation",
             {
                 "status": "skipped",
                 "reason": "module disabled",
@@ -224,27 +224,26 @@ def _generate_datasets(
     manifest.append_event(
         {
             "time": utc_now_iso(),
-            "type": "dataset.generate.start",
+            "type": "post-processing.process.start",
         }
     )
 
-    command = dataset_module.command(
-        "generate",
-        str(paths.metrics / "metrics.om"),
-        str(paths.datasets),
+    command = post_processing_module.command(
+        "process",
+        str(paths.root)
     )
 
     result = _run_step(
-        component="dataset",
-        action="generate",
+        component="post-processing",
+        action="process",
         command=command,
         cwd=repo_root,
         env=_component_env(
             env_vars,
-            dataset_section,
-            paths.module_artifacts(dataset_module.name),
+            post_processing_section,
+            paths.module_artifacts(post_processing_module.name),
         ),
-        log_file=paths.logs / "datasets.log",
+        log_file=paths.logs / "post-processing.log",
         check=False,
         verbose=verbose,
         quiet=quiet,
@@ -253,7 +252,7 @@ def _generate_datasets(
     status = "completed" if result.returncode == 0 else "failed"
 
     manifest.set(
-        "dataset_generation",
+        "post-processing_generation",
         {
             "status": status,
             "returncode": result.returncode,
@@ -262,7 +261,7 @@ def _generate_datasets(
     manifest.append_event(
         {
             "time": utc_now_iso(),
-            "type": f"dataset.generate.{status}",
+            "type": f"post-processing.process.{status}",
         }
     )
 
@@ -317,7 +316,7 @@ def run_scenario(
                 "metrics": str(paths.metrics),
                 "traffic": str(paths.traffic),
                 "kubernetes": str(paths.kubernetes),
-                "datasets": str(paths.datasets),
+                "post-processing": str(paths.post_processing),
                 "artifacts": str(paths.artifacts),
             },
         },
@@ -329,7 +328,7 @@ def run_scenario(
     observability = raw["observability"]
     traffic = raw["traffic"]
     optimizer = raw["optimizer"]
-    dataset = raw.get("dataset", {})
+    post_processing = raw.get("post-processing", {})
 
     environment_module = _load_and_validate(
         repo_root,
@@ -371,20 +370,20 @@ def run_scenario(
         "optimizer",
     )
 
-    dataset_enabled = True
+    post_processing_enabled = True
 
-    if isinstance(dataset, dict) and "enabled" in dataset:
-        dataset_enabled = bool(dataset["enabled"])
+    if isinstance(post_processing, dict) and "enabled" in post_processing:
+        post_processing_enabled = bool(post_processing["enabled"])
 
-    dataset_module = (
+    post_processing_module = (
         _load_and_validate(
             repo_root,
             raw,
-            "dataset",
+            "post-processing",
             "observability/analysis",
-            "dataset",
+            "post-processing",
         )
-        if dataset_enabled
+        if post_processing_enabled
         else None
     )
 
@@ -396,9 +395,9 @@ def run_scenario(
             "observability": observability_module.as_manifest_record(),
             "traffic": traffic_module.as_manifest_record(),
             "optimizer": optimizer_module.as_manifest_record(),
-            "dataset": (
-                dataset_module.as_manifest_record()
-                if dataset_module
+            "post-processing": (
+                post_processing_module.as_manifest_record()
+                if post_processing
                 else None
             ),
         },
@@ -700,14 +699,14 @@ def run_scenario(
                 repo_root,
             )
 
-            # Dataset generation
-            _generate_datasets(
+            # Post Processing
+            _post_process(
                 paths,
                 repo_root,
                 env_vars,
                 manifest,
-                dataset_module,
-                dataset,
+                post_processing_module,
+                post_processing,
                 verbose=verbose,
                 quiet=quiet,
             )

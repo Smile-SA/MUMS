@@ -32,7 +32,7 @@ def _make_repo(tmp_path: Path) -> tuple[Path, Path]:
     _make_module(repo, "observability/prometheus", "obs.prom", "observability", ["start", "stop"])
     _make_module(repo, "traffic/mytraffic", "traffic.mytraffic", "traffic", ["start", "stop"])
     _make_module(repo, "optimizers/baseline", "opt.baseline", "optimizer", ["deploy"])
-    _make_module(repo, "observability/analysis", "obs.analysis", "dataset", ["generate"])
+    _make_module(repo, "observability/analysis", "obs.analysis", "post-processing", ["process"])
 
     config_path = repo / "scenario.yaml"
     config_path.write_text(
@@ -64,7 +64,7 @@ traffic:
 optimizer:
   type: baseline
   module: optimizers/baseline
-dataset:
+post-processing:
   type: csv
   module: observability/analysis
   enabled: true
@@ -103,7 +103,7 @@ def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner._generate_datasets"),
+        patch("benchmark_platform.runner._post_process"),
         patch("shutil.copy2"),
     ):
         run_scenario(config, repo_root=repo)
@@ -140,7 +140,7 @@ def test_runner_injects_component_config_env(tmp_path: Path) -> None:
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner._generate_datasets"),
+        patch("benchmark_platform.runner._post_process"),
         patch("shutil.copy2"),
     ):
         run_scenario(config, repo_root=repo)

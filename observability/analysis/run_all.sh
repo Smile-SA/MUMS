@@ -4,8 +4,8 @@
 #
 # Usage:
 #   <command> | ./run_all.sh <output_dir> [--lines=N]
-#   cat metrics.om | ./run_all.sh output/run-42/datasets/
-#   cat metrics.om | ./run_all.sh output/run-42/datasets/ --lines=50000
+#   cat metrics.om | ./run_all.sh output/run-42/post-processing/
+#   cat metrics.om | ./run_all.sh output/run-42/post-processing/ --lines=50000
 #
 # CSVs are split into numbered files (default: 100000 rows/file).
 # pod_timeseries.csv is generated last by merging the split files.

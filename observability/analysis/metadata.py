@@ -439,7 +439,7 @@ def write_metadata(run_dir: Path) -> Path:
     run_dir = run_dir.resolve()
     metadata = build_metadata(run_dir)
 
-    output = run_dir / "datasets" / "dataset-metadata.yaml"
+    output = run_dir / "post-processing" / "dataset-metadata.yaml"
     output.parent.mkdir(parents=True, exist_ok=True)
 
     with output.open("w", encoding="utf-8") as stream:

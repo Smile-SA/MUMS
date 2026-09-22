@@ -15,7 +15,7 @@ class RunPaths:
     traffic: Path
     metrics: Path
     kubernetes: Path
-    datasets: Path
+    post_processing: Path
     artifacts: Path
 
     @classmethod
@@ -30,7 +30,7 @@ class RunPaths:
             traffic=root / "traffic",
             metrics=root / "metrics",
             kubernetes=root / "kubernetes",
-            datasets=root / "datasets",
+            post_processing=root / "post-processing",
             artifacts=root / "artifacts",
         )
 
@@ -41,7 +41,7 @@ class RunPaths:
             paths.traffic,
             paths.metrics,
             paths.kubernetes,
-            paths.datasets,
+            paths.post_processing,
             paths.artifacts,
         ):
             path.mkdir(parents=True, exist_ok=True)

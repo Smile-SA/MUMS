@@ -37,7 +37,7 @@ optimizer:
   type: baseline
   module: optimizers/baseline
 
-dataset:
+post-processing:
   type: refined-csv
   module: observability/analysis
   enabled: true

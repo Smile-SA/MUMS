@@ -110,7 +110,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
     traffic = _require_section(raw, "traffic")
     optimizer = _require_section(raw, "optimizer")
     output = _require_section(raw, "output")
-    dataset = _optional_section(raw, "dataset")
+    post_processing = _optional_section(raw, "post-processing")
 
     _require_non_empty_string(
         _require_field(scenario, "scenario", "name"),
@@ -133,10 +133,10 @@ def load_config(path: str | Path) -> ScenarioConfig:
     _validate_component(traffic, "traffic")
     _validate_component(optimizer, "optimizer")
 
-    if dataset:
-        _validate_component(dataset, "dataset")
-        if "enabled" in dataset and not isinstance(dataset["enabled"], bool):
-            raise ConfigError("Field 'dataset.enabled' must be a boolean when provided.")
+    if post_processing:
+        _validate_component(post_processing, "post-processing")
+        if "enabled" in post_processing and not isinstance(post_processing["enabled"], bool):
+            raise ConfigError("Field 'post-processing.enabled' must be a boolean when provided.")
 
     _require_non_empty_string(
         _require_field(output, "output", "root_directory"),
