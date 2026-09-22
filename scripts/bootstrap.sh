@@ -34,10 +34,10 @@ echo
 echo "=== Installing Python dependencies ==="
 "${PY}" -m pip install --upgrade pip
 
+"${PY}" -m pip install -e .
+
 if [[ "${INSTALL_DEV}" == "true" ]]; then
   "${PY}" -m pip install -r requirements-dev.txt
-else
-  "${PY}" -m pip install -r requirements.txt
 fi
 
 echo

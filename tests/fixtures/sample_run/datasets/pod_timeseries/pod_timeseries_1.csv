@@ -1,0 +1,9 @@
+timestamp,pod,namespace,node,cpu_usage_rate,memory_working_set_bytes,memory_rss_bytes,cpu_throttled_ratio,network_receive_bytes_rate,network_transmit_bytes_rate,oom_events_total,restarts_total
+1000,frontend-1,online-boutique,node-a,0.05,1000,900,0.0,10,10,0,0
+1015,frontend-1,online-boutique,node-a,,1000,900,0.0,10,10,0,0
+1030,frontend-1,online-boutique,node-a,0.08,1100,950,0.0,12,12,0,0
+1000,cartservice-1,online-boutique,node-b,0.20,2000,1800,0.0,20,20,0,0
+1015,cartservice-1,online-boutique,node-b,0.22,2100,1850,0.0,21,21,0,0
+1030,cartservice-1,online-boutique,node-b,0.25,2200,1900,0.0,22,22,0,0
+1000,kindnet-1,kube-system,node-a,0.01,500,400,0.0,1,1,0,0
+1015,kindnet-1,kube-system,node-a,0.01,500,400,0.0,1,1,0,0

@@ -82,11 +82,14 @@ The platform runs the following lifecycle sequence:
 2. `observability start`
 3. `stack deploy`
 4. `optimizer deploy`
-5. `traffic start`
-6. wait `duration_seconds`
-7. `traffic stop` (if the traffic module declares it supports `stop`)
-8. `observability stop`
-9. `environment destroy`
+5. `optimizer start` (if the optimizer module declares it supports `start` —
+   e.g. `optimizers/hots`, which runs for the duration of the benchmark)
+6. `traffic start`
+7. wait `duration_seconds`
+8. `traffic stop` (if the traffic module declares it supports `stop`)
+9. `optimizer stop` (if declared)
+10. `observability stop`
+11. `environment destroy`
 
 Run output (metrics, manifest, dataset) lands in `output/runs/<run-id>/`.
 
@@ -95,6 +98,16 @@ Run output (metrics, manifest, dataset) lands in `output/runs/<run-id>/`.
 ```bash
 make smoke
 ```
+
+### 4. Compare two runs
+
+```bash
+benchmark-platform compare output/runs/<baseline-run-id> output/runs/<optimized-run-id>
+```
+
+Joins Locust latency during peak traffic, node resource balance, and (for an
+`optimizers/hots` run) migration count into a `comparison.md`/`comparison.json`
+report. See `benchmark_platform/compare.py`.
 
 ## Configuration
 
