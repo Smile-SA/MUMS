@@ -1,0 +1,4 @@
+Timestamp,User Count,Type,Name,Requests/s,Failures/s,50%,66%,75%,80%,90%,95%,98%,99%,99.9%,99.99%,100%,Total Request Count,Total Failure Count,Total Median Response Time,Total Average Response Time,Total Min Response Time,Total Max Response Time,Total Average Content Size
+1000,2,,Aggregated,5.0,0.0,100,110,120,130,140,150,160,170,180,180,180,10,0,100,105,50,180,500
+1010,10,,Aggregated,25.0,0.0,250,260,270,280,400,500,520,540,550,550,550,60,0,250,260,90,550,500
+1020,10,,Aggregated,26.0,0.0,240,250,260,270,390,480,500,520,530,530,530,90,0,240,255,95,530,500

@@ -12,6 +12,7 @@ from benchmark_platform.config import ScenarioConfig
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
+from benchmark_platform.provenance import build_provenance
 from benchmark_platform.schema import validate_section
 from benchmark_platform.shell import run_command
 
@@ -145,16 +146,12 @@ def _print_step(
 ) -> None:
     if verbose:
         print(
-            f"[{component}]"
-            f"{' ' * (16 - len(component))}"
-            f"{action:<10} {status}",
+            f"[{component}]{' ' * (16 - len(component))}{action:<10} {status}",
             flush=True,
         )
     else:
         print(
-            f"\r\033[K[{component}]"
-            f"{' ' * (16 - len(component))}"
-            f"{action:<10} {status}",
+            f"\r\033[K[{component}]{' ' * (16 - len(component))}{action:<10} {status}",
             end="",
             flush=True,
         )
@@ -397,7 +394,7 @@ def run_scenario(
             "optimizer": optimizer_module.as_manifest_record(),
             "post-processing": (
                 post_processing_module.as_manifest_record()
-                if post_processing
+                if post_processing_module
                 else None
             ),
         },
@@ -408,6 +405,7 @@ def run_scenario(
     observability_started = False
     traffic_started = False
     environment_result_file = paths.runtime / f".environment-result-{config.seed}"
+    optimizer_started = False
 
     env_vars = {
         "BENCHMARK_RUN_DIR": str(paths.root),
@@ -446,19 +444,13 @@ def run_scenario(
         )
 
         if not environment_result_file.is_file():
-            raise RuntimeError(
-                "Environment create did not produce a result file."
-            )
+            raise RuntimeError("Environment create did not produce a result file.")
 
-        kubeconfig_path = environment_result_file.read_text(
-            encoding="utf-8"
-        ).strip()
+        kubeconfig_path = environment_result_file.read_text(encoding="utf-8").strip()
         environment_result_file.unlink()
 
         if not kubeconfig_path:
-            raise RuntimeError(
-                "Environment create produced an empty result file."
-            )
+            raise RuntimeError("Environment create produced an empty result file.")
         environment_created = True
 
         kubeconfig_copy = paths.runtime / "kubeconfig"
@@ -569,6 +561,23 @@ def run_scenario(
             quiet=quiet,
         )
 
+        if optimizer_module.supports("start"):
+            _run_step(
+                component="optimizer",
+                action="start",
+                command=optimizer_module.command("start", kubeconfig_path),
+                cwd=repo_root,
+                env=_component_env(
+                    env_vars,
+                    optimizer,
+                    paths.module_artifacts(optimizer_module.name),
+                ),
+                log_file=paths.logs / "optimizer-start.log",
+                verbose=verbose,
+                quiet=quiet,
+            )
+            optimizer_started = True
+
         # Traffic
         manifest.append_event(
             {
@@ -615,9 +624,7 @@ def run_scenario(
             status="interrupted",
             error="Interrupted by user",
         )
-        raise RunnerInterrupted(
-            "Benchmark run interrupted by user."
-        ) from exc
+        raise RunnerInterrupted("Benchmark run interrupted by user.") from exc
 
     except BaseException as exc:
         manifest.update(
@@ -651,6 +658,24 @@ def run_scenario(
                         paths.module_artifacts(traffic_module.name),
                     ),
                     log_file=paths.logs / "traffic-stop.log",
+                    check=False,
+                    verbose=verbose,
+                    quiet=quiet,
+                )
+
+            if optimizer_started and optimizer_module.supports("stop"):
+                manifest.append_event({"time": utc_now_iso(), "type": "optimizer.stop"})
+                _run_step(
+                    component="optimizer",
+                    action="stop",
+                    command=optimizer_module.command("stop", kubeconfig_path),
+                    cwd=repo_root,
+                    env=_component_env(
+                        env_vars,
+                        optimizer,
+                        paths.module_artifacts(optimizer_module.name),
+                    ),
+                    log_file=paths.logs / "optimizer-stop.log",
                     check=False,
                     verbose=verbose,
                     quiet=quiet,
@@ -699,7 +724,19 @@ def run_scenario(
                 repo_root,
             )
 
-            # Post Processing
+            manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
+            try:
+                provenance = build_provenance(
+                    pods_yaml_path=paths.kubernetes / "pods.yaml",
+                    kubeconfig=kubeconfig_path,
+                    artifacts_dir=paths.artifacts,
+                    cleanup_environment=config.cleanup_environment,
+                )
+                manifest.set("provenance", provenance)
+            except Exception as exc:  # provenance capture must never fail the run
+                manifest.set("provenance", {"error": str(exc)})
+
+            # Dataset generation
             _post_process(
                 paths,
                 repo_root,

@@ -270,13 +270,24 @@ run.sh stop <kubeconfig>
 
 Minimal contract: the optimizer deploys onto the cluster and stops there. It
 dies with the cluster on `environment destroy`; the runner never polls its
-status and never calls `stop`/`collect` on it. Only implement those as
-additional lifecycle actions if your optimizer runs a host-side process that
-needs explicit teardown — and declare them in `lifecycle:` if so.
+status.
 
 ```bash
 run.sh deploy <kubeconfig>
+
+# OPTIONAL — only called if declared in lifecycle:
+run.sh start <kubeconfig>
+
+# OPTIONAL, teardown (check=False) — only called if declared in lifecycle:
+run.sh stop <kubeconfig>
 ```
+
+Implement `start`/`stop` only if your optimizer runs a host-side process for
+the duration of the run (e.g. an online optimizer consuming live metrics and
+emitting placement decisions — see `optimizers/hots/`). When declared, the
+runner calls `start` right after `deploy` (before traffic begins) and `stop`
+during teardown, after `traffic.stop` and before `observability.stop`, so the
+optimizer stops acting on the cluster before the metrics source goes away.
 
 ### dataset
 

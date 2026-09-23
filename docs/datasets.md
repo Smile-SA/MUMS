@@ -134,3 +134,41 @@ Detailed refined CSV schemas are documented in:
 ```text
 docs/schemas/refined-csv.md
 ```
+
+## Offline dataset -> HOTS
+
+For the "offline dataset -> HOTS only" scenario (replaying a completed run's
+refined dataset through the HOTS optimizer with no live cluster or Kafka),
+`optimizers/hots/dataset_bridge.py` converts a run's dataset into HOTS's
+`FileConnector` input shape. It lives under `optimizers/hots/` rather than
+in the core `benchmark_platform` package, like everything else specific to
+that optimizer:
+
+```text
+python3 optimizers/hots/dataset_bridge.py <run_dir> <output_dir> \
+    [--namespace online-boutique] [--metric cpu_usage_rate] \
+    [--exclude-controller-kind DaemonSet ...]
+```
+
+It reads `datasets/pod_timeseries` + `datasets/pod_metadata` (filtered to
+the target namespace, excluding DaemonSet/static pods that can't
+meaningfully be rescheduled by a placement optimizer) and
+`datasets/node_metadata`, and writes:
+
+```text
+<output_dir>/container_usage.csv   # timestamp,pod,node,<metric> -- one row per (tick, pod)
+<output_dir>/node_meta.csv         # node,<metric>                -- per-node capacity
+```
+
+`pod_timeseries` is used rather than `container_timeseries` because it is
+already pod-granularity -- no container-to-pod aggregation is needed, and
+`pod` matches the identity HOTS's live path uses too
+(`k8s_workload_identity: pod` in `optimizers/hots/`). Short per-pod gaps in
+the metric column are forward-filled, since real scrape data has gaps (a
+missed scrape, a metric that only appears once cAdvisor has a second
+sample) that would otherwise break HOTS's per-tick windowing.
+
+The tool also prints the matching HOTS `data:` config section
+(`tick_field: timestamp, individual_field: pod, host_field: node, metrics: [<metric>]`)
+to paste into a HOTS config alongside a `connector.type: file` section
+pointing `data_folder` at `<output_dir>`.

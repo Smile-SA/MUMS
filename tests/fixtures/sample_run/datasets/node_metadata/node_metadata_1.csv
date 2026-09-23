@@ -1,0 +1,3 @@
+node,cpu_allocatable,memory_allocatable,architecture,os,kernel_version,taints,created_time
+node-a,2.0,4295524352.0,amd64,linux,6.17.0,[],900.0
+node-b,2.0,4295524352.0,amd64,linux,6.17.0,[],900.0
