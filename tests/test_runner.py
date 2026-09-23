@@ -116,12 +116,8 @@ def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
         patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
-<<<<<<< HEAD
-        patch("benchmark_platform.runner._post_process"),
-=======
         patch("benchmark_platform.runner.build_provenance", return_value={}),
-        patch("benchmark_platform.runner._generate_datasets"),
->>>>>>> refs/remotes/origin/dev
+        patch("benchmark_platform.runner._post_process"),
         patch("shutil.copy2"),
     ):
         run_scenario(config, repo_root=repo)
