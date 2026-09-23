@@ -12,7 +12,7 @@ read from the run's own manifest.yaml (`modules.optimizer.name`), not
 hardcoded here.
 
 Pure stdlib (csv/json/statistics/yaml), consistent with the rest of the
-platform (see benchmark_platform/datasets/metadata.py,
+platform (see observability/analysis/metadata.py,
 observability/analysis/*.py) -- no pandas dependency.
 """
 
@@ -130,7 +130,7 @@ def _summarize_latency(rows: list[dict[str, str]]) -> LatencySummary:
 def _summarize_resources(
     run_dir: Path, *, threshold: float = OVERLOAD_THRESHOLD
 ) -> ResourceSummary:
-    rows = _read_csv_glob(run_dir / "datasets" / "node_timeseries")
+    rows = _read_csv_glob(run_dir / "post-processing" / "node_timeseries")
 
     by_tick: dict[int, list[float]] = {}
     all_ticks: set[int] = set()

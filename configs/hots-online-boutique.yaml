@@ -43,7 +43,7 @@ optimizer:
   nb_clusters: 3
   tick_seconds: 10
 
-dataset:
+post-processing:
   type: refined-csv
   module: observability/analysis
   enabled: true

@@ -33,7 +33,7 @@
     "observability": { "$ref": "#/$defs/component" },
     "traffic": { "$ref": "#/$defs/component" },
     "optimizer": { "$ref": "#/$defs/component" },
-    "dataset": { "$ref": "#/$defs/component" },
+    "post-processing": { "$ref": "#/$defs/component" },
     "output": {
       "type": "object",
       "required": ["root_directory"],

@@ -164,7 +164,7 @@ def test_runner_dispatches_optional_optimizer_start_stop(tmp_path: Path) -> None
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
         patch("benchmark_platform.runner.build_provenance", return_value={}),
-        patch("benchmark_platform.runner._generate_datasets"),
+        patch("benchmark_platform.runner._post_process"),
         patch("shutil.copy2"),
     ):
         run_scenario(config, repo_root=repo)
@@ -241,7 +241,7 @@ def test_runner_writes_provenance_to_manifest(tmp_path: Path) -> None:
         patch(
             "benchmark_platform.runner.build_provenance", return_value=fake_provenance
         ) as mock_bp,
-        patch("benchmark_platform.runner._generate_datasets"),
+        patch("benchmark_platform.runner._post_process"),
         patch("shutil.copy2"),
     ):
         run_dir = run_scenario(config, repo_root=repo)
@@ -268,7 +268,7 @@ def test_runner_records_provenance_error_without_failing_run(tmp_path: Path) -> 
         patch("benchmark_platform.runner._sleep_with_interrupt"),
         patch("benchmark_platform.runner._collect_kubernetes_state"),
         patch("benchmark_platform.runner.build_provenance", side_effect=RuntimeError("boom")),
-        patch("benchmark_platform.runner._generate_datasets"),
+        patch("benchmark_platform.runner._post_process"),
         patch("shutil.copy2"),
     ):
         run_dir = run_scenario(config, repo_root=repo)

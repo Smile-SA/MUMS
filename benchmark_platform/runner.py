@@ -736,7 +736,7 @@ def run_scenario(
             except Exception as exc:  # provenance capture must never fail the run
                 manifest.set("provenance", {"error": str(exc)})
 
-            # Dataset generation
+            # Post Processing
             _post_process(
                 paths,
                 repo_root,
