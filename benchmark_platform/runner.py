@@ -401,7 +401,6 @@ def run_scenario(
     )
 
     kubeconfig_path: str | None = None
-    environment_created = False
     observability_started = False
     traffic_started = False
     environment_result_file = paths.runtime / f".environment-result-{config.seed}"
@@ -451,7 +450,6 @@ def run_scenario(
 
         if not kubeconfig_path:
             raise RuntimeError("Environment create produced an empty result file.")
-        environment_created = True
 
         kubeconfig_copy = paths.runtime / "kubeconfig"
         shutil.copy2(kubeconfig_path, kubeconfig_copy)
