@@ -634,122 +634,123 @@ def run_scenario(
         raise
 
     finally:
-        if kubeconfig_path:
-            # Traffic cleanup
-            if traffic_started and traffic_module.supports("stop"):
+        try:
+            if kubeconfig_path:
+                # Traffic cleanup
+                if traffic_started and traffic_module.supports("stop"):
+                    manifest.append_event(
+                        {
+                            "time": utc_now_iso(),
+                            "type": "traffic.stop",
+                        }
+                    )
+
+                    _run_step(
+                        component="traffic",
+                        action="stop",
+                        command=traffic_module.command(
+                            "stop",
+                            kubeconfig_path,
+                        ),
+                        cwd=repo_root,
+                        env=_component_env(
+                            env_vars,
+                            traffic,
+                            paths.module_artifacts(traffic_module.name),
+                        ),
+                        log_file=paths.logs / "traffic-stop.log",
+                        check=False,
+                        verbose=verbose,
+                        quiet=quiet,
+                    )
+
+                if optimizer_started and optimizer_module.supports("stop"):
+                    manifest.append_event({"time": utc_now_iso(), "type": "optimizer.stop"})
+                    _run_step(
+                        component="optimizer",
+                        action="stop",
+                        command=optimizer_module.command("stop", kubeconfig_path),
+                        cwd=repo_root,
+                        env=_component_env(
+                            env_vars,
+                            optimizer,
+                            paths.module_artifacts(optimizer_module.name),
+                        ),
+                        log_file=paths.logs / "optimizer-stop.log",
+                        check=False,
+                        verbose=verbose,
+                        quiet=quiet,
+                    )
+
+                # Observability cleanup
+                if observability_started:
+                    manifest.append_event(
+                        {
+                            "time": utc_now_iso(),
+                            "type": "observability.stop",
+                        }
+                    )
+
+                    _run_step(
+                        component="observability",
+                        action="stop",
+                        command=observability_module.command(
+                            "stop",
+                            kubeconfig_path,
+                        ),
+                        cwd=repo_root,
+                        env=_component_env(
+                            env_vars,
+                            observability,
+                            paths.module_artifacts(observability_module.name),
+                        ),
+                        log_file=paths.logs / "observability-stop.log",
+                        check=False,
+                        verbose=verbose,
+                        quiet=quiet,
+                    )
+
+                # Kubernetes state collection is internal runner bookkeeping,
+                # so it is deliberately not displayed in the progress dashboard.
                 manifest.append_event(
                     {
                         "time": utc_now_iso(),
-                        "type": "traffic.stop",
+                        "type": "kubernetes.collect-state",
                     }
                 )
 
-                _run_step(
-                    component="traffic",
-                    action="stop",
-                    command=traffic_module.command(
-                        "stop",
-                        kubeconfig_path,
-                    ),
-                    cwd=repo_root,
-                    env=_component_env(
-                        env_vars,
-                        traffic,
-                        paths.module_artifacts(traffic_module.name),
-                    ),
-                    log_file=paths.logs / "traffic-stop.log",
-                    check=False,
+                _collect_kubernetes_state(
+                    kubeconfig_path,
+                    paths,
+                    repo_root,
+                )
+
+                manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
+                try:
+                    provenance = build_provenance(
+                        pods_yaml_path=paths.kubernetes / "pods.yaml",
+                        kubeconfig=kubeconfig_path,
+                        artifacts_dir=paths.artifacts,
+                        cleanup_environment=config.cleanup_environment,
+                    )
+                    manifest.set("provenance", provenance)
+                except Exception as exc:  # provenance capture must never fail the run
+                    manifest.set("provenance", {"error": str(exc)})
+
+                # Post Processing
+                _post_process(
+                    paths,
+                    repo_root,
+                    env_vars,
+                    manifest,
+                    post_processing_module,
+                    post_processing,
                     verbose=verbose,
                     quiet=quiet,
                 )
-
-            if optimizer_started and optimizer_module.supports("stop"):
-                manifest.append_event({"time": utc_now_iso(), "type": "optimizer.stop"})
-                _run_step(
-                    component="optimizer",
-                    action="stop",
-                    command=optimizer_module.command("stop", kubeconfig_path),
-                    cwd=repo_root,
-                    env=_component_env(
-                        env_vars,
-                        optimizer,
-                        paths.module_artifacts(optimizer_module.name),
-                    ),
-                    log_file=paths.logs / "optimizer-stop.log",
-                    check=False,
-                    verbose=verbose,
-                    quiet=quiet,
-                )
-
-            # Observability cleanup
-            if observability_started:
-                manifest.append_event(
-                    {
-                        "time": utc_now_iso(),
-                        "type": "observability.stop",
-                    }
-                )
-
-                _run_step(
-                    component="observability",
-                    action="stop",
-                    command=observability_module.command(
-                        "stop",
-                        kubeconfig_path,
-                    ),
-                    cwd=repo_root,
-                    env=_component_env(
-                        env_vars,
-                        observability,
-                        paths.module_artifacts(observability_module.name),
-                    ),
-                    log_file=paths.logs / "observability-stop.log",
-                    check=False,
-                    verbose=verbose,
-                    quiet=quiet,
-                )
-
-            # Kubernetes state collection is internal runner bookkeeping,
-            # so it is deliberately not displayed in the progress dashboard.
-            manifest.append_event(
-                {
-                    "time": utc_now_iso(),
-                    "type": "kubernetes.collect-state",
-                }
-            )
-
-            _collect_kubernetes_state(
-                kubeconfig_path,
-                paths,
-                repo_root,
-            )
-
-            manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
-            try:
-                provenance = build_provenance(
-                    pods_yaml_path=paths.kubernetes / "pods.yaml",
-                    kubeconfig=kubeconfig_path,
-                    artifacts_dir=paths.artifacts,
-                    cleanup_environment=config.cleanup_environment,
-                )
-                manifest.set("provenance", provenance)
-            except Exception as exc:  # provenance capture must never fail the run
-                manifest.set("provenance", {"error": str(exc)})
-
-            # Post Processing
-            _post_process(
-                paths,
-                repo_root,
-                env_vars,
-                manifest,
-                post_processing_module,
-                post_processing,
-                verbose=verbose,
-                quiet=quiet,
-            )
-
+        finally:
             # Environment cleanup
-            if environment_created and config.cleanup_environment:
+            if config.cleanup_environment:
                 manifest.append_event(
                     {
                         "time": utc_now_iso(),
