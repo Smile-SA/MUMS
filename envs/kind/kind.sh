@@ -1,69 +1,75 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Kind environment module (contract 1).
+#
 # Usage:
-#   ./kind.sh create <seed> <result_file> [options]
-#   ./kind.sh destroy <seed>
-# Actions: create, destroy
+#   kind.sh create <seed> <id> <output_file> --extras_dir <dir> [--node_image <image>] [--workers <json>]
+#   kind.sh destroy <id> --extras_dir <dir> [...]
 #
-# Options:
-#   --workers="<list>"    Worker node configuration
+# <id> names the cluster and its Docker network. `destroy <id>` removes whatever
+# exists for that id (cluster complete, partial, or absent): it never fails
+# because something is missing.
 #
-# --workers format: "count=N,cpu=X,memory=YGi;count=M,cpu=A,memory=BGi;..."
-#   cpu/memory set what the worker exposes in the Allocatable field (visible to
-#   the scheduler); Capacity remains the host value. Implemented via
-#   system-reserved kubelet config — works on cgroup v1, no Docker limits needed.
+# --workers: JSON mapping {"count": N, "cpu": X, "memory": "YGi"}.
+#   cpu/memory set what each worker exposes in its Allocatable field (visible to
+#   the scheduler); Capacity remains the host value. Implemented via the
+#   system-reserved kubelet config: works on cgroup v1, no Docker limits needed.
 #
 #   Alternative (cgroup v2 only): apply constraints via `docker update --cpus /
 #   --memory` after cluster creation, which reduces the real Capacity instead of
 #   Allocatable. Useful when schedulers read Capacity directly (e.g. Koordinator).
 #   See kind_v2.sh in git history for a reference implementation.
 
-set -e
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-UTILS_DIR="$SCRIPT_DIR/../../utils"
-source "${REPO_ROOT}/scripts/lib/component_config.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
 
-ACTION=$1
-SEED=$2
-shift 2
+usage() {
+    echo "Usage:" >&2
+    echo "  $0 create <seed> <id> <output_file> --extras_dir <dir> [--node_image <image>] [--workers <json>]" >&2
+    echo "  $0 destroy <id> --extras_dir <dir>" >&2
+    exit 1
+}
 
-RESULT_FILE=""
-if [ "$ACTION" = "create" ]; then
-    RESULT_FILE=$1
-    shift
-    if [ -z "$RESULT_FILE" ]; then
-        echo "ERROR: result file is required for create" >&2
-        exit 1
-    fi
-fi
+ACTION="${1:-}"
+[ -n "$ACTION" ] || usage
+shift
 
-CLUSTER_NAME="kind-test-${SEED}"
-KUBECONFIG_PATH="/tmp/kubeconfig-${CLUSTER_NAME}"
-KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$(cfg_get '.node_image' 'kindest/node:v1.34.0')}"
-METALLB_IP_RANGE="${METALLB_IP_RANGE:-auto}"
-METALLB_POOL_SIZE="${METALLB_POOL_SIZE:-50}"
+case "$ACTION" in
+    create)
+        [ "$#" -ge 3 ] || usage
+        SEED="$1"; ID="$2"; OUTPUT_FILE="$3"
+        shift 3
+        ;;
+    destroy)
+        [ "$#" -ge 1 ] || usage
+        ID="$1"
+        shift
+        ;;
+    *)
+        echo "ERROR: unknown action '$ACTION'" >&2
+        usage
+        ;;
+esac
 
-# --workers= is accepted for manual/debug invocations; the runner itself
-# passes worker sizing via the environment.workers section of the scenario
-# config (BENCHMARK_COMPONENT_CONFIG), read below via cfg_get.
-WORKERS_PARAM=""
+EXTRAS_DIR=""
+NODE_IMAGE="kindest/node:v1.34.0"
+WORKERS_JSON='{}'
 
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-       --workers=*) WORKERS_PARAM="${1#--workers=}" ; shift ;;
-        *)         shift ;;
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --extras_dir) EXTRAS_DIR="$2";   shift 2 ;;
+        --node_image) NODE_IMAGE="$2";   shift 2 ;;
+        --workers)    WORKERS_JSON="$2"; shift 2 ;;
+        *)
+            echo "ERROR: unknown option '$1'" >&2
+            usage
+            ;;
     esac
 done
 
-if [ -z "$WORKERS_PARAM" ]; then
-    WORKERS_COUNT="$(cfg_get '.workers.count' '1')"
-    WORKERS_CPU="$(cfg_get '.workers.cpu' '')"
-    WORKERS_MEM="$(cfg_get '.workers.memory' '')"
-    WORKERS_PARAM="count=${WORKERS_COUNT}"
-    [ -n "$WORKERS_CPU" ] && WORKERS_PARAM="${WORKERS_PARAM},cpu=${WORKERS_CPU}"
-    [ -n "$WORKERS_MEM" ] && WORKERS_PARAM="${WORKERS_PARAM},memory=${WORKERS_MEM}"
-fi
+CLUSTER_NAME="$ID"
+DOCKER_NETWORK="$ID"
 
 # ─── Resource helpers ─────────────────────────────────────────────────────────
 
@@ -102,8 +108,13 @@ mem_to_mi() {
 # ─── Kind cluster YAML generation ────────────────────────────────────────────
 
 generate_kind_yaml() {
-    local yaml
-    yaml="kind: Cluster
+    local count cpu mem
+    count="$(jq -r '.count // 1' <<< "$WORKERS_JSON")"
+    cpu="$(jq -r '.cpu // empty' <<< "$WORKERS_JSON")"
+    mem="$(jq -r '.memory // empty' <<< "$WORKERS_JSON")"
+
+    cat <<'YAML'
+kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
   ipFamily: dual
@@ -114,101 +125,80 @@ nodes:
       kind: InitConfiguration
       nodeRegistration:
         taints:
-          - key: \"node-role.kubernetes.io/control-plane\"
-            effect: \"NoSchedule\"
+          - key: "node-role.kubernetes.io/control-plane"
+            effect: "NoSchedule"
     - |
       # cgroupRoot: / is required by some optimizers (e.g. Koordinator)
       kind: KubeletConfiguration
       cgroupRoot: /
-"
-    if [ -z "$WORKERS_PARAM" ]; then
-        echo -e "$yaml"
-        return
+YAML
+
+    local reserved_parts=()
+    if [ -n "$cpu" ]; then
+        local desired_milli reserved_milli
+        desired_milli=$(cpu_to_milli "$cpu")
+        reserved_milli=$(( HOST_CPU_MILLI - desired_milli ))
+        if [ "$reserved_milli" -lt 0 ]; then
+            echo "ERROR: cpu=$cpu requested but host only has ${HOST_CPU_MILLI}m CPUs" >&2
+            exit 1
+        fi
+        reserved_parts+=("cpu=${reserved_milli}m")
     fi
-    IFS=';' read -ra WORKER_LIST <<< "$WORKERS_PARAM"
-    for w in "${WORKER_LIST[@]}"; do
-        IFS=',' read -ra PROPS <<< "$w"
-        COUNT=1
-        CPU=""
-        MEM=""
-        for p in "${PROPS[@]}"; do
-            key=${p%=*}
-            value=${p#*=}
-            case "$key" in
-                count)  COUNT=$value ;;
-                cpu)    CPU=$value   ;;
-                memory) MEM=$value   ;;
-            esac
-        done
-        local reserved_parts=()
-        if [ -n "$CPU" ]; then
-            local desired_milli
-            desired_milli=$(cpu_to_milli "$CPU")
-            local reserved_milli=$(( HOST_CPU_MILLI - desired_milli ))
-            if [ "$reserved_milli" -lt 0 ]; then
-                echo "ERROR: cpu=$CPU requested but host only has ${HOST_CPU_MILLI}m CPUs" >&2
-                exit 1
-            fi
-            reserved_parts+=("cpu=${reserved_milli}m")
+    if [ -n "$mem" ]; then
+        local desired_mi reserved_mi
+        desired_mi=$(mem_to_mi "$mem")
+        reserved_mi=$(( HOST_MEM_MI - desired_mi ))
+        if [ "$reserved_mi" -lt 0 ]; then
+            echo "ERROR: memory=$mem requested but host only has ${HOST_MEM_MI}Mi" >&2
+            exit 1
         fi
-        if [ -n "$MEM" ]; then
-            local desired_mi
-            desired_mi=$(mem_to_mi "$MEM")
-            local reserved_mi=$(( HOST_MEM_MI - desired_mi ))
-            if [ "$reserved_mi" -lt 0 ]; then
-                echo "ERROR: memory=$MEM requested but host only has ${HOST_MEM_MI}Mi" >&2
-                exit 1
-            fi
-            reserved_parts+=("memory=${reserved_mi}Mi")
+        reserved_parts+=("memory=${reserved_mi}Mi")
+    fi
+
+    local i reserved_str
+    for ((i = 1; i <= count; i++)); do
+        echo "  - role: worker"
+        if [ "${#reserved_parts[@]}" -gt 0 ]; then
+            reserved_str=$(IFS=','; echo "${reserved_parts[*]}")
+            echo "    kubeadmConfigPatches:"
+            echo "    - |"
+            echo "      kind: JoinConfiguration"
+            echo "      nodeRegistration:"
+            echo "        kubeletExtraArgs:"
+            echo "          system-reserved: \"${reserved_str}\""
         fi
-        for ((i=1; i<=COUNT; i++)); do
-            yaml+="  - role: worker\n"
-            if [ "${#reserved_parts[@]}" -gt 0 ]; then
-                local reserved_str
-                reserved_str=$(IFS=','; echo "${reserved_parts[*]}")
-                yaml+="    kubeadmConfigPatches:\n"
-                yaml+="    - |\n"
-                yaml+="      kind: JoinConfiguration\n"
-                yaml+="      nodeRegistration:\n"
-                yaml+="        kubeletExtraArgs:\n"
-                yaml+="          system-reserved: \"${reserved_str}\"\n"
-            fi
-        done
     done
-    echo -e "$yaml"
 }
 
 # ─── Actions ──────────────────────────────────────────────────────────────────
 
-
 case "$ACTION" in
     create)
-        DOCKER_NETWORK="$CLUSTER_NAME"
+        if [ -z "$EXTRAS_DIR" ]; then
+            echo "ERROR: --extras_dir is required for create" >&2
+            exit 1
+        fi
+        mkdir -p "$EXTRAS_DIR"
+        KUBECONFIG_PATH="${EXTRAS_DIR}/kubeconfig"
+        KIND_CONFIG="${EXTRAS_DIR}/kind-config.yaml"
 
         if docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
-            echo "ERROR: Docker network '$DOCKER_NETWORK' already exists." >&2
-            echo "       Cluster already created with this seed, or previous destroy incomplete?" >&2
+            echo "ERROR: environment '$ID' already exists (Docker network '$DOCKER_NETWORK')." >&2
+            echo "       Remove it with: $0 destroy $ID" >&2
             exit 1
         fi
 
-        echo "=== Creating Kind cluster: $CLUSTER_NAME ==="
+        echo "=== Creating Kind cluster: $CLUSTER_NAME (seed $SEED) ==="
         echo "    Host: ${HOST_CPU} CPUs (${HOST_CPU_MILLI}m), ${HOST_MEM_MI}Mi RAM"
 
-        TEMP_YAML=$(mktemp)
-        generate_kind_yaml > "$TEMP_YAML"
+        generate_kind_yaml > "$KIND_CONFIG"
+        echo "--- Kind config (${KIND_CONFIG}) ---"
+        cat "$KIND_CONFIG"
+        echo "------------------------------------"
 
-        if [ "${VERBOSE:-0}" = "1" ]; then
-            echo "--- Kind config ---"
-            cat "$TEMP_YAML"
-            echo "-------------------"
-        fi
+        NODE_IMAGE="$(KIND_NODE_IMAGE="${NODE_IMAGE}" "${UTILS_DIR}/kind/validate_node_image.sh")"
+        echo "    Kind node image: ${NODE_IMAGE}"
 
-        KIND_NODE_IMAGE="$(
-        KIND_NODE_IMAGE="${KIND_NODE_IMAGE}" \
-            "${REPO_ROOT}/utils/kind/validate_node_image.sh"
-        )"
-
-        echo "    Kind node image: ${KIND_NODE_IMAGE}"
         # WARNING: KIND_EXPERIMENTAL_DOCKER_NETWORK is an experimental Kind feature.
         # (cf. https://github.com/kubernetes-sigs/kind/issues/273)
         export KIND_EXPERIMENTAL_DOCKER_NETWORK="$DOCKER_NETWORK"
@@ -216,9 +206,8 @@ case "$ACTION" in
         kind create cluster \
             --name "$CLUSTER_NAME" \
             --kubeconfig "$KUBECONFIG_PATH" \
-            --config "$TEMP_YAML" \
-            --image "${KIND_NODE_IMAGE}"
-        rm "$TEMP_YAML"
+            --config "$KIND_CONFIG" \
+            --image "${NODE_IMAGE}"
 
         # Dedicated Docker network for this cluster: derive the MetalLB pool
         # from the subnet assigned to this cluster network.
@@ -244,29 +233,25 @@ case "$ACTION" in
                 echo "ERROR: unexpected IPv6 subnet for Docker network '$DOCKER_NETWORK': $CIDR6 (expected a /64)" >&2
                 exit 1
             fi
-
             RANGE6="${BASH_REMATCH[1]}:1::/80"
-
-            echo "    MetalLB address ranges: ${RANGE4}, ${RANGE6}" 
-            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6"
+            echo "    MetalLB address ranges: ${RANGE4}, ${RANGE6}"
+            "${UTILS_DIR}/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4" "$RANGE6"
         else
             echo "    MetalLB address range: ${RANGE4}"
-            "$UTILS_DIR/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4"
+            "${UTILS_DIR}/metallb/deploy.sh" "$KUBECONFIG_PATH" "$RANGE4"
         fi
-        "$UTILS_DIR/prometheus/deploy.sh" "$KUBECONFIG_PATH"
+        "${UTILS_DIR}/prometheus/deploy.sh" "$KUBECONFIG_PATH"
 
-        echo "$KUBECONFIG_PATH" > "$RESULT_FILE"
+        echo "$KUBECONFIG_PATH" > "$OUTPUT_FILE"
         ;;
 
     destroy)
+        # Must succeed whatever exists for this id: complete, partial, or nothing.
         echo "=== Destroying Kind cluster: $CLUSTER_NAME ==="
-        kind delete cluster --name "$CLUSTER_NAME"
-        docker network rm "$CLUSTER_NAME" >/dev/null 2>&1 || true
-        [ -f "$KUBECONFIG_PATH" ] && rm "$KUBECONFIG_PATH"
-        ;;
-
-    *)
-        echo "  $0 create <seed> <result_file> [--workers \"count=N,cpu=X,memory=YGi;...\"]" >&2
-        echo "  $0 destroy <seed>" >&2
+        kind delete cluster --name "$CLUSTER_NAME" || true
+        docker network rm "$DOCKER_NETWORK" >/dev/null 2>&1 || true
+        if [ -n "$EXTRAS_DIR" ]; then
+            rm -f "${EXTRAS_DIR}/kubeconfig"
+        fi
         ;;
 esac

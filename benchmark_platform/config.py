@@ -79,13 +79,12 @@ def _require_positive_int(value: Any, field: str) -> int:
 
 
 def _validate_component(section: dict[str, Any], section_name: str) -> None:
+    # The section name is the module type; `module` points to the module
+    # directory, whose module.yaml must declare that type (checked on load).
     _require_non_empty_string(
-        _require_field(section, section_name, "type"),
-        f"{section_name}.type",
+        _require_field(section, section_name, "module"),
+        f"{section_name}.module",
     )
-
-    if "module" in section:
-        _require_non_empty_string(section["module"], f"{section_name}.module")
 
 
 def load_config(path: str | Path) -> ScenarioConfig:
@@ -123,10 +122,10 @@ def load_config(path: str | Path) -> ScenarioConfig:
     )
 
     # Component sections are validated at the framework envelope level only
-    # (`type` + optional `module`). Module-specific fields (e.g.
+    # (`module`). Module-specific fields (e.g.
     # environment.workers, observability.frequency_seconds, traffic.shape) are
     # opaque to the core and validated by each module's own `args:` schema in
-    # module.yaml — see benchmark_platform.schema.validate_section.
+    # module.yaml — see benchmark_platform.schema.resolve_args.
     _validate_component(environment, "environment")
     _validate_component(stack, "stack")
     _validate_component(observability, "observability")
@@ -135,8 +134,6 @@ def load_config(path: str | Path) -> ScenarioConfig:
 
     if post_processing:
         _validate_component(post_processing, "post-processing")
-        if "enabled" in post_processing and not isinstance(post_processing["enabled"], bool):
-            raise ConfigError("Field 'post-processing.enabled' must be a boolean when provided.")
 
     _require_non_empty_string(
         _require_field(output, "output", "root_directory"),

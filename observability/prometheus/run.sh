@@ -1,120 +1,135 @@
-#!/bin/bash
-# Manages observability: Prometheus port-forward + scraper.
-# Usage:
-#   ./run.sh start <kubeconfig> <output_dir>
-#   ./run.sh stop  <kubeconfig>
+#!/usr/bin/env bash
+# Prometheus observability module (contract 1): port-forward + scraper.
 #
-# frequency_seconds / local_port / timeout_seconds are read from this
-# module's own scenario-config section (BENCHMARK_COMPONENT_CONFIG).
+# Usage:
+#   run.sh start <kubeconfig> <output_dir> --log_dir <dir> --extras_dir <dir>
+#                [--frequency_seconds N] [--local_port N] [--timeout_seconds N]
+#   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
+#
+# Contractual output: <output_dir>/metrics.om (OpenMetrics), plus
+# <output_dir>/scrapes.csv (scrape metadata).
+# Logs: <log_dir>/scraper.log, <log_dir>/port-forward.log.
+# Internal state: PID files in <extras_dir>.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-PROMETHEUS_DIR="$SCRIPT_DIR/../../utils/prometheus"
-SCRAPER="$SCRIPT_DIR/../../utils/scraper/scraper.py"
-source "${REPO_ROOT}/scripts/lib/component_config.sh"
+set -euo pipefail
 
-ACTION=$1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
+SCRAPER="${UTILS_DIR}/scraper/scraper.py"
+
+usage() {
+    echo "Usage:" >&2
+    echo "  $0 start <kubeconfig> <output_dir> --log_dir <dir> --extras_dir <dir> [--frequency_seconds N] [--local_port N] [--timeout_seconds N]" >&2
+    echo "  $0 stop  <kubeconfig> --log_dir <dir> --extras_dir <dir>" >&2
+    exit 1
+}
+
+ACTION="${1:-}"
+[ -n "$ACTION" ] || usage
 shift
 
 case "$ACTION" in
-
     start)
-        KUBECONFIG=$1
-        OUTPUT_DIR=$2
+        [ "$#" -ge 2 ] || usage
+        KUBECONFIG_PATH="$1"; OUTPUT_DIR="$2"
         shift 2
+        ;;
+    stop)
+        [ "$#" -ge 1 ] || usage
+        KUBECONFIG_PATH="$1"
+        shift
+        ;;
+    *)
+        echo "ERROR: unknown action '$ACTION'" >&2
+        usage
+        ;;
+esac
 
-        if [ -z "$KUBECONFIG" ] || [ -z "$OUTPUT_DIR" ]; then
-            echo "Usage: $0 start <kubeconfig> <output_dir>" >&2
+LOG_DIR=""
+EXTRAS_DIR=""
+FREQUENCY=15
+LOCAL_PORT=9090
+TIMEOUT=10
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --log_dir)           LOG_DIR="$2";    shift 2 ;;
+        --extras_dir)        EXTRAS_DIR="$2"; shift 2 ;;
+        --frequency_seconds) FREQUENCY="$2";  shift 2 ;;
+        --local_port)        LOCAL_PORT="$2"; shift 2 ;;
+        --timeout_seconds)   TIMEOUT="$2";    shift 2 ;;
+        *)
+            echo "ERROR: unknown option '$1'" >&2
+            usage
+            ;;
+    esac
+done
+
+if [ -z "$LOG_DIR" ] || [ -z "$EXTRAS_DIR" ]; then
+    echo "ERROR: --log_dir and --extras_dir are required" >&2
+    exit 1
+fi
+mkdir -p "$LOG_DIR" "$EXTRAS_DIR"
+
+SCRAPER_PID_FILE="${EXTRAS_DIR}/scraper.pid"
+PF_PID_FILE="${EXTRAS_DIR}/port-forward.pid"
+
+case "$ACTION" in
+    start)
+        if [ ! -f "$KUBECONFIG_PATH" ]; then
+            echo "ERROR: kubeconfig '$KUBECONFIG_PATH' not found" >&2
             exit 1
         fi
+        mkdir -p "$OUTPUT_DIR"
 
-        if [ ! -f "$KUBECONFIG" ]; then
-            echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
-            exit 1
-        fi
+        OUTPUT_FILE="${OUTPUT_DIR}/metrics.om"
+        SCRAPE_METADATA_FILE="${OUTPUT_DIR}/scrapes.csv"
+        SCRAPER_LOG_FILE="${LOG_DIR}/scraper.log"
+        BASE_URL="http://127.0.0.1:${LOCAL_PORT}"
 
-        FREQUENCY="$(cfg_get '.frequency_seconds' '15')"
-
-        NAME="$(basename "$KUBECONFIG")"
-
-        BENCHMARK_LOG_DIR="${BENCHMARK_LOG_DIR:-/tmp}"
-        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
-        BENCHMARK_METRICS_DIR="${BENCHMARK_METRICS_DIR:-${OUTPUT_DIR}}"
-
-        mkdir -p "${BENCHMARK_LOG_DIR}" "${BENCHMARK_PID_DIR}" "${BENCHMARK_METRICS_DIR}"
-
-        # Normalize artifact directories before passing them to helper scripts.
-        BENCHMARK_LOG_DIR="$(cd "${BENCHMARK_LOG_DIR}" && pwd -P)"
-        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
-        BENCHMARK_METRICS_DIR="$(cd "${BENCHMARK_METRICS_DIR}" && pwd -P)"
-
-        OUTPUT_FILE="${BENCHMARK_METRICS_DIR}/metrics.om"
-        SCRAPER_LOG_FILE="${BENCHMARK_LOG_DIR}/scraper.log"
-        SCRAPER_PID_FILE="${BENCHMARK_PID_DIR}/scraper-${NAME}.pid"
-
-        PROMETHEUS_LOCAL_PORT="${PROMETHEUS_LOCAL_PORT:-$(cfg_get '.local_port' '9090')}"
-        PROMETHEUS_BASE_URL="${PROMETHEUS_BASE_URL:-http://127.0.0.1:${PROMETHEUS_LOCAL_PORT}}"
-
-        export PROMETHEUS_LOCAL_PORT
-        export PROMETHEUS_BASE_URL
-        export BENCHMARK_LOG_DIR
-        export BENCHMARK_PID_DIR
-        export BENCHMARK_METRICS_DIR
-
-        if ! "$PROMETHEUS_DIR/port-forward.sh" "$KUBECONFIG" "$NAME"; then
-            echo "ERROR: Unable to start Prometheus port-forwarding" >&2
-            exit 1
-        fi
-
-        SCRAPE_METADATA_FILE="${BENCHMARK_METRICS_DIR}/scrapes.csv"
-        PROMETHEUS_SCRAPE_TIMEOUT="${PROMETHEUS_SCRAPE_TIMEOUT:-$(cfg_get '.timeout_seconds' '10')}"
+        "${UTILS_DIR}/prometheus/port-forward.sh" \
+            "$KUBECONFIG_PATH" "$LOCAL_PORT" "$PF_PID_FILE" "${LOG_DIR}/port-forward.log"
 
         python3 "$SCRAPER" \
-            --url "$PROMETHEUS_BASE_URL" \
+            --url "$BASE_URL" \
             --output "$OUTPUT_FILE" \
             --metadata-output "$SCRAPE_METADATA_FILE" \
             --frequency "$FREQUENCY" \
-            --timeout "$PROMETHEUS_SCRAPE_TIMEOUT" \
+            --timeout "$TIMEOUT" \
             > /dev/null \
             2> "$SCRAPER_LOG_FILE" &
+        SCRAPER_PID=$!
+        echo "$SCRAPER_PID" > "$SCRAPER_PID_FILE"
 
-        echo $! > "$SCRAPER_PID_FILE"
-        echo "=== Scraper started (PID $(cat "$SCRAPER_PID_FILE"), output: $OUTPUT_FILE, metadata: $SCRAPE_METADATA_FILE, log: $SCRAPER_LOG_FILE, source: $PROMETHEUS_BASE_URL)" >&2
-        ;;
-
-    stop)
-        KUBECONFIG=$1
-        if [ -z "$KUBECONFIG" ]; then
-            echo "Usage: $0 stop <kubeconfig>" >&2
+        # Fail loudly if the scraper dies right away, instead of running a
+        # benchmark without metrics.
+        sleep 2
+        if ! kill -0 "$SCRAPER_PID" 2>/dev/null; then
+            echo "ERROR: scraper exited right after start. Log: ${SCRAPER_LOG_FILE}" >&2
+            cat "$SCRAPER_LOG_FILE" >&2 || true
+            rm -f "$SCRAPER_PID_FILE"
+            "${UTILS_DIR}/prometheus/port-forward-stop.sh" "$PF_PID_FILE"
             exit 1
         fi
 
-        NAME="$(basename "$KUBECONFIG")"
-
-        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
-        mkdir -p "${BENCHMARK_PID_DIR}"
-        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
-        export BENCHMARK_PID_DIR
-
-        PID_FILE="${BENCHMARK_PID_DIR}/scraper-${NAME}.pid"
-
-        if [ -f "$PID_FILE" ]; then
-            PID=$(cat "$PID_FILE")
-            kill "$PID" 2>/dev/null \
-                && echo "=== Scraper stopped (PID $PID)" >&2 \
-                || echo "WARNING: scraper $PID already stopped" >&2
-            rm -f "$PID_FILE"
-        else
-            echo "WARNING: no scraper PID file found for $NAME" >&2
-        fi
-
-        "$PROMETHEUS_DIR/port-forward-stop.sh" "$NAME"
+        echo "=== Scraper started (PID ${SCRAPER_PID}, output: ${OUTPUT_FILE}, metadata: ${SCRAPE_METADATA_FILE}, log: ${SCRAPER_LOG_FILE}, source: ${BASE_URL})"
         ;;
 
-    *)
-        echo "Usage: $0 <start|stop> ..." >&2
-        echo "  start <kubeconfig> <output_dir>" >&2
-        echo "  stop  <kubeconfig>" >&2
-        exit 1
+    stop)
+        # Must succeed whatever is running: scraper and port-forward may be
+        # absent if start failed half-way.
+        if [ -f "$SCRAPER_PID_FILE" ]; then
+            PID="$(cat "$SCRAPER_PID_FILE")"
+            if kill "$PID" 2>/dev/null; then
+                echo "=== Scraper stopped (PID $PID)"
+            else
+                echo "WARNING: scraper $PID already stopped" >&2
+            fi
+            rm -f "$SCRAPER_PID_FILE"
+        else
+            echo "No scraper PID file: $SCRAPER_PID_FILE" >&2
+        fi
+
+        "${UTILS_DIR}/prometheus/port-forward-stop.sh" "$PF_PID_FILE"
         ;;
 esac

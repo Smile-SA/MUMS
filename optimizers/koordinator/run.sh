@@ -1,32 +1,58 @@
 #!/usr/bin/env bash
+# Koordinator optimizer module (contract 1): installs Koordinator via Helm.
+# It goes away with the environment: no stop action.
+# The Helm chart is fetched at install time by dependencies.sh
+# (`make setup-module MODULE=optimizers/koordinator`).
+#
+# Usage:
+#   run.sh start <kubeconfig> [--manager_replicas N] [--scheduler_replicas N] [--descheduler_replicas N]
+
 set -euo pipefail
 
-# Minimal optimizer contract: deploy onto the cluster and stop there.
-# It dies with the cluster on `environment destroy`; nothing to stop, no
-# status to poll, no artifacts to collect (data collection is the
-# observability module's job).
-# Usage: ./run.sh deploy <kubeconfig>
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
+
+usage() {
+    echo "Usage: $0 start <kubeconfig> [--manager_replicas N] [--scheduler_replicas N] [--descheduler_replicas N]" >&2
+    exit 1
+}
 
 ACTION="${1:-}"
-shift || true
+if [ "$ACTION" != "start" ]; then
+    [ -n "$ACTION" ] && echo "ERROR: unknown action '$ACTION'" >&2
+    usage
+fi
+shift
+[ "$#" -ge 1 ] || usage
+KUBECONFIG_PATH="$1"
+shift
 
-case "${ACTION}" in
-  deploy)
-    KUBECONFIG_PATH="${1:-}"
-    if [ -z "${KUBECONFIG_PATH}" ]; then
-      echo "Usage: $0 deploy <kubeconfig>" >&2
-      exit 1
-    fi
-    exec "${REPO_ROOT}/utils/koordinator/deploy.sh" "${KUBECONFIG_PATH}"
-    ;;
-  -h|--help|help)
-    echo "Usage: $0 deploy <kubeconfig>" >&2
-    ;;
-  *)
-    echo "[ERROR] Unsupported Koordinator optimizer action: ${ACTION}" >&2
-    exit 2
-    ;;
-esac
+MANAGER_REPLICAS=1
+SCHEDULER_REPLICAS=1
+DESCHEDULER_REPLICAS=1
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --manager_replicas)     MANAGER_REPLICAS="$2";     shift 2 ;;
+        --scheduler_replicas)   SCHEDULER_REPLICAS="$2";   shift 2 ;;
+        --descheduler_replicas) DESCHEDULER_REPLICAS="$2"; shift 2 ;;
+        *)
+            echo "ERROR: unknown option '$1'" >&2
+            usage
+            ;;
+    esac
+done
+
+if [ ! -f "$KUBECONFIG_PATH" ]; then
+    echo "ERROR: kubeconfig '$KUBECONFIG_PATH' not found" >&2
+    exit 1
+fi
+
+"${UTILS_DIR}/helm/install.sh" \
+    "$KUBECONFIG_PATH" \
+    koordinator \
+    koordinator \
+    --namespace koordinator-system \
+    --set "manager.replicas=${MANAGER_REPLICAS}" \
+    --set "scheduler.replicas=${SCHEDULER_REPLICAS}" \
+    --set "descheduler.replicas=${DESCHEDULER_REPLICAS}"

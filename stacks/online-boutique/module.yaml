@@ -1,15 +1,19 @@
 name: stacks.online-boutique
 type: stack
+contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  prepare: ""                       # OPTIONAL, invoked by prepare tooling
-  deploy: "<kubeconfig> <seed>"     # REQUIRED
+  deploy: "<kubeconfig> <seed>"
 
 dependencies:
   python: []
   commands:
     - kubectl
     - helm
+    - git
+  checks:
+    # Helm chart fetched by dependencies.sh (make setup-module MODULE=stacks/online-boutique)
+    - test -d ../../utils/helm/chart-repository/onlineboutique
   utils:
     - utils/helm

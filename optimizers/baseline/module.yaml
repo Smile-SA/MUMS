@@ -1,9 +1,10 @@
 name: optimizers.baseline
 type: optimizer
-entrypoint: run.sh
+contract: 1
+entrypoint: baseline.sh
 
 lifecycle:
-  deploy: "<kubeconfig>"
+  start: "<kubeconfig>"
 
 dependencies:
   python: []

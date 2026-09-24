@@ -1,24 +1,27 @@
 name: envs.kind
 type: environment
-entrypoint: run.sh
+contract: 1
+entrypoint: kind.sh
 
 lifecycle:
-  create: "<seed> <result_file>"
-  destroy: "<seed>"
+  create: "<seed> <id> <output_file>"
+  destroy: "<id>"
 
 args:
-  node_image: { required: false, type: string }
+  extras_dir: { type: string }
+  node_image: { required: false, type: string, default: "kindest/node:v1.34.0" }
   workers:    { required: false, type: mapping }
-  metallb:    { required: false, type: mapping }
 
 dependencies:
   python: []
   commands:
-    - jq          # required by scripts/lib/component_config.sh (cfg_get)
+    - jq
     - docker
     - kind
     - kubectl
     - helm
+  checks:
+    - docker info
   utils:
     - utils/kind
     - utils/metallb

@@ -1,14 +1,17 @@
 name: post-processing.refined-csv
 type: post-processing
+contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  process: "<run_output_dir>"
+  run: "<observability_dir> <traffic_dir> <output_dir>"
 
 args:
-  enabled: { required: false, default: true, type: bool }
+  csv_lines: { required: false, default: 100000, type: positive_int }
 
 dependencies:
   python: []
-  commands: []
+  commands:
+    - python3
+    - awk
   utils: []

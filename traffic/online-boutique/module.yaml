@@ -1,12 +1,15 @@
 name: traffic.online-boutique
 type: traffic
+contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  start: "<kubeconfig> <seed>"
+  start: "<kubeconfig> <seed> <output_dir>"
   stop: "<kubeconfig>"
 
 args:
+  log_dir:       { type: string }
+  extras_dir:    { type: string }
   shape:         { required: false, default: day_profile, type: string }
   cycle_minutes: { required: false, default: 60, type: positive_int }
 
@@ -14,5 +17,7 @@ dependencies:
   python:
     - requirements.txt
   commands:
-    - jq          # required by scripts/lib/component_config.sh (cfg_get)
+    - locust
+    - kubectl
+    - curl
   utils: []

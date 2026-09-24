@@ -6,41 +6,32 @@ scenario:
   duration_seconds: 120
 
 environment:
-  type: kind
   module: envs/kind
   node_image: kindest/node:v1.34.0
   workers:
     count: 2
     cpu: "2"
     memory: "4Gi"
-  metallb:
-    ip_range: auto
 
 stack:
-  type: online-boutique
   module: stacks/online-boutique
 
 observability:
-  type: prometheus
   module: observability/prometheus
   frequency_seconds: 15
   local_port: 9090
   timeout_seconds: 10
 
 traffic:
-  type: locust
   module: traffic/online-boutique
   shape: day_profile
   cycle_minutes: 60
 
 optimizer:
-  type: baseline
   module: optimizers/baseline
 
 post-processing:
-  type: refined-csv
   module: observability/analysis
-  enabled: true
 
 output:
   root_directory: output/runs

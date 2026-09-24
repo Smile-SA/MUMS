@@ -6,15 +6,23 @@ from pathlib import Path
 
 from benchmark_platform.compare import compare_runs, default_output_dir, write_report
 from benchmark_platform.config import ConfigError, load_config
-from benchmark_platform.runner import run_scenario
+from benchmark_platform.dependencies import DependencyError
+from benchmark_platform.modules import ModuleError
+from benchmark_platform.runner import prepare_scenario, run_scenario
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="benchmark-platform")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    validate = subparsers.add_parser("validate", help="Validate a scenario configuration.")
+    validate = subparsers.add_parser(
+        "validate",
+        help="Validate a scenario: config, modules and their dependencies.",
+    )
     validate.add_argument("config", help="Path to scenario YAML file.")
+    validate.add_argument(
+        "--repo-root", default=".", help="Repository root. Defaults to current directory."
+    )
 
     run = subparsers.add_parser("run", help="Run a scenario configuration.")
     run.add_argument("config", help="Path to scenario YAML file.")
@@ -75,7 +83,8 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(args.config)
 
         if args.command == "validate":
-            print(f"Valid scenario config: {config.path}")
+            prepare_scenario(config, repo_root=Path(args.repo_root).resolve())
+            print(f"Valid scenario: {config.path}")
             return 0
 
         if args.command == "run":
@@ -93,6 +102,12 @@ def main(argv: list[str] | None = None) -> int:
 
     except ConfigError as exc:
         print(f"[CONFIG ERROR] {exc}", file=sys.stderr)
+        return 2
+    except ModuleError as exc:
+        print(f"[MODULE ERROR] {exc}", file=sys.stderr)
+        return 2
+    except DependencyError as exc:
+        print(f"[DEPENDENCY ERROR] {exc}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:
         print("[INTERRUPTED] Benchmark run interrupted by user.", file=sys.stderr)

@@ -1,44 +1,97 @@
 #!/usr/bin/env bash
-# Runs HOTS + the hots-connector as host-side processes against a live run,
-# wired together over a per-run Kafka broker (utils/kafka).
+# HOTS optimizer module (contract 1): runs HOTS + hots-connector as host-side
+# processes against the live cluster, wired together over a per-run Kafka
+# broker (utils/kafka).
 #
 # Usage:
-#   ./run.sh deploy <kubeconfig>   # no-op: nothing is deployed into the cluster
-#   ./run.sh start  <kubeconfig>
-#   ./run.sh stop   <kubeconfig>
+#   run.sh start <kubeconfig> --log_dir <dir> --extras_dir <dir> [module args...]
+#   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [module args...]
 #
-# kafka_port / prometheus_url / k8s_workload_identity / k8s_node_label_key /
-# namespace / metric / nb_clusters / tick_seconds are read from this module's
-# own scenario-config section (BENCHMARK_COMPONENT_CONFIG). See README.md for
-# what each one means and why the defaults are pinned the way they are.
+# Module args (see module.yaml): --kafka_port, --prometheus_url,
+# --k8s_workload_identity, --k8s_node_label_key, --namespace, --metric,
+# --nb_clusters, --tick_seconds. See README.md for what each one means.
+#
+# Logs: <log_dir>/{hots,hots-connector,hots-moves-recorder}.log
+# Extras: hots-config.json, hots-metrics.csv, moves.jsonl, PID files.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
-source "${REPO_ROOT}/scripts/lib/component_config.sh"
+UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
 
-# Fixed, not user-configurable: this platform never runs two optimizers
-# concurrently against the same host (one Kind cluster per run, run serially),
-# so a single well-known port for the connector's own HTTP control API is
-# enough -- same convention as observability/prometheus's default local_port.
+# Fixed, not user-configurable: runs are serial on a host, so a single
+# well-known port for the connector's own HTTP control API is enough.
 CONNECTOR_API_PORT=8189
+TOPIC_DATA="hots_data"
+TOPIC_MOVES="hots_moves"
 
-PYTHON_BIN="${PYTHON_BIN:-}"
-if [ -z "${PYTHON_BIN}" ]; then
-    if [ -x "${REPO_ROOT}/.venv/bin/python" ]; then
-        PYTHON_BIN="${REPO_ROOT}/.venv/bin/python"
-    else
-        PYTHON_BIN="$(command -v python3 || true)"
-    fi
-fi
+usage() {
+    echo "Usage:" >&2
+    echo "  $0 start <kubeconfig> --log_dir <dir> --extras_dir <dir> [module args]" >&2
+    echo "  $0 stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [module args]" >&2
+    exit 1
+}
 
 ACTION="${1:-}"
-shift || true
+case "$ACTION" in
+    start|stop) ;;
+    "") usage ;;
+    *) echo "ERROR: unknown action '$ACTION'" >&2; usage ;;
+esac
+shift
+[ "$#" -ge 1 ] || usage
+KUBECONFIG_PATH="$1"
+shift
+
+LOG_DIR=""
+EXTRAS_DIR=""
+KAFKA_PORT=9092
+PROMETHEUS_URL="http://127.0.0.1:9090"
+K8S_WORKLOAD_IDENTITY="pod"
+K8S_NODE_LABEL_KEY="kubernetes.io/hostname"
+NAMESPACE="online-boutique"
+METRIC="cpu"
+NB_CLUSTERS=3
+TICK_SECONDS=10
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --log_dir)               LOG_DIR="$2";               shift 2 ;;
+        --extras_dir)            EXTRAS_DIR="$2";            shift 2 ;;
+        --kafka_port)            KAFKA_PORT="$2";            shift 2 ;;
+        --prometheus_url)        PROMETHEUS_URL="$2";        shift 2 ;;
+        --k8s_workload_identity) K8S_WORKLOAD_IDENTITY="$2"; shift 2 ;;
+        --k8s_node_label_key)    K8S_NODE_LABEL_KEY="$2";    shift 2 ;;
+        --namespace)             NAMESPACE="$2";             shift 2 ;;
+        --metric)                METRIC="$2";                shift 2 ;;
+        --nb_clusters)           NB_CLUSTERS="$2";           shift 2 ;;
+        --tick_seconds)          TICK_SECONDS="$2";          shift 2 ;;
+        *)
+            echo "ERROR: unknown option '$1'" >&2
+            usage
+            ;;
+    esac
+done
+
+if [ -z "$LOG_DIR" ] || [ -z "$EXTRAS_DIR" ]; then
+    echo "ERROR: --log_dir and --extras_dir are required" >&2
+    exit 1
+fi
+mkdir -p "$LOG_DIR" "$EXTRAS_DIR"
+LOG_DIR="$(cd "$LOG_DIR" && pwd -P)"
+EXTRAS_DIR="$(cd "$EXTRAS_DIR" && pwd -P)"
+
+# Kafka broker name, unique per run and identical for start and stop.
+BROKER_NAME="hots-$(printf '%s' "$EXTRAS_DIR" | sha1sum | cut -c1-8)"
+
+HOTS_PID_FILE="${EXTRAS_DIR}/hots.pid"
+CONNECTOR_PID_FILE="${EXTRAS_DIR}/hots-connector.pid"
+RECORDER_PID_FILE="${EXTRAS_DIR}/hots-moves-recorder.pid"
+HOTS_CONFIG="${EXTRAS_DIR}/hots-config.json"
 
 stop_pid_file() {
     local pid_file="$1" label="$2"
-    [ -f "$pid_file" ] || { echo "WARNING: no PID file for ${label}" >&2; return; }
+    [ -f "$pid_file" ] || { echo "WARNING: no PID file for ${label}" >&2; return 0; }
     local pid; pid="$(cat "$pid_file")"
     if kill "$pid" 2>/dev/null; then
         # Wait for a clean exit before the caller tears down shared
@@ -47,8 +100,8 @@ stop_pid_file() {
             kill -0 "$pid" 2>/dev/null || break
             sleep 0.5
         done
-        kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
-        echo "=== ${label} stopped (PID ${pid})" >&2
+        kill -9 "$pid" 2>/dev/null || true
+        echo "=== ${label} stopped (PID ${pid})"
     else
         echo "WARNING: ${label} (PID ${pid}) already stopped" >&2
     fi
@@ -56,75 +109,37 @@ stop_pid_file() {
 }
 
 case "$ACTION" in
-    deploy)
-        echo "=== HOTS optimizer: nothing to deploy into the cluster ===" >&2
-        echo "HOTS and the connector run as host-side processes; see 'start'/'stop'." >&2
-        ;;
-
     start)
-        KUBECONFIG_PATH="${1:-}"
-        if [ -z "$KUBECONFIG_PATH" ]; then
-            echo "Usage: $0 start <kubeconfig>" >&2
-            exit 1
-        fi
         if [ ! -f "$KUBECONFIG_PATH" ]; then
             echo "ERROR: kubeconfig '$KUBECONFIG_PATH' not found" >&2
             exit 1
         fi
 
-        BENCHMARK_LOG_DIR="${BENCHMARK_LOG_DIR:-/tmp}"
-        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
-        BENCHMARK_ARTIFACT_DIR="${BENCHMARK_ARTIFACT_DIR:-/tmp}"
-        mkdir -p "${BENCHMARK_LOG_DIR}" "${BENCHMARK_PID_DIR}" "${BENCHMARK_ARTIFACT_DIR}"
-        BENCHMARK_LOG_DIR="$(cd "${BENCHMARK_LOG_DIR}" && pwd -P)"
-        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
-        BENCHMARK_ARTIFACT_DIR="$(cd "${BENCHMARK_ARTIFACT_DIR}" && pwd -P)"
-
-        NAME="$(basename "$KUBECONFIG_PATH")"
-
-        KAFKA_PORT="$(cfg_get '.kafka_port' '9092')"
-        PROMETHEUS_URL="$(cfg_get '.prometheus_url' 'http://127.0.0.1:9090')"
-        K8S_WORKLOAD_IDENTITY="$(cfg_get '.k8s_workload_identity' 'pod')"
-        K8S_NODE_LABEL_KEY="$(cfg_get '.k8s_node_label_key' 'kubernetes.io/hostname')"
-        NAMESPACE="$(cfg_get '.namespace' 'online-boutique')"
-        METRIC="$(cfg_get '.metric' 'cpu')"
-        NB_CLUSTERS="$(cfg_get '.nb_clusters' '3')"
-        TICK_SECONDS="$(cfg_get '.tick_seconds' '10')"
-
-        TOPIC_DATA="hots_data"
-        TOPIC_MOVES="hots_moves"
-
-        # The observability module exposes its port via the port-forward; we can at
-        # least check the connector can reach Prometheus before launching HOTS.
-        echo "=== Pre-flight: checking Prometheus reachability at ${PROMETHEUS_URL} ===" >&2
+        echo "=== Pre-flight: checking Prometheus reachability at ${PROMETHEUS_URL} ==="
         if ! curl -fsS --max-time 5 "${PROMETHEUS_URL}/-/healthy" >/dev/null 2>&1; then
             echo "ERROR: Prometheus not reachable at ${PROMETHEUS_URL}." >&2
-            echo "  Confirm observability/prometheus port-forward is running and" >&2
+            echo "  Confirm the observability module is running and that" >&2
             echo "  optimizer.prometheus_url matches observability.local_port." >&2
             exit 1
         fi
 
-        echo "=== Starting per-run Kafka broker ===" >&2
-        "${REPO_ROOT}/utils/kafka/broker.sh" start "$NAME" "$KAFKA_PORT"
+        echo "=== Starting per-run Kafka broker ==="
+        "${UTILS_DIR}/kafka/broker.sh" start "$BROKER_NAME" "$KAFKA_PORT"
 
-        # Pre-create both topics explicitly: a producer auto-creates a topic
-        # it publishes to, but a *consumer* subscribing to a topic that
-        # doesn't exist yet raises UNKNOWN_TOPIC_OR_PART instead of waiting --
-        # hots-connector's tick loop (subscribed to topic_moves) crashes on
-        # its very first tick if that topic hasn't been created yet, silently
-        # (POST /stream/start already returned 200 by the time the background
-        # thread dies).
-        KAFKA_CONTAINER="benchmark-kafka-${NAME}"
+        # Pre-create both topics explicitly: a consumer subscribing to a topic
+        # that doesn't exist yet raises UNKNOWN_TOPIC_OR_PART instead of
+        # waiting -- hots-connector's tick loop (subscribed to topic_moves)
+        # would crash on its very first tick, silently.
         for topic in "$TOPIC_DATA" "$TOPIC_MOVES"; do
-            docker exec "$KAFKA_CONTAINER" /opt/kafka/bin/kafka-topics.sh \
+            docker exec "benchmark-kafka-${BROKER_NAME}" /opt/kafka/bin/kafka-topics.sh \
                 --bootstrap-server localhost:9092 \
                 --create --if-not-exists --topic "$topic" \
-                --partitions 1 --replication-factor 1 >&2
+                --partitions 1 --replication-factor 1
         done
 
-        echo "=== Rendering HOTS config ===" >&2
-        "$PYTHON_BIN" "${SCRIPT_DIR}/render_config.py" \
-            "${BENCHMARK_ARTIFACT_DIR}/hots-config.json" \
+        echo "=== Rendering HOTS config ==="
+        python3 "${SCRIPT_DIR}/render_config.py" \
+            "$HOTS_CONFIG" \
             --kubeconfig "$KUBECONFIG_PATH" \
             --kafka-port "$KAFKA_PORT" \
             --metric "$METRIC" \
@@ -132,17 +147,15 @@ case "$ACTION" in
             --tick-seconds "$TICK_SECONDS" \
             --topic-data "$TOPIC_DATA" \
             --topic-moves "$TOPIC_MOVES" \
-            --results-dir "$BENCHMARK_ARTIFACT_DIR"
+            --results-dir "$EXTRAS_DIR"
 
-        echo "=== Starting hots-connector (kubernetes action backend) ===" >&2
-        # PROM_HOST_LABEL/PROM_QUERY_* override hots-connector's built-in
-        # "prometheus_kubernetes" profile defaults: this platform's Prometheus
-        # chart (utils/helm/chart-repository/prometheus) labels the node as
-        # `kubernetes_io_hostname`, not `node`, and scrapes the cadvisor job
-        # every 1m -- a `rate(...[1m])` window (the built-in default) is too
-        # tight to reliably catch 2 samples and returns empty.
-        CONNECTOR_LOG="${BENCHMARK_LOG_DIR}/hots-connector.log"
-        CONNECTOR_PID_FILE="${BENCHMARK_PID_DIR}/hots-connector-${NAME}.pid"
+        echo "=== Starting hots-connector (kubernetes action backend) ==="
+        # HOTSCONNECTOR_* is hots-connector's own configuration interface.
+        # PROM_HOST_LABEL/PROM_QUERY_* override its "prometheus_kubernetes"
+        # profile defaults: the platform's Prometheus labels the node as
+        # `kubernetes_io_hostname`, and scrapes cadvisor every 1m, so the
+        # default `rate(...[1m])` window is too tight to catch 2 samples.
+        CONNECTOR_LOG="${LOG_DIR}/hots-connector.log"
         HOTSCONNECTOR_OBSERVATION_BACKEND=prometheus_kubernetes \
         HOTSCONNECTOR_TRANSPORT_BACKEND=kafka \
         HOTSCONNECTOR_ACTION_BACKEND=kubernetes \
@@ -164,7 +177,7 @@ case "$ACTION" in
             > "$CONNECTOR_LOG" 2>&1 &
         echo $! > "$CONNECTOR_PID_FILE"
 
-        echo "=== Waiting for hots-connector API... ===" >&2
+        echo "=== Waiting for hots-connector API... ==="
         CONNECTOR_READY=0
         for _ in $(seq 1 30); do
             if curl -fsS "http://127.0.0.1:${CONNECTOR_API_PORT}/health" >/dev/null 2>&1; then
@@ -179,25 +192,23 @@ case "$ACTION" in
             exit 1
         fi
 
-        echo "=== Checking hots-connector backends ===" >&2
+        echo "=== Checking hots-connector backends ==="
         CHECK_RESULT="$(curl -fsS "http://127.0.0.1:${CONNECTOR_API_PORT}/check" 2>/dev/null || echo '{}')"
-        echo "$CHECK_RESULT" >&2
-
+        echo "$CHECK_RESULT"
         # Fail fast if any backend reported an error: HOTS would otherwise start,
-        # get no telemetry, and exit cleanly after one empty poll -- with no
-        # obvious error pointing back to the connector misconfiguration.
+        # get no telemetry, and exit cleanly after one empty poll.
         if echo "$CHECK_RESULT" | grep -q '"error'; then
             echo "ERROR: hots-connector /check reported backend failures (see above)." >&2
-            echo "  Fix the reported errors before starting the optimizer." >&2
             exit 1
         fi
 
-        curl -fsS -X POST "http://127.0.0.1:${CONNECTOR_API_PORT}/stream/start" >&2 \
-            || echo "WARNING: failed to start hots-connector's stream loop" >&2
+        if ! curl -fsS -X POST "http://127.0.0.1:${CONNECTOR_API_PORT}/stream/start" >/dev/null; then
+            echo "ERROR: failed to start hots-connector's stream loop" >&2
+            exit 1
+        fi
 
-        echo "=== Starting HOTS ===" >&2
-        HOTS_LOG="${BENCHMARK_LOG_DIR}/hots.log"
-        HOTS_PID_FILE="${BENCHMARK_PID_DIR}/hots-${NAME}.pid"
+        echo "=== Starting HOTS ==="
+        HOTS_LOG="${LOG_DIR}/hots.log"
         # The KRaft single-node broker occasionally fails to elect a group
         # coordinator in time, causing HOTS to hit the bootstrap timeout. Give
         # it a second attempt before failing the start.
@@ -205,12 +216,10 @@ case "$ACTION" in
         HOTS_STARTED=0
         for attempt in $(seq 1 "$HOTS_MAX_ATTEMPTS"); do
             : > "$HOTS_LOG"
-            "$(command -v hots)" --config "${BENCHMARK_ARTIFACT_DIR}/hots-config.json" \
-                > "$HOTS_LOG" 2>&1 &
+            hots --config "$HOTS_CONFIG" > "$HOTS_LOG" 2>&1 &
             HOTS_PID=$!
             echo "$HOTS_PID" > "$HOTS_PID_FILE"
 
-            # Wait briefly and check for the known bootstrap failure
             sleep 15
             if kill -0 "$HOTS_PID" 2>/dev/null; then
                 HOTS_STARTED=1
@@ -221,7 +230,7 @@ case "$ACTION" in
                 rm -f "$HOTS_PID_FILE"
                 sleep 5
             else
-                echo "ERROR: HOTS exited unexpectedly on attempt ${attempt}. Check ${HOTS_LOG}." >&2
+                echo "ERROR: HOTS exited unexpectedly on attempt ${attempt}. Log: ${HOTS_LOG}" >&2
                 cat "$HOTS_LOG" >&2
                 exit 1
             fi
@@ -232,63 +241,35 @@ case "$ACTION" in
             exit 1
         fi
 
-        echo "=== Starting moves recorder ===" >&2
-        RECORDER_LOG="${BENCHMARK_LOG_DIR}/hots-moves-recorder.log"
-        RECORDER_PID_FILE="${BENCHMARK_PID_DIR}/hots-moves-recorder-${NAME}.pid"
-        : > "${BENCHMARK_ARTIFACT_DIR}/moves.jsonl"
-        "$PYTHON_BIN" "${SCRIPT_DIR}/record_moves.py" \
+        echo "=== Starting moves recorder ==="
+        : > "${EXTRAS_DIR}/moves.jsonl"
+        python3 "${SCRIPT_DIR}/record_moves.py" \
             --bootstrap-servers "localhost:${KAFKA_PORT}" \
             --topic "$TOPIC_MOVES" \
-            --output "${BENCHMARK_ARTIFACT_DIR}/moves.jsonl" \
-            > "$RECORDER_LOG" 2>&1 &
+            --output "${EXTRAS_DIR}/moves.jsonl" \
+            > "${LOG_DIR}/hots-moves-recorder.log" 2>&1 &
         echo $! > "$RECORDER_PID_FILE"
 
-        echo "=== HOTS optimizer started (connector PID $(cat "$CONNECTOR_PID_FILE"), hots PID $(cat "$HOTS_PID_FILE"), recorder PID $(cat "$RECORDER_PID_FILE")) ===" >&2
+        echo "=== HOTS optimizer started (connector PID $(cat "$CONNECTOR_PID_FILE"), hots PID $(cat "$HOTS_PID_FILE"), recorder PID $(cat "$RECORDER_PID_FILE")) ==="
         ;;
 
     stop)
-        KUBECONFIG_PATH="${1:-}"
-        if [ -z "$KUBECONFIG_PATH" ]; then
-            echo "Usage: $0 stop <kubeconfig>" >&2
-            exit 1
-        fi
+        # Must succeed whatever is running: start may have failed half-way.
 
-        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
-        mkdir -p "${BENCHMARK_PID_DIR}"
-        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
-
-        NAME="$(basename "$KUBECONFIG_PATH")"
-        KAFKA_PORT="$(cfg_get '.kafka_port' '9092')"
-
-        # Generic contract (see benchmark_platform/provenance.py): any module
-        # may drop a provenance-notes.json (a JSON list of strings) into its
-        # own artifact dir, and the runner aggregates whatever it finds --
-        # this module-specific caveat belongs here, not in core.
-        BENCHMARK_ARTIFACT_DIR="${BENCHMARK_ARTIFACT_DIR:-/tmp}"
-        mkdir -p "${BENCHMARK_ARTIFACT_DIR}"
-        cat > "${BENCHMARK_ARTIFACT_DIR}/provenance-notes.json" <<'JSON'
-["HOTS/hots-connector patch Deployment nodeSelectors in place while running. `stop` calls hots-connector's POST /kubernetes/reset-node-selectors to restore them, but that only covers patches made by the still-running process -- state is lost across a crash/restart. Verify nodeSelectors before reusing this cluster for another comparison."]
-JSON
-
-        # Best-effort: undo the sticky nodeSelector patches before tearing the
+        # Best-effort: undo the nodeSelector patches before tearing the
         # connector down, then stop its tick loop.
         curl -fsS -X POST "http://127.0.0.1:${CONNECTOR_API_PORT}/kubernetes/reset-node-selectors" \
-            >&2 2>&1 || echo "WARNING: could not reset nodeSelector patches" >&2
+            >/dev/null 2>&1 || echo "WARNING: could not reset nodeSelector patches" >&2
         curl -fsS -X POST "http://127.0.0.1:${CONNECTOR_API_PORT}/stream/stop" \
             >/dev/null 2>&1 || true
 
-        stop_pid_file "${BENCHMARK_PID_DIR}/hots-${NAME}.pid" "HOTS"
-        # Give HOTS a moment to flush metrics.csv/hots.log on SIGTERM before
-        # the connector (and its telemetry topic) go away.
+        stop_pid_file "$HOTS_PID_FILE" "HOTS"
+        # Give HOTS a moment to flush hots-metrics.csv before the connector
+        # (and its telemetry topic) go away.
         sleep 2
-        stop_pid_file "${BENCHMARK_PID_DIR}/hots-connector-${NAME}.pid" "hots-connector"
-        stop_pid_file "${BENCHMARK_PID_DIR}/hots-moves-recorder-${NAME}.pid" "moves recorder"
+        stop_pid_file "$CONNECTOR_PID_FILE" "hots-connector"
+        stop_pid_file "$RECORDER_PID_FILE" "moves recorder"
 
-        "${REPO_ROOT}/utils/kafka/broker.sh" stop "$NAME"
-        ;;
-
-    *)
-        echo "Usage: $0 <deploy|start|stop> <kubeconfig>" >&2
-        exit 1
+        "${UTILS_DIR}/kafka/broker.sh" stop "$BROKER_NAME" || true
         ;;
 esac

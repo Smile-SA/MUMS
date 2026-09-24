@@ -1,135 +1,155 @@
-#!/bin/bash
-# Generates traffic against Online Boutique from the host machine.
-# Usage:
-#   ./run.sh start <kubeconfig> <seed>
-#   ./run.sh stop  <kubeconfig>
+#!/usr/bin/env bash
+# Online Boutique traffic module (contract 1): Locust load from the host machine.
 #
-# shape / cycle_minutes are read from this module's own scenario-config
-# section (BENCHMARK_COMPONENT_CONFIG):
-#   shape:          Traffic shape to use (default: day_profile)
-#   cycle_minutes:  Cycle duration in minutes (overrides DURATION_MINUTES from the shape)
+# Usage:
+#   run.sh start <kubeconfig> <seed> <output_dir> --log_dir <dir> --extras_dir <dir>
+#                [--shape <name>] [--cycle_minutes N]
+#   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
+#
+# Outputs: Locust CSV files in <output_dir> (locust_*.csv).
+# Logs: <log_dir>/locust.log. Internal state: <extras_dir>/locust.pid.
+# Shapes: shapes/<shape>.py in this module.
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-TRAFFIC_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-source "${REPO_ROOT}/scripts/lib/component_config.sh"
+set -euo pipefail
 
-ACTION=$1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+NAMESPACE="online-boutique"
+
+usage() {
+    echo "Usage:" >&2
+    echo "  $0 start <kubeconfig> <seed> <output_dir> --log_dir <dir> --extras_dir <dir> [--shape <name>] [--cycle_minutes N]" >&2
+    echo "  $0 stop  <kubeconfig> --log_dir <dir> --extras_dir <dir>" >&2
+    exit 1
+}
+
+ACTION="${1:-}"
+[ -n "$ACTION" ] || usage
 shift
 
 case "$ACTION" in
-
     start)
-        KUBECONFIG=$1
-        SEED=$2
-        shift 2
+        [ "$#" -ge 3 ] || usage
+        KUBECONFIG_PATH="$1"; SEED="$2"; OUTPUT_DIR="$3"
+        shift 3
+        ;;
+    stop)
+        [ "$#" -ge 1 ] || usage
+        KUBECONFIG_PATH="$1"
+        shift
+        ;;
+    *)
+        echo "ERROR: unknown action '$ACTION'" >&2
+        usage
+        ;;
+esac
 
-        if [ -z "$KUBECONFIG" ] || [ -z "$SEED" ]; then
-            echo "Usage: $0 start <kubeconfig> <seed>" >&2
+LOG_DIR=""
+EXTRAS_DIR=""
+SHAPE="day_profile"
+CYCLE_MINUTES=60
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --log_dir)       LOG_DIR="$2";       shift 2 ;;
+        --extras_dir)    EXTRAS_DIR="$2";    shift 2 ;;
+        --shape)         SHAPE="$2";         shift 2 ;;
+        --cycle_minutes) CYCLE_MINUTES="$2"; shift 2 ;;
+        *)
+            echo "ERROR: unknown option '$1'" >&2
+            usage
+            ;;
+    esac
+done
+
+if [ -z "$LOG_DIR" ] || [ -z "$EXTRAS_DIR" ]; then
+    echo "ERROR: --log_dir and --extras_dir are required" >&2
+    exit 1
+fi
+mkdir -p "$LOG_DIR" "$EXTRAS_DIR"
+# Absolute paths: Locust is started from the module directory.
+LOG_DIR="$(cd "$LOG_DIR" && pwd -P)"
+EXTRAS_DIR="$(cd "$EXTRAS_DIR" && pwd -P)"
+
+PID_FILE="${EXTRAS_DIR}/locust.pid"
+
+case "$ACTION" in
+    start)
+        if [ ! -f "$KUBECONFIG_PATH" ]; then
+            echo "ERROR: kubeconfig '$KUBECONFIG_PATH' not found" >&2
             exit 1
         fi
 
-        if [ ! -f "$KUBECONFIG" ]; then
-            echo "ERROR: kubeconfig '$KUBECONFIG' not found" >&2
+        if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+            echo "ERROR: traffic already running (PID $(cat "$PID_FILE"))" >&2
             exit 1
         fi
+        rm -f "$PID_FILE"
 
-        BENCHMARK_LOG_DIR="${BENCHMARK_LOG_DIR:-/tmp}"
-        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
-        BENCHMARK_TRAFFIC_DIR="${BENCHMARK_TRAFFIC_DIR:-${BENCHMARK_LOG_DIR}}"
-
-        mkdir -p "${BENCHMARK_LOG_DIR}" "${BENCHMARK_PID_DIR}" "${BENCHMARK_TRAFFIC_DIR}"
-
-        # Convert to absolute paths before `cd "$TRAFFIC_DIR"`.
-        BENCHMARK_LOG_DIR="$(cd "${BENCHMARK_LOG_DIR}" && pwd -P)"
-        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
-        BENCHMARK_TRAFFIC_DIR="$(cd "${BENCHMARK_TRAFFIC_DIR}" && pwd -P)"
-
-        RUN_NAME="$(basename "$KUBECONFIG")"
-        PID_FILE="${BENCHMARK_PID_DIR}/traffic-${RUN_NAME}.pid"
-        LOG_FILE="${BENCHMARK_LOG_DIR}/traffic.log"
-        LOCUST_CSV_PREFIX="${BENCHMARK_TRAFFIC_DIR}/locust"
-
-        if [ -f "$PID_FILE" ]; then
-            OLD_PID="$(cat "$PID_FILE")"
-
-            if kill -0 "$OLD_PID" 2>/dev/null; then
-                echo "ERROR: traffic already running (PID $OLD_PID)" >&2
-                exit 1
-            fi
-
-            echo "WARNING: stale traffic PID file removed (PID $OLD_PID)" >&2
-            rm -f "$PID_FILE"
-        fi
-
-        SHAPE="$(cfg_get '.shape' 'day_profile')"
-        DURATION="$(cfg_get '.cycle_minutes' '')"
-
-        SHAPE_FILE="$TRAFFIC_DIR/shapes/${SHAPE}.py"
+        SHAPE_FILE="${SCRIPT_DIR}/shapes/${SHAPE}.py"
         if [ ! -f "$SHAPE_FILE" ]; then
             echo "ERROR: shape '$SHAPE' not found ($SHAPE_FILE)" >&2
             exit 1
         fi
 
-        FRONTEND_URL="$(
-            "${REPO_ROOT}/stacks/online-boutique/check_frontend.sh" "${KUBECONFIG}"
-        )"
-        echo "=== Locust target verified: ${FRONTEND_URL} ===" >&2
+        mkdir -p "$OUTPUT_DIR"
+        OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
+        KUBECONFIG_PATH="$(cd "$(dirname "$KUBECONFIG_PATH")" && pwd -P)/$(basename "$KUBECONFIG_PATH")"
+        LOG_FILE="${LOG_DIR}/locust.log"
+        CSV_PREFIX="${OUTPUT_DIR}/locust"
 
-        TARGET="${FRONTEND_URL}"
-        echo "=== Online Boutique traffic ===" >&2
-        echo "    Target  : $TARGET" >&2
-        echo "    Shape   : $SHAPE" >&2
-        echo "    Seed    : $SEED" >&2
-        [ -n "$DURATION" ] && echo "    Cycle   : ${DURATION} minutes" >&2
+        TARGET="$("${SCRIPT_DIR}/check_frontend.sh" "$KUBECONFIG_PATH" "$NAMESPACE")"
 
-        [ -n "$DURATION" ] && export DURATION_MINUTES="$DURATION"
+        echo "=== Online Boutique traffic ==="
+        echo "    Target : $TARGET"
+        echo "    Shape  : $SHAPE"
+        echo "    Seed   : $SEED"
+        echo "    Cycle  : ${CYCLE_MINUTES} minutes"
 
-        cd "$TRAFFIC_DIR"
+        cd "$SCRIPT_DIR"
         locust \
-            -f "$SCRIPT_DIR/locustfile.py,$SHAPE_FILE" \
+            -f "${SCRIPT_DIR}/locustfile.py,${SHAPE_FILE}" \
             --host "$TARGET" \
             --headless \
             --seed "$SEED" \
-            --csv "${LOCUST_CSV_PREFIX}" \
+            --duration-minutes "$CYCLE_MINUTES" \
+            --csv "$CSV_PREFIX" \
             --csv-full-history \
             > "$LOG_FILE" 2>&1 &
+        LOCUST_PID=$!
+        echo "$LOCUST_PID" > "$PID_FILE"
 
-        echo $! > "$PID_FILE"
-        echo "=== Traffic started (PID $(cat "$PID_FILE"), log: $LOG_FILE, csv: ${LOCUST_CSV_PREFIX}_*.csv)" >&2
-        ;;
-
-    stop)
-        KUBECONFIG=$1
-        if [ -z "$KUBECONFIG" ]; then
-            echo "Usage: $0 stop <kubeconfig>" >&2
+        # Fail loudly if Locust dies right away (missing package, bad shape...),
+        # instead of running a benchmark without traffic.
+        sleep 3
+        if ! kill -0 "$LOCUST_PID" 2>/dev/null; then
+            echo "ERROR: Locust exited right after start. Log: ${LOG_FILE}" >&2
+            cat "$LOG_FILE" >&2 || true
+            rm -f "$PID_FILE"
             exit 1
         fi
 
-        BENCHMARK_PID_DIR="${BENCHMARK_PID_DIR:-/tmp}"
-        mkdir -p "${BENCHMARK_PID_DIR}"
-        BENCHMARK_PID_DIR="$(cd "${BENCHMARK_PID_DIR}" && pwd -P)"
+        echo "=== Traffic started (PID ${LOCUST_PID}, log: ${LOG_FILE}, csv: ${CSV_PREFIX}_*.csv)"
+        ;;
 
-        RUN_NAME="$(basename "$KUBECONFIG")"
-        PID_FILE="${BENCHMARK_PID_DIR}/traffic-${RUN_NAME}.pid"
+    stop)
+        # Must succeed whatever is running (start may have failed half-way).
         if [ ! -f "$PID_FILE" ]; then
-            echo "WARNING: no PID file found ($PID_FILE)" >&2
+            echo "No Locust PID file: $PID_FILE" >&2
             exit 0
         fi
 
-        PID=$(cat "$PID_FILE")
+        PID="$(cat "$PID_FILE")"
         if kill "$PID" 2>/dev/null; then
-            echo "=== Traffic stopped (PID $PID)" >&2
+            # Give Locust time to flush its CSV files.
+            for _ in $(seq 1 20); do
+                kill -0 "$PID" 2>/dev/null || break
+                sleep 0.5
+            done
+            kill -9 "$PID" 2>/dev/null || true
+            echo "=== Traffic stopped (PID $PID)"
         else
-            echo "WARNING: process $PID already stopped" >&2
+            echo "WARNING: Locust $PID already stopped" >&2
         fi
         rm -f "$PID_FILE"
-        ;;
-
-    *)
-        echo "Usage: $0 <start|stop> ..." >&2
-        echo "  start <kubeconfig> <seed>" >&2
-        echo "  stop  <kubeconfig>" >&2
-        exit 1
         ;;
 esac

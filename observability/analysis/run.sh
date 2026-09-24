@@ -1,45 +1,50 @@
 #!/usr/bin/env bash
+# Refined-CSV post-processing module (contract 1): turns the observability
+# output (metrics.om, OpenMetrics) into the refined CSV tables (see README.md).
+#
+# Usage:
+#   run.sh run <observability_dir> <traffic_dir> <output_dir> [--csv_lines N]
+#
+# <traffic_dir> is not used yet.
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+
+usage() {
+    echo "Usage: $0 run <observability_dir> <traffic_dir> <output_dir> [--csv_lines N]" >&2
+    exit 1
+}
+
 ACTION="${1:-}"
-shift || true
+if [ "$ACTION" != "run" ]; then
+    [ -n "$ACTION" ] && echo "ERROR: unknown action '$ACTION'" >&2
+    usage
+fi
+shift
+[ "$#" -ge 3 ] || usage
+OBSERVABILITY_DIR="$1"
+TRAFFIC_DIR="$2"   # unused for now
+OUTPUT_DIR="$3"
+shift 3
 
-PYTHON_BIN="${PYTHON_BIN:-$(command -v python3 || true)}"
+CSV_LINES=100000
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --csv_lines) CSV_LINES="$2"; shift 2 ;;
+        *)
+            echo "ERROR: unknown option '$1'" >&2
+            usage
+            ;;
+    esac
+done
 
-case "${ACTION}" in
-  process)
-    RUN_OUTPUT_DIR="${1:-}"
-    shift || true
+METRICS_FILE="${OBSERVABILITY_DIR}/metrics.om"
 
-    if [ -z "${RUN_OUTPUT_DIR}" ]; then
-      echo "Usage: $0 process <run_output_dir> [--lines=N]" >&2
-      exit 2
-    fi
+if [ ! -s "$METRICS_FILE" ]; then
+    echo "[SKIP] Metrics file is missing or empty: ${METRICS_FILE}" >&2
+    exit 0
+fi
 
-    METRICS_FILE="${RUN_OUTPUT_DIR}/metrics/metrics.om"
-    OUTPUT_DIR="${RUN_OUTPUT_DIR}/post-processing"
-
-    if [ ! -s "${METRICS_FILE}" ]; then
-      echo "[SKIP] Metrics file is missing or empty: ${METRICS_FILE}" >&2
-      exit 0
-    fi
-
-    cat "${METRICS_FILE}" | "${SCRIPT_DIR}/run_all.sh" "${OUTPUT_DIR}" "$@"
-
-    if [ -n "${PYTHON_BIN}" ]; then
-      echo "=== Writing post-processing metadata ===" >&2
-      "${PYTHON_BIN}" "${SCRIPT_DIR}/metadata.py" "${RUN_OUTPUT_DIR}"
-    fi
-    ;;
-
-  help|-h|--help|"")
-    echo "Usage: $0 process <run_output_dir> [--lines=N]" >&2
-    ;;
-
-  *)
-    echo "[ERROR] Unsupported post-processing action: ${ACTION}" >&2
-    exit 2
-    ;;
-esac
+mkdir -p "$OUTPUT_DIR"
+"${SCRIPT_DIR}/run_all.sh" "$OUTPUT_DIR" --lines="$CSV_LINES" < "$METRICS_FILE"

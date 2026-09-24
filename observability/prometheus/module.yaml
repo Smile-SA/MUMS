@@ -1,12 +1,15 @@
 name: observability.prometheus
 type: observability
+contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  start: "<kubeconfig> <metrics_dir>"
+  start: "<kubeconfig> <output_dir>"
   stop: "<kubeconfig>"
 
 args:
+  log_dir:           { type: string }
+  extras_dir:        { type: string }
   frequency_seconds: { required: false, default: 15, type: positive_int }
   local_port:        { required: false, default: 9090, type: positive_int }
   timeout_seconds:   { required: false, default: 10, type: positive_int }
@@ -14,9 +17,9 @@ args:
 dependencies:
   python: []
   commands:
-    - jq          # required by scripts/lib/component_config.sh (cfg_get)
     - kubectl
     - curl
+    - python3
   utils:
     - utils/prometheus
     - utils/scraper

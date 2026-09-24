@@ -1,15 +1,23 @@
 name: optimizers.koordinator
 type: optimizer
+contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  deploy: "<kubeconfig>"
+  start: "<kubeconfig>"
+
+args:
+  manager_replicas:     { required: false, default: 1, type: positive_int }
+  scheduler_replicas:   { required: false, default: 1, type: positive_int }
+  descheduler_replicas: { required: false, default: 1, type: positive_int }
 
 dependencies:
   python: []
   commands:
     - helm
     - kubectl
+  checks:
+    # Helm chart fetched by dependencies.sh (make setup-module MODULE=optimizers/koordinator)
+    - test -d ../../utils/helm/chart-repository/koordinator
   utils:
-    - utils/koordinator
     - utils/helm
