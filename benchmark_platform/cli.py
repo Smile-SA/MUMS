@@ -4,6 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
 from benchmark_platform.compare import compare_runs, default_output_dir, write_report
 from benchmark_platform.config import ConfigError, load_config
 from benchmark_platform.dependencies import DependencyError
@@ -43,6 +44,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Suppress benchmark progress output.",
     )
 
+    env = subparsers.add_parser(
+        "env",
+        help="Environments registered by the runner (kept until their destroy succeeds).",
+    )
+    env_commands = env.add_subparsers(dest="env_command", required=True)
+    env_commands.add_parser("list", help="List registered environments.")
+    env_clean = env_commands.add_parser(
+        "clean", help="Destroy one environment (via its environment module)."
+    )
+    env_clean.add_argument("environment_id", help="Environment id (see `env list`).")
+    env_clean.add_argument("-v", "--verbose", action="store_true", help="Show module output.")
+    env_clean_all = env_commands.add_parser(
+        "clean-all", help="Destroy all registered environments."
+    )
+    env_clean_all.add_argument("-v", "--verbose", action="store_true", help="Show module output.")
+
     compare = subparsers.add_parser(
         "compare", help="Compare two benchmark runs (e.g. baseline vs. optimized)."
     )
@@ -79,6 +96,41 @@ def main(argv: list[str] | None = None) -> int:
             print(result["headline"])
             print(f"Report: {md_path} ({json_path})")
             return 0
+
+        if args.command == "env":
+            registry = EnvironmentRegistry()
+            entries, broken = registry.scan()
+            if args.env_command == "list":
+                if not entries and not broken:
+                    print("No registered environment.")
+                for entry_dir in broken:
+                    print(f"{entry_dir.name}  (incomplete entry, removed by the next clean)")
+                for entry in entries:
+                    print(
+                        f"{entry.environment_id}  module={entry.module_path}  "
+                        f"registered={entry.registered_at}  run={entry.run_dir}"
+                    )
+                return 0
+
+            if args.env_command == "clean":
+                known = {entry.environment_id for entry in entries} | {d.name for d in broken}
+                if args.environment_id not in known:
+                    print(
+                        f"[ERROR] Unknown environment id: {args.environment_id} (see `env list`).",
+                        file=sys.stderr,
+                    )
+                    return 2
+                target = args.environment_id
+            else:
+                target = None
+
+            destroyed, errors = clean_environments(
+                registry=registry, environment_id=target, verbose=args.verbose
+            )
+            print(f"Environments destroyed: {len(destroyed)}")
+            for error in errors:
+                print(f"[ERROR] {error}", file=sys.stderr)
+            return 1 if errors else 0
 
         config = load_config(args.config)
 

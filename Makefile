@@ -28,7 +28,8 @@ help:
 	@echo "  make smoke          End-to-end smoke test on a real cluster (requires Kind)"
 	@echo "  make clean          Remove caches only; preserves virtual env and benchmark outputs"
 	@echo "  make clean-venv     Remove the local Python virtual environment"
-	@echo "  make clean-env 	 Remove the benchmark environment"
+	@echo "  make clean-env      Destroy environments left behind by previous runs"
+	@echo "                      (all of them, or one with ID=<id>; see 'benchmark-platform env list')"
 
 setup-core:
 	./scripts/bootstrap.sh
@@ -109,4 +110,4 @@ clean-venv:
 	@echo "Removed virtual environment: $(VENV_DIR)"
 
 clean-env:
-	./scripts/clean_env.sh $(SEED)
+	benchmark-platform env $(if $(ID),clean $(ID),clean-all)

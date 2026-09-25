@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.config import ScenarioConfig
 from benchmark_platform.dependencies import check_dependencies
 from benchmark_platform.manifest import RunManifest, utc_now_iso
@@ -320,7 +321,8 @@ class PreparedScenario:
 
     @property
     def all(self) -> list[Component]:
-        return [*self.components.values(), *([self.post_processing] if self.post_processing else [])]
+        optional = [self.post_processing] if self.post_processing else []
+        return [*self.components.values(), *optional]
 
 
 def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScenario:
@@ -342,6 +344,7 @@ def run_scenario(
     repo_root: Path,
     verbose: bool = False,
     quiet: bool = False,
+    registry: EnvironmentRegistry | None = None,
 ) -> Path:
     # Load and validate every module, and check dependencies, before creating anything.
     prepared = prepare_scenario(config, repo_root=repo_root)
@@ -385,6 +388,11 @@ def run_scenario(
     kubeconfig: str | None = None
     launched: list[Component] = []
     interrupted = False
+
+    # Registered *before* create, so that an interrupted create is still known;
+    # unregistered only once destroy succeeds.
+    registry = registry or EnvironmentRegistry()
+    registry.register(environment_id, environment.module, environment.options, paths.root)
 
     try:
         steps.call(environment, "create", config.seed, environment_id, paths.environment_result)
@@ -465,7 +473,9 @@ def run_scenario(
                 # Always destroy the environment, even if `create` failed or was
                 # interrupted: `destroy <id>` must handle dirty states.
                 if config.cleanup_environment:
-                    steps.call(environment, "destroy", environment_id, check=False)
+                    result = steps.call(environment, "destroy", environment_id, check=False)
+                    if result is not None and result.returncode == 0:
+                        registry.unregister(environment_id)
 
             # Post-processing only reads contractual data, so it runs after the
             # environment is gone. Skipped when the user interrupted the run.
