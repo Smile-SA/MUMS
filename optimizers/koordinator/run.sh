@@ -52,7 +52,6 @@ fi
     "$KUBECONFIG_PATH" \
     koordinator \
     koordinator \
-    --namespace koordinator-system \
     --set "manager.replicas=${MANAGER_REPLICAS}" \
     --set "scheduler.replicas=${SCHEDULER_REPLICAS}" \
     --set "descheduler.replicas=${DESCHEDULER_REPLICAS}"
