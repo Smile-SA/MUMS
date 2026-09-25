@@ -12,7 +12,7 @@ import pytest
 # optimizers/hots/dataset_bridge.py is component-specific code, not part of
 # the benchmark_platform package (see docs/architecture.md -- component
 # logic stays in its own module directory) -- load it directly from there.
-_MODULE_PATH = Path(__file__).parent.parent / "optimizers" / "hots" / "dataset_bridge.py"
+_MODULE_PATH = Path(__file__).resolve().parent.parent / "dataset_bridge.py"
 _spec = importlib.util.spec_from_file_location("dataset_bridge", _MODULE_PATH)
 assert _spec and _spec.loader
 dataset_bridge = importlib.util.module_from_spec(_spec)

@@ -1,278 +1,193 @@
 from __future__ import annotations
 
-import json
-import subprocess
-from pathlib import Path
-from unittest.mock import patch
-
+import pytest
 import yaml
 
-from benchmark_platform.config import load_config
-from benchmark_platform.runner import run_scenario
+from benchmark_platform.config import ConfigError, ScenarioConfig, load_config
+from benchmark_platform.dependencies import DependencyError
+from benchmark_platform.runner import (
+    ENVIRONMENT_ID_PATTERN,
+    RunnerInterrupted,
+    build_environment_id,
+    run_scenario,
+)
+from benchmark_platform.shell import CommandError
+
+FULL_RUN = [
+    "environment create",
+    "observability start",
+    "stack deploy",
+    "traffic start",
+    "optimizer start",
+    "optimizer stop",
+    "traffic stop",
+    "stack delete",
+    "observability stop",
+    "environment destroy",
+    "post-processing run",
+]
 
 
-def _make_module(
-    root: Path, rel_path: str, name: str, module_type: str, *, lifecycle: str = ""
-) -> None:
-    d = root / rel_path
-    d.mkdir(parents=True)
-    (d / "module.yaml").write_text(
-        f"name: {name}\ntype: {module_type}\nentrypoint: run.sh\n{lifecycle}", encoding="utf-8"
-    )
-    (d / "run.sh").write_text("#!/usr/bin/env bash\n", encoding="utf-8")
-
-
-def _make_repo(tmp_path: Path) -> tuple[Path, Path]:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    output_dir = tmp_path / "output"
-
-    _make_module(repo, "envs/kind", "envs.kind", "environment")
-    _make_module(repo, "stacks/mystack", "stacks.mystack", "stack")
-    _make_module(repo, "observability/prometheus", "obs.prom", "observability")
-    _make_module(
-        repo,
-        "traffic/mytraffic",
-        "traffic.mytraffic",
-        "traffic",
-        lifecycle="lifecycle:\n  start: run.sh start\n  stop: run.sh stop\n",
-    )
-    _make_module(
-        repo,
-        "optimizers/baseline",
-        "opt.baseline",
-        "optimizer",
-        lifecycle="lifecycle:\n  deploy: run.sh deploy\n",
-    )
-    _make_module(
-        repo,
-        "observability/analysis",
-        "obs.analysis",
-        "post-processing",
-        lifecycle="lifecycle:\n  process: run.sh process\n",
+def _run(platform, **kwargs):
+    return run_scenario(
+        load_config(platform.write_scenario()), repo_root=platform.root, quiet=True, **kwargs
     )
 
-    config_path = repo / "scenario.yaml"
-    config_path.write_text(
-        f"""\
-version: 1
-scenario:
-  name: dispatch-test
-  seed: 99
-  duration_seconds: 1
-environment:
-  type: kind
-  module: envs/kind
-  workers:
-    count: 1
-    cpu: "1"
-    memory: "1Gi"
-stack:
-  type: mystack
-  module: stacks/mystack
-observability:
-  type: prometheus
-  module: observability/prometheus
-  frequency_seconds: 15
-traffic:
-  type: mytraffic
-  module: traffic/mytraffic
-  shape: flat
-  cycle_minutes: 1
-optimizer:
-  type: baseline
-  module: optimizers/baseline
-post-processing:
-  type: csv
-  module: observability/analysis
-  enabled: true
-output:
-  root_directory: {output_dir}
-  cleanup_environment: true
-""",
-        encoding="utf-8",
-    )
 
-    return repo, config_path
-
-
-def test_runner_dispatches_lifecycle_actions_in_order(tmp_path: Path) -> None:
-    repo, config_path = _make_repo(tmp_path)
-    config = load_config(config_path)
-
-    dispatched: list[tuple[str, str]] = []  # (module_dir, action)
-    call_envs: list[dict] = []
-
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
-        module_dir = Path(command[0]).parent.name
-        action = command[1]
-        dispatched.append((module_dir, action))
-        call_envs.append(dict(env or {}))
-        if action == "create" and len(command) > 3:
-            Path(command[3]).write_text("/fake/kubeconfig")
-        return subprocess.CompletedProcess(list(command), 0)
-
-    with (
-        patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
-        patch("benchmark_platform.runner._sleep_with_interrupt"),
-        patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner.build_provenance", return_value={}),
-        patch("benchmark_platform.runner._post_process"),
-        patch("shutil.copy2"),
-    ):
-        run_scenario(config, repo_root=repo)
-
-    assert dispatched == [
-        ("kind", "create"),  # environment.create
-        ("prometheus", "start"),  # observability.start
-        ("mystack", "deploy"),  # stack.deploy
-        ("baseline", "deploy"),  # optimizer.deploy
-        ("mytraffic", "start"),  # traffic.start
-        ("mytraffic", "stop"),  # traffic.stop  (teardown)
-        ("prometheus", "stop"),  # observability.stop (teardown)
-        ("kind", "destroy"),  # environment.destroy (teardown)
-    ]
-
-
-def test_runner_dispatches_optional_optimizer_start_stop(tmp_path: Path) -> None:
-    repo, config_path = _make_repo(tmp_path)
-
-    # optimizers/baseline (declared with only `deploy`) exercises supports("start")
-    # is False for a minimal-contract optimizer. Swap in an optimizer module that
-    # declares start/stop too, mirroring an online optimizer like optimizers/hots.
-    optimizer_dir = repo / "optimizers" / "baseline"
-    (optimizer_dir / "module.yaml").write_text(
-        "name: opt.online\ntype: optimizer\nentrypoint: run.sh\n"
-        "lifecycle:\n  deploy: run.sh deploy\n  start: run.sh start\n  stop: run.sh stop\n",
-        encoding="utf-8",
-    )
-
-    config = load_config(config_path)
-
-    dispatched: list[tuple[str, str]] = []
-
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
-        module_dir = Path(command[0]).parent.name
-        action = command[1]
-        dispatched.append((module_dir, action))
-        if action == "create" and len(command) > 3:
-            Path(command[3]).write_text("/fake/kubeconfig")
-        return subprocess.CompletedProcess(list(command), 0)
-
-    with (
-        patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
-        patch("benchmark_platform.runner._sleep_with_interrupt"),
-        patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner.build_provenance", return_value={}),
-        patch("benchmark_platform.runner._post_process"),
-        patch("shutil.copy2"),
-    ):
-        run_scenario(config, repo_root=repo)
-
-    assert dispatched == [
-        ("kind", "create"),  # environment.create
-        ("prometheus", "start"),  # observability.start
-        ("mystack", "deploy"),  # stack.deploy
-        ("baseline", "deploy"),  # optimizer.deploy
-        ("baseline", "start"),  # optimizer.start (declared)
-        ("mytraffic", "start"),  # traffic.start
-        ("mytraffic", "stop"),  # traffic.stop  (teardown)
-        ("baseline", "stop"),  # optimizer.stop (teardown, declared)
-        ("prometheus", "stop"),  # observability.stop (teardown)
-        ("kind", "destroy"),  # environment.destroy (teardown)
-    ]
-
-
-def test_runner_injects_component_config_env(tmp_path: Path) -> None:
-    repo, config_path = _make_repo(tmp_path)
-    config = load_config(config_path)
-
-    call_envs: list[dict] = []
-
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
-        call_envs.append(dict(env or {}))
-        if command[1] == "create" and len(command) > 3:
-            Path(command[3]).write_text("/fake/kubeconfig")
-        return subprocess.CompletedProcess(list(command), 0)
-
-    with (
-        patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
-        patch("benchmark_platform.runner._sleep_with_interrupt"),
-        patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner.build_provenance", return_value={}),
-        patch("benchmark_platform.runner._post_process"),
-        patch("shutil.copy2"),
-    ):
-        run_scenario(config, repo_root=repo)
-
-    for env in call_envs:
-        assert "BENCHMARK_COMPONENT_CONFIG" in env, (
-            "BENCHMARK_COMPONENT_CONFIG missing from env for a module call"
-        )
-        parsed = json.loads(env["BENCHMARK_COMPONENT_CONFIG"])
-        assert isinstance(parsed, dict)
-
-    # environment section contains workers config
-    env_config = json.loads(call_envs[0]["BENCHMARK_COMPONENT_CONFIG"])
-    assert env_config["workers"]["count"] == 1
-
-    # traffic section contains shape
-    traffic_env = next(
-        e for e in call_envs if json.loads(e["BENCHMARK_COMPONENT_CONFIG"]).get("shape") == "flat"
-    )
-    assert json.loads(traffic_env["BENCHMARK_COMPONENT_CONFIG"])["cycle_minutes"] == 1
-
-
-def test_runner_writes_provenance_to_manifest(tmp_path: Path) -> None:
-    repo, config_path = _make_repo(tmp_path)
-    config = load_config(config_path)
-
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
-        if command[1] == "create" and len(command) > 3:
-            Path(command[3]).write_text("/fake/kubeconfig")
-        return subprocess.CompletedProcess(list(command), 0)
-
-    fake_provenance = {"tool_versions": {"kubectl": "v1.99.0"}, "notes": []}
-
-    with (
-        patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
-        patch("benchmark_platform.runner._sleep_with_interrupt"),
-        patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch(
-            "benchmark_platform.runner.build_provenance", return_value=fake_provenance
-        ) as mock_bp,
-        patch("benchmark_platform.runner._post_process"),
-        patch("shutil.copy2"),
-    ):
-        run_dir = run_scenario(config, repo_root=repo)
-        mock_bp.assert_called_once()
-        assert mock_bp.call_args.kwargs["kubeconfig"] == "/fake/kubeconfig"
-        assert mock_bp.call_args.kwargs["artifacts_dir"] == run_dir / "artifacts"
-        assert mock_bp.call_args.kwargs["cleanup_environment"] is True
-
-    manifest = yaml.safe_load((run_dir / "manifest.yaml").read_text(encoding="utf-8"))
-    assert manifest["provenance"] == fake_provenance
-
-
-def test_runner_records_provenance_error_without_failing_run(tmp_path: Path) -> None:
-    repo, config_path = _make_repo(tmp_path)
-    config = load_config(config_path)
-
-    def fake_run_command(command, *, cwd, env=None, log_file=None, check=True, verbose=False):
-        if command[1] == "create" and len(command) > 3:
-            Path(command[3]).write_text("/fake/kubeconfig")
-        return subprocess.CompletedProcess(list(command), 0)
-
-    with (
-        patch("benchmark_platform.runner.run_command", side_effect=fake_run_command),
-        patch("benchmark_platform.runner._sleep_with_interrupt"),
-        patch("benchmark_platform.runner._collect_kubernetes_state"),
-        patch("benchmark_platform.runner.build_provenance", side_effect=RuntimeError("boom")),
-        patch("benchmark_platform.runner._post_process"),
-        patch("shutil.copy2"),
-    ):
-        run_dir = run_scenario(config, repo_root=repo)
-
-    manifest = yaml.safe_load((run_dir / "manifest.yaml").read_text(encoding="utf-8"))
+def test_full_run_order_and_outputs(platform):
+    run_dir = _run(platform)
+    assert platform.read_calls() == FULL_RUN
+    manifest = yaml.safe_load((run_dir / "manifest.yaml").read_text())
     assert manifest["status"] == "completed"
-    assert "boom" in manifest["provenance"]["error"]
+    assert ENVIRONMENT_ID_PATTERN.match(manifest["environment_id"])
+    assert (run_dir / "logs" / "traffic" / "start.log").is_file()
+    assert (run_dir / "outputs" / "observability").is_dir()
+
+
+def test_arguments_passed(platform):
+    platform.scenario["traffic"]["shape"] = "night"
+    path = platform.modules / "traffic" / "module.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["args"] = {
+        "shape": {"type": "string"},
+        "rate": {"type": "positive_int", "default": 5},
+        "extras_dir": {"type": "string"},
+    }
+    path.write_text(yaml.safe_dump(data))
+    run_dir = _run(platform)
+    calls = platform.calls.read_text().splitlines()
+    line = next(ln for ln in calls if ln.startswith("traffic start"))
+    assert f"{run_dir}/outputs/traffic" in line
+    assert f"--extras_dir {run_dir}/extras/traffic" in line and "--log_dir" not in line
+    assert "--shape night" in line and "--rate 5" in line
+    stack_line = next(
+        ln for ln in platform.calls.read_text().splitlines() if ln.startswith("stack deploy")
+    )
+    assert "--" not in stack_line
+
+
+def test_failure_stops_launched_and_destroys(platform):
+    (platform.modules / "stack" / "FAIL_deploy").touch()
+    with pytest.raises(CommandError):
+        _run(platform)
+    assert platform.read_calls() == [
+        "environment create",
+        "observability start",
+        "stack deploy",
+        "stack delete",
+        "observability stop",
+        "environment destroy",
+        "post-processing run",
+    ]
+
+
+def test_create_failure_still_destroys(platform):
+    (platform.modules / "environment" / "FAIL_create").touch()
+    with pytest.raises(CommandError):
+        _run(platform)
+    assert platform.read_calls() == [
+        "environment create",
+        "environment destroy",
+        "post-processing run",
+    ]
+
+
+def test_interrupt_runs_stops_but_not_post_processing(platform, monkeypatch):
+    from benchmark_platform import runner
+
+    def interrupt(_):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "_sleep_with_interrupt", interrupt)
+    with pytest.raises(RunnerInterrupted):
+        _run(platform)
+    assert platform.read_calls() == FULL_RUN[:-1]
+
+
+def test_no_cleanup_keeps_environment(platform):
+    platform.scenario["output"]["cleanup_environment"] = False
+    _run(platform)
+    assert "environment destroy" not in platform.read_calls()
+
+
+def test_nothing_created_when_invalid(platform, tmp_path):
+    platform.scenario["traffic"]["typo"] = 1
+    with pytest.raises(ConfigError):
+        _run(platform)
+    assert not (tmp_path / "runs").exists()
+    assert platform.read_calls() == []
+
+
+def test_missing_dependency_blocks_run(platform, tmp_path):
+    path = platform.modules / "traffic" / "module.yaml"
+    data = yaml.safe_load(path.read_text())
+    data["dependencies"] = {"commands": ["definitely-not-installed"]}
+    path.write_text(yaml.safe_dump(data))
+    with pytest.raises(DependencyError):
+        _run(platform)
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize("name", ["basic", "Été à Paris !!", "日本", "x" * 200])
+def test_environment_id_format(name, tmp_path):
+    config = ScenarioConfig(tmp_path, {"scenario": {"name": name, "seed": 123456}})
+    assert ENVIRONMENT_ID_PATTERN.match(build_environment_id(config, "run-id"))
+
+
+def test_runner_args_not_settable_by_scenario(platform):
+    platform.scenario["traffic"]["log_dir"] = "/tmp/x"
+    with pytest.raises(ConfigError, match="provided by the runner"):
+        _run(platform)
+
+
+def test_relative_output_root_gives_absolute_paths(platform, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    platform.scenario["output"]["root_directory"] = "runs"
+    run_dir = _run(platform)
+    assert run_dir.is_absolute()
+    line = next(
+        ln for ln in platform.calls.read_text().splitlines() if ln.startswith("environment create")
+    )
+    assert str(tmp_path / "runs") in line
+
+
+def test_registry_tracks_environments(platform, tmp_path):
+    import shutil
+
+    from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
+
+    registry = EnvironmentRegistry()
+    _run(platform)
+    assert registry.entries() == []  # destroyed normally: unregistered
+
+    platform.scenario["output"]["cleanup_environment"] = False
+    run_dir = _run(platform)
+    [entry] = registry.entries()
+    assert entry.run_dir == run_dir
+
+    shutil.rmtree(run_dir)  # losing the run output must not matter
+    destroyed, errors = clean_environments(registry=registry)
+    assert (destroyed, errors) == ([entry.environment_id], [])
+    assert platform.read_calls()[-1] == "environment destroy"
+    assert registry.entries() == []
+
+
+def test_failed_destroy_stays_registered(platform):
+    from benchmark_platform.cleanup import EnvironmentRegistry
+
+    (platform.modules / "environment" / "FAIL_destroy").touch()
+    _run(platform)
+    assert len(EnvironmentRegistry().entries()) == 1
+
+
+def test_incomplete_entry_removed_without_destroy(platform, tmp_path):
+    from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
+
+    registry = EnvironmentRegistry()
+    broken = registry.root / "half-written"
+    broken.mkdir(parents=True)
+    (broken / "entry.yaml").write_text("environment_id: [unterminated", encoding="utf-8")
+    assert registry.scan() == ([], [broken])
+    assert clean_environments(registry=registry) == ([], [])
+    assert not broken.exists()
+    assert platform.read_calls() == []

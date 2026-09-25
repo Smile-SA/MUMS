@@ -1,61 +1,28 @@
-from pathlib import Path
+from __future__ import annotations
 
 import pytest
 
 from benchmark_platform.config import ConfigError, load_config
 
 
-def test_basic_config_loads() -> None:
-    config = load_config(Path("configs/basic-online-boutique.yaml"))
-    assert config.name == "basic-online-boutique"
-    assert config.seed == 42
-    assert config.duration_seconds > 0
-    assert config.raw["environment"]["module"] == "envs/kind"
-    assert config.raw["observability"]["module"] == "observability/prometheus"
+def test_valid(platform):
+    assert load_config(platform.write_scenario()).seed == 42
 
 
-def test_missing_config_fails(tmp_path: Path) -> None:
-    missing = tmp_path / "missing.yaml"
-    with pytest.raises(ConfigError):
-        load_config(missing)
+def test_type_key_refused(platform):
+    from benchmark_platform.runner import prepare_scenario
+
+    platform.scenario["observability"]["type"] = "prometheus"
+    with pytest.raises(ConfigError, match="Unknown field"):
+        prepare_scenario(load_config(platform.write_scenario()), repo_root=platform.root)
 
 
-def test_empty_component_type_fails(tmp_path: Path) -> None:
-    config_path = tmp_path / "bad.yaml"
-    config_path.write_text(
-        """
-version: 1
-scenario:
-  name: bad
-  seed: 1
-  duration_seconds: 10
-environment:
-  type: ""
-  module: envs/kind
-  workers:
-    count: 1
-    cpu: "1"
-    memory: "1Gi"
-stack:
-  type: online-boutique
-  module: stacks/online-boutique
-observability:
-  type: prometheus
-  module: observability/prometheus
-  frequency_seconds: 15
-traffic:
-  type: locust
-  module: traffic/online-boutique
-  shape: journee_type
-  cycle_minutes: 60
-optimizer:
-  type: baseline
-  module: optimizers/baseline
-output:
-  root_directory: output/runs
-""",
-        encoding="utf-8",
-    )
+def test_module_required(platform):
+    del platform.scenario["stack"]["module"]
+    with pytest.raises(ConfigError, match="stack.module"):
+        load_config(platform.write_scenario())
 
-    with pytest.raises(ConfigError):
-        load_config(config_path)
+
+def test_post_processing_optional(platform):
+    del platform.scenario["post-processing"]
+    load_config(platform.write_scenario())
