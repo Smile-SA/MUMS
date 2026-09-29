@@ -17,7 +17,8 @@ fi
 
 CHART_DIR="$CHART_REPOSITORY/$CHART_NAME"
 if [ ! -d "$CHART_DIR" ]; then
-    echo "ERROR: chart '$CHART_NAME' not found in $CHART_REPOSITORY — did you run prepare.sh?" >&2
+    echo "ERROR: chart '$CHART_NAME' not found in $CHART_REPOSITORY." >&2
+    echo "  It is downloaded when the dependencies of the module that uses it are installed." >&2
     exit 1
 fi
 

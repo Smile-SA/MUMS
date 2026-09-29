@@ -14,7 +14,7 @@ from typing import Any
 
 from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.config import ScenarioConfig
-from benchmark_platform.dependencies import UTILS_PATH_ENV, check_dependencies
+from benchmark_platform.dependencies import UTILS_PATH_ENV, DependencyError, check_dependencies
 from benchmark_platform.discovery import ModuleIndex, discover
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
@@ -26,6 +26,10 @@ from benchmark_platform.shell import run_command
 # Scenario sections, one module each. `post-processing` is optional.
 REQUIRED_COMPONENTS = ("environment", "observability", "stack", "traffic", "optimizer")
 OPTIONAL_COMPONENTS = ("post-processing",)
+
+# External commands the core itself needs (Kubernetes state collection), checked
+# before anything runs: pip cannot install them.
+CORE_COMMANDS = ("kubectl",)
 
 # Section keys read by the runner itself, never passed to modules.
 ENVELOPE_KEYS = frozenset({"module"})
@@ -339,6 +343,12 @@ class PreparedScenario:
 def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScenario:
     """Load and validate every module of the scenario and check their
     dependencies. Creates nothing: used by both `validate` and `run`."""
+    missing = [c for c in CORE_COMMANDS if shutil.which(c) is None]
+    if missing:
+        raise DependencyError(
+            f"Missing prerequisite(s) of the platform: {', '.join(missing)} "
+            f"(install them manually)."
+        )
     raw = config.raw
     index = discover(repo_root)
     components = {role: load_component(index, raw, role) for role in REQUIRED_COMPONENTS}

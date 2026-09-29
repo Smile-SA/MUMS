@@ -5,8 +5,10 @@ VENV_DIR ?= .venv
 # Prefer the venv if it exists (CREATE_VENV=false during setup skips it),
 # otherwise fall back to the active interpreter.
 VENV_PYTHON := $(shell [ -x "$(VENV_DIR)/bin/python" ] && echo "$(VENV_DIR)/bin/python" || echo "$(PYTHON)")
+# Same for the platform CLI: the venv one if it exists, otherwise the one on PATH.
+BENCHMARK_PLATFORM := $(shell [ -x "$(VENV_DIR)/bin/benchmark-platform" ] && echo "$(VENV_DIR)/bin/benchmark-platform" || echo benchmark-platform)
 
-.PHONY: help setup-core setup-dev setup-module check-prereqs check-module doctor install-system-deps-ubuntu check check-shell check-python lint validate-config run-basic test smoke clean clean-venv clean-env
+.PHONY: help setup-core setup-dev setup-module check-module install-system-deps-debian check check-shell check-python lint validate-config run-basic test smoke clean clean-venv clean-env
 
 help:
 	@echo "Benchmark platform developer commands"
@@ -15,10 +17,8 @@ help:
 	@echo "                      (CREATE_VENV=false installs into the active Python environment instead)"
 	@echo "  make setup-dev      Create .venv and install core runtime + development dependencies"
 	@echo "  make setup-module   Install a module's dependencies, then check them (MODULE=<name>, e.g. envs.kind)"
-	@echo "  make check-prereqs  Validate required system tools and Python runtime imports"
 	@echo "  make check-module   Check a module's dependencies (MODULE=<name>)"
-	@echo "  make doctor         Display platform-relevant local diagnostics"
-	@echo "  make install-system-deps-ubuntu  Install the core system tools (Python, jq, kubectl) on Ubuntu/Debian"
+	@echo "  make install-system-deps-debian  Install the core system tools (Python, jq, kubectl) on Debian-like systems (Debian, Ubuntu...)"
 	@echo "  make check          Run non-destructive shell and Python syntax checks"
 	@echo "  make lint           Run Ruff lint checks (requires make setup-dev)"
 	@echo "  make validate-config  Check configuration file format"
@@ -32,30 +32,24 @@ help:
 	@echo "                      (all of them, or one with ID=<id>; see 'benchmark-platform env list')"
 
 setup-core:
-	./scripts/bootstrap.sh
+	./benchmark_platform/bootstrap.sh
 
 setup-dev:
-	INSTALL_DEV=true ./scripts/bootstrap.sh
+	INSTALL_DEV=true ./benchmark_platform/bootstrap.sh
 
 setup-module:
 	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=traffic.online-boutique" >&2; exit 2)
-	benchmark-platform deps install $(MODULE)
+	$(BENCHMARK_PLATFORM) deps install $(MODULE)
 
 setup-basic-online-boutique: setup-core
-	benchmark-platform deps install envs.kind stacks.online-boutique observability.prometheus traffic.online-boutique optimizers.baseline post-processing.refined-csv
-
-check-prereqs:
-	./scripts/check_prereqs.sh --mode all
+	$(BENCHMARK_PLATFORM) deps install envs.kind stacks.online-boutique observability.prometheus traffic.online-boutique optimizers.baseline post-processing.refined-csv
 
 check-module:
 	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=traffic.online-boutique" >&2; exit 2)
-	benchmark-platform deps check $(MODULE)
+	$(BENCHMARK_PLATFORM) deps check $(MODULE)
 
-doctor:
-	./scripts/doctor.sh
-
-install-system-deps-ubuntu:
-	./scripts/install_system_deps_ubuntu.sh
+install-system-deps-debian:
+	./benchmark_platform/install_system_deps_debian.sh
 
 check: check-shell check-python
 
@@ -81,10 +75,10 @@ lint:
 		benchmark_platform tests traffic observability utils
 
 validate-config:
-	benchmark-platform validate configs/basic-online-boutique.yaml
+	$(BENCHMARK_PLATFORM) validate configs/basic-online-boutique.yaml
 
 run-basic:
-	benchmark-platform run configs/basic-online-boutique.yaml $(ARGS)
+	$(BENCHMARK_PLATFORM) run configs/basic-online-boutique.yaml $(ARGS)
 
 test:
 	@if find tests -type f -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then \
@@ -106,4 +100,4 @@ clean-venv:
 	@echo "Removed virtual environment: $(VENV_DIR)"
 
 clean-env:
-	benchmark-platform env $(if $(ID),clean $(ID),clean-all)
+	$(BENCHMARK_PLATFORM) env $(if $(ID),clean $(ID),clean-all)

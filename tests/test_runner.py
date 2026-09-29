@@ -206,3 +206,12 @@ def test_modules_get_utils_path(platform):
         ln for ln in platform.calls.read_text().splitlines() if ln.startswith("traffic start")
     )
     assert f"utils={platform.root / 'utils'}" in line
+
+
+
+def test_missing_core_prerequisite(platform, monkeypatch):
+    import benchmark_platform.runner as runner_module
+
+    monkeypatch.setattr(runner_module, "CORE_COMMANDS", ("definitely-not-installed",))
+    with pytest.raises(DependencyError, match="prerequisite"):
+        _run(platform)
