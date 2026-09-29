@@ -7,6 +7,7 @@ from typing import Any
 import yaml
 
 from benchmark_platform.dependencies import dependency_problems
+from benchmark_platform.discovery import ModuleIndex
 from benchmark_platform.schema import arg_schema_problems
 
 CONTRACT_VERSION = 1
@@ -76,20 +77,12 @@ STOP_ACTIONS = {
 
 @dataclass(frozen=True)
 class ModuleSpec:
-    repo_root: Path
     module_path: Path
     descriptor: dict[str, Any]
 
     @property
-    def display_path(self) -> str:
-        try:
-            return self.module_path.relative_to(self.repo_root).as_posix()
-        except ValueError:
-            return str(self.module_path)
-
-    @property
     def name(self) -> str:
-        return str(self.descriptor.get("name", self.display_path))
+        return str(self.descriptor["name"])
 
     @property
     def type(self) -> str:
@@ -141,6 +134,10 @@ class ModuleSpec:
 def _validate_descriptor(descriptor: dict[str, Any], module_path: str) -> None:
     problems: list[str] = []
 
+    name = descriptor.get("name")
+    if not isinstance(name, str) or not name.strip():
+        problems.append("'name' must be declared (modules are designated by name).")
+
     module_type = descriptor.get("type")
     if module_type not in TYPE_CONTRACTS:
         problems.append(
@@ -191,25 +188,21 @@ def _validate_descriptor(descriptor: dict[str, Any], module_path: str) -> None:
 
 
 def load_module(
-    repo_root: Path,
-    module_path: str,
+    index: ModuleIndex,
+    name: str,
     *,
     expected_type: str | None = None,
 ) -> ModuleSpec:
-    """Load a module from `module_path`: absolute, or relative to the repository
-    root. Modules may live outside the repository."""
-    repo_root = repo_root.resolve()
-    path = Path(module_path).expanduser()
-    if not path.is_absolute():
-        path = repo_root / path
+    """Load a module from its name (see discovery)."""
+    return load_module_at(index.path(name), expected_type=expected_type)
+
+
+def load_module_at(path: Path, *, expected_type: str | None = None) -> ModuleSpec:
+    """Load the module in directory `path`."""
     path = path.resolve()
-
-    if not path.is_dir():
-        raise ModuleError(f"Module directory does not exist: {module_path}")
-
     descriptor_path = path / "module.yaml"
-    if not descriptor_path.exists():
-        raise ModuleError(f"Missing module descriptor: {module_path}/module.yaml")
+    if not descriptor_path.is_file():
+        raise ModuleError(f"Missing module descriptor: {descriptor_path}")
 
     with descriptor_path.open("r", encoding="utf-8") as stream:
         descriptor = yaml.safe_load(stream) or {}
@@ -217,16 +210,19 @@ def load_module(
     if not isinstance(descriptor, dict):
         raise ModuleError(f"Invalid module descriptor: {descriptor_path}")
 
-    _validate_descriptor(descriptor, module_path)
+    _validate_descriptor(descriptor, str(path))
 
     if expected_type is not None and descriptor["type"] != expected_type:
         raise ModuleError(
-            f"Module '{module_path}' has type '{descriptor['type']}', expected '{expected_type}'."
+            f"Module '{descriptor['name']}' has type '{descriptor['type']}', "
+            f"expected '{expected_type}'."
         )
 
-    spec = ModuleSpec(repo_root=repo_root, module_path=path, descriptor=descriptor)
+    spec = ModuleSpec(module_path=path, descriptor=descriptor)
 
     if not spec.entrypoint.is_file():
-        raise ModuleError(f"Module '{module_path}' entrypoint does not exist: {spec.entrypoint}")
+        raise ModuleError(
+            f"Module '{descriptor['name']}' entrypoint does not exist: {spec.entrypoint}"
+        )
 
     return spec

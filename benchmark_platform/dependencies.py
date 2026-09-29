@@ -1,30 +1,47 @@
-"""Pre-run dependency check.
+"""Module dependencies: installation and verification.
 
-A module declares its dependencies in `module.yaml`:
+A module (or util) declares its dependencies in `module.yaml`:
 
     dependencies:
-      commands: [kubectl, locust]      # must be on PATH
-      checks: ["docker info"]          # shell commands that must succeed (e.g. a service is up)
-      utils: [utils/helm]              # checked recursively
-      modules: [observability/prometheus]
-      python: [requirements.txt]       # installed by `make setup-module`, not checked here
+      entrypoint: dependencies.sh   # optional: the module's dependency script
+      commands: [kubectl, helm]     # must be on PATH
+      utils: [utils.helm]           # utils, by name
 
-The runner checks every module of a scenario, recursively, before creating
-anything, and refuses to start if something is missing.
+The dependency script takes a single argument:
+
+- `install`: installs whatever the module needs (system packages, Python
+  packages with `python3 -m pip`, downloads...). Must succeed when run again on
+  an already installed system.
+- `check`: verifies what `commands` cannot express (a running service, a
+  downloaded file, a Python package...). Run before every benchmark: fast and
+  without side effects.
+
+The core walks a module and its utils recursively (utils first, each once).
+Installation runs every `install`, then the full check, so a failed
+installation shows up immediately. The script runs from the module directory,
+with the directory of the interpreter running the platform first on PATH (so
+that `python3 -m pip` installs into the platform's environment), and with
+BENCHMARK_UTILS_PATH pointing to the platform's `utils/` directory.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-DEPENDENCY_KEYS = frozenset({"commands", "checks", "utils", "modules", "python"})
-_CHECK_TIMEOUT_SECONDS = 30
+from benchmark_platform.discovery import DiscoveryError, ModuleIndex
+
+UTILS_PATH_ENV = "BENCHMARK_UTILS_PATH"
+
+DEPENDENCY_KEYS = frozenset({"entrypoint", "commands", "utils"})
+_CHECK_TIMEOUT_SECONDS = 60
 
 
 class DependencyError(RuntimeError):
@@ -32,7 +49,7 @@ class DependencyError(RuntimeError):
 
 
 def dependency_problems(dependencies: Any) -> list[str]:
-    """Problems in a module's `dependencies:` declaration (empty list if valid)."""
+    """Problems in a `dependencies:` declaration (empty list if valid)."""
     if dependencies is None:
         return []
     if not isinstance(dependencies, dict):
@@ -43,7 +60,11 @@ def dependency_problems(dependencies: Any) -> list[str]:
         problems.append(
             f"unknown key(s): {', '.join(unknown)} (allowed: {', '.join(sorted(DEPENDENCY_KEYS))})."
         )
-    for key, value in dependencies.items():
+    entrypoint = dependencies.get("entrypoint")
+    if entrypoint is not None and (not isinstance(entrypoint, str) or not entrypoint.strip()):
+        problems.append("'entrypoint' must be a non-empty string.")
+    for key in ("commands", "utils"):
+        value = dependencies.get(key)
         if value is None:
             continue
         if not isinstance(value, list) or not all(isinstance(v, str) and v.strip() for v in value):
@@ -51,89 +72,133 @@ def dependency_problems(dependencies: Any) -> list[str]:
     return problems
 
 
-@dataclass
-class _Report:
-    missing: dict[str, list[str]] = field(default_factory=dict)
-    visited: set[Path] = field(default_factory=set)
-
-    def add(self, module: str, problem: str) -> None:
-        self.missing.setdefault(module, []).append(problem)
-
-
-def _resolve(repo_root: Path, module_path: str) -> Path:
-    path = Path(module_path).expanduser()
-    if not path.is_absolute():
-        path = repo_root / path
-    return path.resolve()
+@dataclass(frozen=True)
+class _Node:
+    name: str
+    path: Path
+    script: Path | None
+    commands: tuple[str, ...]
 
 
-def _display(repo_root: Path, path: Path) -> str:
-    try:
-        return path.relative_to(repo_root).as_posix()
-    except ValueError:
-        return str(path)
-
-
-def _check(repo_root: Path, path: Path, report: _Report) -> None:
-    if path in report.visited:
-        return
-    report.visited.add(path)
-    name = _display(repo_root, path)
-
-    descriptor_path = path / "module.yaml"
-    if not descriptor_path.is_file():
-        report.add(name, f"module.yaml not found in {path}")
-        return
-    descriptor = yaml.safe_load(descriptor_path.read_text(encoding="utf-8")) or {}
-    dependencies = descriptor.get("dependencies") if isinstance(descriptor, dict) else None
+def _read_dependencies(path: Path) -> dict[str, Any]:
+    data = yaml.safe_load((path / "module.yaml").read_text(encoding="utf-8")) or {}
+    dependencies = data.get("dependencies") if isinstance(data, dict) else None
     problems = dependency_problems(dependencies)
     if problems:
-        for problem in problems:
-            report.add(name, f"invalid dependencies: {problem}")
-        return
-    dependencies = dependencies or {}
+        raise DependencyError(
+            f"Invalid dependencies in {path / 'module.yaml'}: " + " ".join(problems)
+        )
+    return dependencies or {}
 
-    for command in dependencies.get("commands") or []:
-        if shutil.which(command) is None:
-            report.add(name, f"command not found: {command}")
 
-    for check in dependencies.get("checks") or []:
+def resolve(index: ModuleIndex, names: list[str]) -> list[_Node]:
+    """The given modules and all their dependencies, dependencies first."""
+    ordered: list[_Node] = []
+    done: set[str] = set()
+    in_progress: set[str] = set()
+
+    def visit(name: str, required_by: str | None) -> None:
+        if name in done:
+            return
+        if name in in_progress:
+            raise DependencyError(f"Circular dependency involving '{name}'.")
         try:
-            result = subprocess.run(
-                check,
-                shell=True,
-                cwd=str(path),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=_CHECK_TIMEOUT_SECONDS,
-                check=False,
+            path = index.path(name)
+        except DiscoveryError as exc:
+            origin = f" (required by '{required_by}')" if required_by else ""
+            raise DependencyError(f"{exc}{origin}") from exc
+        in_progress.add(name)
+        dependencies = _read_dependencies(path)
+        for dependency in [
+            *(dependencies.get("utils") or []),
+            *(dependencies.get("modules") or []),
+        ]:
+            visit(dependency, name)
+        script = dependencies.get("entrypoint")
+        ordered.append(
+            _Node(
+                name=name,
+                path=path,
+                script=path / script if script else None,
+                commands=tuple(dependencies.get("commands") or []),
             )
-            ok = result.returncode == 0
-        except subprocess.TimeoutExpired:
-            ok = False
-        if not ok:
-            report.add(name, f"check failed: {check}")
+        )
+        in_progress.discard(name)
+        done.add(name)
 
-    for dependency in [*(dependencies.get("utils") or []), *(dependencies.get("modules") or [])]:
-        dependency_path = _resolve(repo_root, dependency)
-        if not dependency_path.is_dir():
-            report.add(name, f"dependency not found: {dependency}")
-            continue
-        _check(repo_root, dependency_path, report)
+    for name in names:
+        visit(name, None)
+    return ordered
 
 
-def check_dependencies(repo_root: Path, module_paths: list[Path]) -> None:
-    """Check the dependencies of the given modules, recursively. Raises
-    DependencyError listing everything that is missing, with the install command."""
-    repo_root = repo_root.resolve()
-    report = _Report()
-    for path in module_paths:
-        _check(repo_root, path.resolve(), report)
+def _script_env(utils_path: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{env.get('PATH', '')}"
+    env[UTILS_PATH_ENV] = str(utils_path)
+    return env
 
-    if report.missing:
-        lines = ["Missing dependencies, the run cannot start:"]
-        for module, problems in report.missing.items():
-            lines.append(f"  {module}:")
+
+def _run_script(
+    node: _Node, mode: str, utils_path: Path, *, capture: bool
+) -> subprocess.CompletedProcess[str]:
+    assert node.script is not None
+    return subprocess.run(
+        [str(node.script), mode],
+        cwd=str(node.path),
+        env=_script_env(utils_path),
+        text=True,
+        capture_output=capture,
+        timeout=_CHECK_TIMEOUT_SECONDS if mode == "check" else None,
+        check=False,
+    )
+
+
+def check_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -> None:
+    """Check `commands` and run every `check`, for the given modules and their
+    dependencies. Raises DependencyError listing everything that is missing."""
+    missing: dict[str, list[str]] = {}
+    for node in resolve(index, names):
+        problems = missing.setdefault(node.name, [])
+        for command in node.commands:
+            if shutil.which(command) is None:
+                problems.append(f"command not found: {command}")
+        if node.script is not None:
+            if not node.script.is_file():
+                problems.append(f"dependency script not found: {node.script}")
+            else:
+                try:
+                    result = _run_script(node, "check", utils_path, capture=True)
+                    if result.returncode != 0:
+                        output = (result.stdout + result.stderr).strip().splitlines()[-5:]
+                        detail = f": {' / '.join(output)}" if output else ""
+                        problems.append(f"check failed{detail}")
+                except subprocess.TimeoutExpired:
+                    problems.append(f"check timed out ({_CHECK_TIMEOUT_SECONDS}s)")
+                except OSError as exc:
+                    problems.append(f"check could not run: {exc}")
+
+    missing = {name: problems for name, problems in missing.items() if problems}
+    if missing:
+        lines = ["Missing dependencies:"]
+        for name, problems in missing.items():
+            lines.append(f"  {name}:")
             lines.extend(f"    - {problem}" for problem in problems)
-            lines.append(f"    install: make setup-module MODULE={module}")
+            lines.append(f"    install: benchmark-platform deps install {name}")
         raise DependencyError("\n".join(lines))
+
+
+def install_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -> None:
+    """Run every `install` (dependencies first), then the full check."""
+    for node in resolve(index, names):
+        if node.script is None:
+            continue
+        if not node.script.is_file():
+            raise DependencyError(f"{node.name}: dependency script not found: {node.script}")
+        print(f"=== Installing dependencies: {node.name} ===", flush=True)
+        try:
+            result = _run_script(node, "install", utils_path, capture=False)
+        except OSError as exc:
+            raise DependencyError(f"{node.name}: install could not run: {exc}") from exc
+        if result.returncode != 0:
+            raise DependencyError(f"{node.name}: install failed (exit code {result.returncode}).")
+    check_dependencies(index, names, utils_path)

@@ -1,12 +1,11 @@
 name: utils.prometheus
 type: util
-entrypoint: deploy.sh
 
 dependencies:
-  python: []
+  entrypoint: dependencies.sh
   commands:
     - kubectl
-    - helm
     - curl
+    - python3
   utils:
-    - utils/helm
+    - utils.helm

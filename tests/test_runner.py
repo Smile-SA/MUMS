@@ -191,3 +191,18 @@ def test_incomplete_entry_removed_without_destroy(platform, tmp_path):
     assert clean_environments(registry=registry) == ([], [])
     assert not broken.exists()
     assert platform.read_calls() == []
+
+
+def test_modules_get_utils_path(platform):
+    script = platform.modules / "traffic" / "run.sh"
+    script.write_text(
+        script.read_text().replace(
+            'echo "$(basename "$here") $*"',
+            'echo "$(basename "$here") $* utils=$BENCHMARK_UTILS_PATH"',
+        )
+    )
+    _run(platform)
+    line = next(
+        ln for ln in platform.calls.read_text().splitlines() if ln.startswith("traffic start")
+    )
+    assert f"utils={platform.root / 'utils'}" in line

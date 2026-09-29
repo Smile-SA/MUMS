@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
+UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
 RELEASE_NAME="onlineboutique"
 NAMESPACE="online-boutique"

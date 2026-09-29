@@ -14,11 +14,11 @@ help:
 	@echo "  make setup-core     Create .venv and install core runtime dependencies"
 	@echo "                      (CREATE_VENV=false installs into the active Python environment instead)"
 	@echo "  make setup-dev      Create .venv and install core runtime + development dependencies"
-	@echo "  make setup-module   Create .venv and install modules dependencies"
+	@echo "  make setup-module   Install a module's dependencies, then check them (MODULE=<name>, e.g. envs.kind)"
 	@echo "  make check-prereqs  Validate required system tools and Python runtime imports"
-	@echo "  make check-module   Validate required tools and Python imports for modules"
+	@echo "  make check-module   Check a module's dependencies (MODULE=<name>)"
 	@echo "  make doctor         Display platform-relevant local diagnostics"
-	@echo "  make install-system-deps-ubuntu  Install Docker, kubectl, kind, Helm and jq on Ubuntu/Debian"
+	@echo "  make install-system-deps-ubuntu  Install the core system tools (Python, jq, kubectl) on Ubuntu/Debian"
 	@echo "  make check          Run non-destructive shell and Python syntax checks"
 	@echo "  make lint           Run Ruff lint checks (requires make setup-dev)"
 	@echo "  make validate-config  Check configuration file format"
@@ -38,22 +38,18 @@ setup-dev:
 	INSTALL_DEV=true ./scripts/bootstrap.sh
 
 setup-module:
-	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=traffic/online-boutique" >&2; exit 2)
-	./scripts/install_module_deps.sh "$(MODULE)"
+	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=traffic.online-boutique" >&2; exit 2)
+	benchmark-platform deps install $(MODULE)
 
 setup-basic-online-boutique: setup-core
-	./scripts/install_module_deps.sh envs/kind
-	./scripts/install_module_deps.sh stacks/online-boutique
-	./scripts/install_module_deps.sh observability/prometheus
-	./scripts/install_module_deps.sh traffic/online-boutique
-	./scripts/install_module_deps.sh optimizers/baseline
+	benchmark-platform deps install envs.kind stacks.online-boutique observability.prometheus traffic.online-boutique optimizers.baseline post-processing.refined-csv
 
 check-prereqs:
 	./scripts/check_prereqs.sh --mode all
 
 check-module:
-	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=traffic/online-boutique" >&2; exit 2)
-	./scripts/check_module_deps.sh "$(MODULE)"
+	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=traffic.online-boutique" >&2; exit 2)
+	benchmark-platform deps check $(MODULE)
 
 doctor:
 	./scripts/doctor.sh

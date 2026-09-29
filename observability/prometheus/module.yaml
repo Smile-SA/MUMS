@@ -15,11 +15,10 @@ args:
   timeout_seconds:   { required: false, default: 10, type: positive_int }
 
 dependencies:
-  python: []
   commands:
     - kubectl
     - curl
     - python3
   utils:
-    - utils/prometheus
-    - utils/scraper
+    - utils.prometheus
+    - utils.scraper

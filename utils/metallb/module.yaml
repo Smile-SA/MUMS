@@ -1,12 +1,9 @@
 name: utils.metallb
 type: util
-entrypoint: deploy.sh
 
 dependencies:
-  python: []
+  entrypoint: dependencies.sh
   commands:
-    - docker
     - kubectl
-    - helm
   utils:
-    - utils/helm
+    - utils.helm

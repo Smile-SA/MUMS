@@ -29,8 +29,9 @@ from typing import Any
 
 import yaml
 
+from benchmark_platform.dependencies import UTILS_PATH_ENV
 from benchmark_platform.manifest import utc_now_iso
-from benchmark_platform.modules import ModuleSpec, load_module
+from benchmark_platform.modules import ModuleSpec, load_module_at
 from benchmark_platform.shell import run_command
 
 
@@ -45,6 +46,7 @@ class RegisteredEnvironment:
     module_path: Path
     options: tuple[str, ...]
     run_dir: Path | None
+    utils_path: Path | None
     registered_at: str
     entry_dir: Path
 
@@ -62,6 +64,7 @@ class EnvironmentRegistry:
         module: ModuleSpec,
         options: tuple[str, ...],
         run_dir: Path,
+        utils_path: Path,
     ) -> None:
         entry_dir = self._entry_dir(environment_id)
         entry_dir.mkdir(parents=True, exist_ok=True)
@@ -70,6 +73,7 @@ class EnvironmentRegistry:
             "module_path": str(module.module_path),
             "options": list(options),
             "run_dir": str(run_dir),
+            "utils_path": str(utils_path),
             "registered_at": utc_now_iso(),
         }
         (entry_dir / "entry.yaml").write_text(
@@ -95,8 +99,10 @@ class EnvironmentRegistry:
             except (OSError, yaml.YAMLError):
                 broken.append(entry_dir)
                 continue
-            if not isinstance(data, dict) or not data.get("environment_id") or not data.get(
-                "module_path"
+            if (
+                not isinstance(data, dict)
+                or not data.get("environment_id")
+                or not data.get("module_path")
             ):
                 broken.append(entry_dir)
                 continue
@@ -106,6 +112,7 @@ class EnvironmentRegistry:
                     module_path=Path(str(data["module_path"])),
                     options=tuple(str(o) for o in data.get("options") or []),
                     run_dir=Path(str(data["run_dir"])) if data.get("run_dir") else None,
+                    utils_path=Path(str(data["utils_path"])) if data.get("utils_path") else None,
                     registered_at=str(data.get("registered_at", "")),
                     entry_dir=entry_file.parent,
                 )
@@ -135,9 +142,7 @@ def clean_environments(
         if environment_id and entry.environment_id != environment_id:
             continue
         try:
-            module = load_module(
-                entry.module_path, str(entry.module_path), expected_type="environment"
-            )
+            module = load_module_at(entry.module_path, expected_type="environment")
             # Runner-provided arguments: the run's own directories if they still
             # exist, otherwise directories inside the registry entry.
             runner_values: dict[str, Path] = {}
@@ -161,6 +166,7 @@ def clean_environments(
             result = run_command(
                 command,
                 cwd=module.module_path,
+                env={UTILS_PATH_ENV: str(entry.utils_path)} if entry.utils_path else None,
                 log_file=entry.entry_dir / "destroy.log",
                 check=False,
                 verbose=verbose,

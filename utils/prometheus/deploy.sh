@@ -3,8 +3,7 @@
 # Usage: ./deploy.sh <kubeconfig>
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UTILS_DIR="$SCRIPT_DIR/.."
+UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
 KUBECONFIG=$1
 

@@ -2,7 +2,6 @@ name: utils.helm
 type: util
 
 dependencies:
-  python: []
+  entrypoint: dependencies.sh
   commands:
     - helm
-  utils: []

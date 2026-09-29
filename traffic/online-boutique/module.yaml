@@ -14,10 +14,7 @@ args:
   cycle_minutes: { required: false, default: 60, type: positive_int }
 
 dependencies:
-  python:
-    - requirements.txt
+  entrypoint: dependencies.sh
   commands:
-    - locust
     - kubectl
     - curl
-  utils: []

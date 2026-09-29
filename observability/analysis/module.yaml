@@ -10,8 +10,6 @@ args:
   csv_lines: { required: false, default: 100000, type: positive_int }
 
 dependencies:
-  python: []
   commands:
     - python3
     - awk
-  utils: []

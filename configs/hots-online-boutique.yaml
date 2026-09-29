@@ -6,7 +6,7 @@ scenario:
   duration_seconds: 120
 
 environment:
-  module: envs/kind
+  module: envs.kind
   node_image: kindest/node:v1.34.0
   workers:
     count: 2
@@ -14,21 +14,21 @@ environment:
     memory: "4Gi"
 
 stack:
-  module: stacks/online-boutique
+  module: stacks.online-boutique
 
 observability:
-  module: observability/prometheus
+  module: observability.prometheus
   frequency_seconds: 15
   local_port: 9090         # <-- if you change this, update optimizer.prometheus_url below
   timeout_seconds: 10
 
 traffic:
-  module: traffic/online-boutique
+  module: traffic.online-boutique
   shape: day_profile
   cycle_minutes: 60
 
 optimizer:
-  module: optimizers/hots
+  module: optimizers.hots
   prometheus_url: http://127.0.0.1:9090   # <-- must match observability.local_port above
   kafka_port: 9092
   namespace: online-boutique
@@ -37,7 +37,7 @@ optimizer:
   tick_seconds: 10
 
 post-processing:
-  module: observability/analysis
+  module: post-processing.refined-csv
 
 output:
   root_directory: output/runs

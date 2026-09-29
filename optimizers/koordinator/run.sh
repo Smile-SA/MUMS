@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
+UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
 usage() {
     echo "Usage: $0 start <kubeconfig> [--manager_replicas N] [--scheduler_replicas N] [--descheduler_replicas N]" >&2
@@ -48,6 +48,7 @@ if [ ! -f "$KUBECONFIG_PATH" ]; then
     exit 1
 fi
 
+# No --namespace: the chart creates its own namespace (koordinator-system).
 "${UTILS_DIR}/helm/install.sh" \
     "$KUBECONFIG_PATH" \
     koordinator \

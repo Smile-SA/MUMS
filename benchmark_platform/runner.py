@@ -14,7 +14,8 @@ from typing import Any
 
 from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.config import ScenarioConfig
-from benchmark_platform.dependencies import check_dependencies
+from benchmark_platform.dependencies import UTILS_PATH_ENV, check_dependencies
+from benchmark_platform.discovery import ModuleIndex, discover
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
@@ -83,9 +84,9 @@ class Component:
     options: tuple[str, ...]
 
 
-def load_component(repo_root: Path, raw: dict[str, Any], role: str) -> Component:
+def load_component(index: ModuleIndex, raw: dict[str, Any], role: str) -> Component:
     section = raw[role]
-    module = load_module(repo_root, str(section["module"]), expected_type=role)
+    module = load_module(index, str(section["module"]), expected_type=role)
     values = resolve_args(section, module.arg_schema, role, envelope_keys=ENVELOPE_KEYS)
     return Component(role=role, module=module, options=tuple(to_cli_args(values)))
 
@@ -185,6 +186,7 @@ def _run_step(
     command: Sequence[str],
     *,
     cwd: Path,
+    env: dict[str, str] | None = None,
     log_file: Path | None = None,
     verbose: bool = False,
     quiet: bool = False,
@@ -198,6 +200,7 @@ def _run_step(
         result = run_command(
             command,
             cwd=cwd,
+            env=env,
             log_file=log_file,
             check=check,
             verbose=verbose,
@@ -225,11 +228,13 @@ class _Steps:
         paths: RunPaths,
         manifest: RunManifest,
         *,
+        utils_path: Path,
         verbose: bool,
         quiet: bool,
     ) -> None:
         self.paths = paths
         self.manifest = manifest
+        self.utils_path = utils_path
         self.verbose = verbose
         self.quiet = quiet
 
@@ -261,6 +266,7 @@ class _Steps:
                 action=action,
                 command=command,
                 cwd=module.module_path,
+                env={UTILS_PATH_ENV: str(self.utils_path)},
                 log_file=log_dir / f"{action}.log",
                 check=check,
                 verbose=self.verbose,
@@ -314,6 +320,11 @@ def _sleep_with_interrupt(duration_seconds: int) -> None:
         time.sleep(min(1.0, end - time.monotonic()))
 
 
+def utils_path(repo_root: Path) -> Path:
+    """The platform's `utils/` directory, given to modules as BENCHMARK_UTILS_PATH."""
+    return (repo_root / "utils").resolve()
+
+
 @dataclass(frozen=True)
 class PreparedScenario:
     components: dict[str, Component]
@@ -329,12 +340,13 @@ def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScen
     """Load and validate every module of the scenario and check their
     dependencies. Creates nothing: used by both `validate` and `run`."""
     raw = config.raw
-    components = {role: load_component(repo_root, raw, role) for role in REQUIRED_COMPONENTS}
+    index = discover(repo_root)
+    components = {role: load_component(index, raw, role) for role in REQUIRED_COMPONENTS}
     post_processing = (
-        load_component(repo_root, raw, "post-processing") if "post-processing" in raw else None
+        load_component(index, raw, "post-processing") if "post-processing" in raw else None
     )
     prepared = PreparedScenario(components=components, post_processing=post_processing)
-    check_dependencies(repo_root, [c.module.module_path for c in prepared.all])
+    check_dependencies(index, [c.module.name for c in prepared.all], utils_path(repo_root))
     return prepared
 
 
@@ -383,7 +395,7 @@ def run_scenario(
         print(f"Run: {paths.root}")
         print(f"Environment id: {environment_id}")
 
-    steps = _Steps(paths, manifest, verbose=verbose, quiet=quiet)
+    steps = _Steps(paths, manifest, utils_path=utils_path(repo_root), verbose=verbose, quiet=quiet)
     environment = components["environment"]
     kubeconfig: str | None = None
     launched: list[Component] = []
@@ -392,7 +404,9 @@ def run_scenario(
     # Registered *before* create, so that an interrupted create is still known;
     # unregistered only once destroy succeeds.
     registry = registry or EnvironmentRegistry()
-    registry.register(environment_id, environment.module, environment.options, paths.root)
+    registry.register(
+        environment_id, environment.module, environment.options, paths.root, utils_path(repo_root)
+    )
 
     try:
         steps.call(environment, "create", config.seed, environment_id, paths.environment_result)

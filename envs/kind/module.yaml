@@ -13,17 +13,14 @@ args:
   workers:    { required: false, type: mapping }
 
 dependencies:
-  python: []
+  entrypoint: dependencies.sh
   commands:
-    - jq
     - docker
     - kind
     - kubectl
-    - helm
-  checks:
-    - docker info
+    - jq
   utils:
-    - utils/kind
-    - utils/metallb
-    - utils/prometheus
-    - utils/helm
+    - utils.kind
+    - utils.helm
+    - utils.metallb
+    - utils.prometheus

@@ -6,7 +6,7 @@ scenario:
   duration_seconds: 120
 
 environment:
-  module: envs/kind
+  module: envs.kind
   node_image: kindest/node:v1.34.0
   workers:
     count: 2
@@ -14,24 +14,24 @@ environment:
     memory: "4Gi"
 
 stack:
-  module: stacks/online-boutique
+  module: stacks.online-boutique
 
 observability:
-  module: observability/prometheus
+  module: observability.prometheus
   frequency_seconds: 15
   local_port: 9090
   timeout_seconds: 10
 
 traffic:
-  module: traffic/online-boutique
+  module: traffic.online-boutique
   shape: day_profile
   cycle_minutes: 60
 
 optimizer:
-  module: optimizers/koordinator
+  module: optimizers.koordinator
 
 post-processing:
-  module: observability/analysis
+  module: post-processing.refined-csv
 
 output:
   root_directory: output/runs

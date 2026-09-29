@@ -79,7 +79,7 @@ def platform(tmp_path, monkeypatch):
     scenario = {
         "version": 1,
         "scenario": {"name": "Test scénario", "seed": 42, "duration_seconds": 1},
-        **{module_type: {"module": f"mods/{module_type}"} for module_type in SIGNATURES},
+        **{module_type: {"module": module_type} for module_type in SIGNATURES},
         "output": {"root_directory": str(tmp_path / "runs")},
     }
 

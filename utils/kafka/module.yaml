@@ -1,9 +1,6 @@
 name: utils.kafka
 type: util
-entrypoint: broker.sh
 
 dependencies:
-  python: []
   commands:
     - docker
-  utils: []

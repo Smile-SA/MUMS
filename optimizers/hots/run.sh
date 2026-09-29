@@ -17,7 +17,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="$(cd "${SCRIPT_DIR}/../../utils" && pwd -P)"
+UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
 # Fixed, not user-configurable: runs are serial on a host, so a single
 # well-known port for the connector's own HTTP control API is enough.

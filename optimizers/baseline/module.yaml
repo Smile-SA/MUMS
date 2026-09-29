@@ -5,8 +5,3 @@ entrypoint: baseline.sh
 
 lifecycle:
   start: "<kubeconfig>"
-
-dependencies:
-  python: []
-  commands: []
-  utils: []

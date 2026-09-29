@@ -1,9 +1,6 @@
 name: utils.kind
 type: util
-entrypoint: validate_node_image.sh
 
 dependencies:
-  python: []
   commands:
     - docker
-  utils: []

@@ -12,12 +12,8 @@ args:
   descheduler_replicas: { required: false, default: 1, type: positive_int }
 
 dependencies:
-  python: []
+  entrypoint: dependencies.sh
   commands:
-    - helm
     - kubectl
-  checks:
-    # Helm chart fetched by dependencies.sh (make setup-module MODULE=optimizers/koordinator)
-    - test -d ../../utils/helm/chart-repository/koordinator
   utils:
-    - utils/helm
+    - utils.helm

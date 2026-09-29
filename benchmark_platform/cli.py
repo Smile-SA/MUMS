@@ -7,9 +7,14 @@ from pathlib import Path
 from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
 from benchmark_platform.compare import compare_runs, default_output_dir, write_report
 from benchmark_platform.config import ConfigError, load_config
-from benchmark_platform.dependencies import DependencyError
+from benchmark_platform.dependencies import (
+    DependencyError,
+    check_dependencies,
+    install_dependencies,
+)
+from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.modules import ModuleError
-from benchmark_platform.runner import prepare_scenario, run_scenario
+from benchmark_platform.runner import prepare_scenario, run_scenario, utils_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,6 +48,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress benchmark progress output.",
     )
+
+    deps = subparsers.add_parser(
+        "deps", help="Install or check the dependencies of modules (by name), recursively."
+    )
+    deps_commands = deps.add_subparsers(dest="deps_command", required=True)
+    for action, text in (
+        ("install", "Install dependencies, then check them."),
+        ("check", "Check dependencies."),
+    ):
+        sub = deps_commands.add_parser(action, help=text)
+        sub.add_argument("modules", nargs="+", help="Module names (e.g. envs.kind).")
+        sub.add_argument(
+            "--repo-root", default=".", help="Repository root. Defaults to current directory."
+        )
 
     env = subparsers.add_parser(
         "env",
@@ -95,6 +114,16 @@ def main(argv: list[str] | None = None) -> int:
 
             print(result["headline"])
             print(f"Report: {md_path} ({json_path})")
+            return 0
+
+        if args.command == "deps":
+            repo_root = Path(args.repo_root).resolve()
+            index = discover(repo_root)
+            if args.deps_command == "install":
+                install_dependencies(index, args.modules, utils_path(repo_root))
+            else:
+                check_dependencies(index, args.modules, utils_path(repo_root))
+            print(f"Dependencies OK: {', '.join(args.modules)}")
             return 0
 
         if args.command == "env":
@@ -156,6 +185,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[CONFIG ERROR] {exc}", file=sys.stderr)
         return 2
     except ModuleError as exc:
+        print(f"[MODULE ERROR] {exc}", file=sys.stderr)
+        return 2
+    except DiscoveryError as exc:
         print(f"[MODULE ERROR] {exc}", file=sys.stderr)
         return 2
     except DependencyError as exc:

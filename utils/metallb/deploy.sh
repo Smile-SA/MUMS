@@ -1,8 +1,7 @@
 #!/bin/bash
 # Usage: ./deploy.sh <kubeconfig> <ip_range> [<ip_range> ...]
 set -e
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UTILS_DIR="$SCRIPT_DIR/.."
+UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
 KUBECONFIG="${1:-}"
 shift || true
@@ -43,9 +42,7 @@ kubectl --kubeconfig "${KUBECONFIG}" \
   --timeout=180s
 
 echo "=== Configuration IPAddressPool: $* ===" >&2
-
-echo "=== Configuration IPAddressPool: $* ===" >&2
-kubectl apply --kubeconfig "$KUBECONFIG" -f - <<EOF
+kubectl apply --kubeconfig "$KUBECONFIG" -f - <<EOF2
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
@@ -62,6 +59,6 @@ metadata:
 spec:
   ipAddressPools:
   - default-pool
-EOF
+EOF2
 
 echo "=== MetalLB ready — address ranges: $* ===" >&2

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Global (core) system dependencies only: Python, jq, kubectl and base tools.
+# Everything else is installed by the modules that need it
+# (benchmark-platform deps install <module>).
 set -euo pipefail
 
 if [[ "$(uname -s)" != "Linux" ]]; then
@@ -26,9 +29,7 @@ esac
 
 ARCH=$(uname -m)
 [[ "$ARCH" == "aarch64" ]] && ARCH="arm64" || ARCH="amd64"
-KIND_VERSION="${KIND_VERSION:-latest}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-stable}"
-INSTALL_DOCKER="${INSTALL_DOCKER:-true}"
 
 echo "=== Installing base packages ==="
 sudo apt-get update
@@ -42,34 +43,6 @@ sudo apt-get install -y \
   python3-venv \
   python3-pip
 
-if [[ "${INSTALL_DOCKER}" == "true" ]]; then
-  echo
-  echo "=== Installing Docker Engine from Docker apt repository ==="
-
-  sudo install -m 0755 -d /etc/apt/keyrings
-
-  if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
-    curl -fsSL "https://download.docker.com/linux/${ID}/gpg" \
-      | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
-    sudo chmod a+r /etc/apt/keyrings/docker.asc
-  fi
-
-  CODENAME="${VERSION_CODENAME:-$(lsb_release -cs)}"
-
-  echo \
-    "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${ID} ${CODENAME} stable" \
-    | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-
-  sudo apt-get update
-  sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-  if ! groups "${USER}" | grep -q '\bdocker\b'; then
-    echo
-    echo "=== Adding current user to docker group ==="
-    sudo usermod -aG docker "${USER}"
-    echo "[WARN] You must log out and log back in, or run 'newgrp docker', before Docker works without sudo."
-  fi
-fi
 
 echo
 echo "=== Installing kubectl ==="
@@ -83,34 +56,16 @@ chmod +x /tmp/kubectl
 sudo mv /tmp/kubectl /usr/local/bin/kubectl
 
 echo
-echo "=== Installing kind ==="
-if [[ "${KIND_VERSION}" == "latest" ]]; then
-  KIND_URL="https://kind.sigs.k8s.io/dl/latest/kind-linux-${ARCH}"
-else
-  KIND_URL="https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-${ARCH}"
-fi
-
-curl -fsSLo /tmp/kind "${KIND_URL}"
-chmod +x /tmp/kind
-sudo mv /tmp/kind /usr/local/bin/kind
-
-echo
-echo "=== Installing Helm ==="
-curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-echo
 echo "=== Installed tool versions ==="
 python3 --version
-docker --version || true
 kubectl version --client=true || kubectl version --client || true
-kind version || true
-helm version --short || helm version || true
 jq --version || true
 
 echo
 echo "System dependency installation complete."
 echo
 echo "Next steps:"
-echo "  1. If Docker group membership changed, log out/in or run: newgrp docker"
-echo "  2. Run: make setup-dev"
-echo "  3. Run: make doctor"
+echo "  1. Run: make setup-dev"
+echo "  2. Install the dependencies of the modules you use, e.g.:"
+echo "       benchmark-platform deps install envs.kind"
+echo "     (Docker, kind, Helm and the charts are installed by the modules that need them.)"
