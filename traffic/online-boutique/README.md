@@ -17,7 +17,6 @@ following a load shape (a simulated day by default), and records every request.
 |---|---|---|
 | `shape` | `day_profile` | Load shape: a file `shapes/<shape>.py`. |
 | `cycle_minutes` | `60` | Duration of one cycle of the shape (e.g. `day_profile` replays a full day in this time). |
-| `requests_per_file` | `100000` | Rows per request file before starting a new one. |
 
 The seed makes Locust's random choices (products, currencies...) reproducible.
 
@@ -36,7 +35,7 @@ Locust: any load generator can produce it. Columns:
 | `response_time_ms` | latency seen by the load generator |
 | `no_response_reason` | only when no response was received: `timeout` (no answer in time, e.g. overloaded service), `connection_refused` (nothing listening, e.g. pod stopped), `connection_reset` (connection cut mid-request, e.g. pod evicted) or `other`; empty otherwise |
 
-A new file starts every `requests_per_file` rows, each with its header. Rows are
+A new file starts every 100,000 rows, each with its header. Rows are
 written as responses arrive, so they are not strictly sorted by `timestamp`.
 
 ## Extras, logs
@@ -48,7 +47,7 @@ written as responses arrive, so they are not strictly sorted by `timestamp`.
 
 ## Dependencies
 
-kubectl, curl. The dependency script installs the Python packages
+curl, python3. The dependency script installs the Python packages
 (`requirements.txt`: Locust, Faker) and checks them.
 
 ## Files

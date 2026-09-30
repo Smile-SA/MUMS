@@ -32,6 +32,13 @@ kubectl, and `utils.helm`. The dependency script fetches the chart (version in
 `chart-version`, a git tag: `v0.10.1`) from the GitHub repository, since it is not
 published on a Helm repository, and installs `git` if needed to do so.
 
+## Version
+
+The application version is fixed in `chart-version` (a git tag of
+microservices-demo). To benchmark another version, copy this module, change its
+`name` in `module.yaml` (e.g. `stacks.online-boutique-v0.11.0`: two modules cannot
+share a name) and its `chart-version`.
+
 ## Known limitations
 
 - Fixed release name and namespace: one Online Boutique per cluster.

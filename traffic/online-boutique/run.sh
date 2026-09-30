@@ -3,7 +3,7 @@
 #
 # Usage:
 #   run.sh start <kubeconfig> <seed> <data_dir> --log_dir <dir> --extras_dir <dir>
-#                [--shape <name>] [--cycle_minutes N] [--requests_per_file N]
+#                [--shape <name>] [--cycle_minutes N]
 #   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
 #
 # Data: <data_dir>/http-requests/<index>.csv, one row per request (standard
@@ -49,7 +49,7 @@ LOG_DIR=""
 EXTRAS_DIR=""
 SHAPE="day_profile"
 CYCLE_MINUTES=60
-REQUESTS_PER_FILE=100000
+REQUESTS_PER_FILE=100000   # rows per http-requests file (technical detail, not an argument)
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -57,7 +57,6 @@ while [ "$#" -gt 0 ]; do
         --extras_dir)    EXTRAS_DIR="$2";    shift 2 ;;
         --shape)         SHAPE="$2";         shift 2 ;;
         --cycle_minutes) CYCLE_MINUTES="$2"; shift 2 ;;
-        --requests_per_file) REQUESTS_PER_FILE="$2"; shift 2 ;;
         *)
             echo "ERROR: unknown option '$1'" >&2
             usage
