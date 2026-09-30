@@ -73,7 +73,7 @@ def dependency_problems(dependencies: Any) -> list[str]:
 
 
 @dataclass(frozen=True)
-class _Node:
+class Node:
     name: str
     path: Path
     script: Path | None
@@ -91,9 +91,9 @@ def _read_dependencies(path: Path) -> dict[str, Any]:
     return dependencies or {}
 
 
-def resolve(index: ModuleIndex, names: list[str]) -> list[_Node]:
+def resolve(index: ModuleIndex, names: list[str]) -> list[Node]:
     """The given modules and all their dependencies, dependencies first."""
-    ordered: list[_Node] = []
+    ordered: list[Node] = []
     done: set[str] = set()
     in_progress: set[str] = set()
 
@@ -116,7 +116,7 @@ def resolve(index: ModuleIndex, names: list[str]) -> list[_Node]:
             visit(dependency, name)
         script = dependencies.get("entrypoint")
         ordered.append(
-            _Node(
+            Node(
                 name=name,
                 path=path,
                 script=path / script if script else None,
@@ -139,7 +139,7 @@ def _script_env(utils_path: Path) -> dict[str, str]:
 
 
 def _run_script(
-    node: _Node, mode: str, utils_path: Path, *, capture: bool
+    node: Node, mode: str, utils_path: Path, *, capture: bool
 ) -> subprocess.CompletedProcess[str]:
     assert node.script is not None
     return subprocess.run(
@@ -153,31 +153,39 @@ def _run_script(
     )
 
 
+def node_problems(node: Node, utils_path: Path) -> list[str]:
+    """What is missing for one module or util alone (its utils not included)."""
+    problems: list[str] = []
+    for command in node.commands:
+        if shutil.which(command) is None:
+            problems.append(f"command not found: {command}")
+    if node.script is None:
+        return problems
+    if not node.script.is_file():
+        problems.append(f"dependency script not found: {node.script}")
+        return problems
+    try:
+        result = _run_script(node, "check", utils_path, capture=True)
+        if result.returncode != 0:
+            output = (result.stdout + result.stderr).strip().splitlines()[-5:]
+            detail = f": {' / '.join(output)}" if output else ""
+            problems.append(f"check failed{detail}")
+    except subprocess.TimeoutExpired:
+        problems.append(f"check timed out ({_CHECK_TIMEOUT_SECONDS}s)")
+    except OSError as exc:
+        problems.append(f"check could not run: {exc}")
+    return problems
+
+
 def check_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -> None:
     """Check `commands` and run every `check`, for the given modules and their
-    dependencies. Raises DependencyError listing everything that is missing."""
+    utils. Raises DependencyError listing everything that is missing."""
     missing: dict[str, list[str]] = {}
     for node in resolve(index, names):
-        problems = missing.setdefault(node.name, [])
-        for command in node.commands:
-            if shutil.which(command) is None:
-                problems.append(f"command not found: {command}")
-        if node.script is not None:
-            if not node.script.is_file():
-                problems.append(f"dependency script not found: {node.script}")
-            else:
-                try:
-                    result = _run_script(node, "check", utils_path, capture=True)
-                    if result.returncode != 0:
-                        output = (result.stdout + result.stderr).strip().splitlines()[-5:]
-                        detail = f": {' / '.join(output)}" if output else ""
-                        problems.append(f"check failed{detail}")
-                except subprocess.TimeoutExpired:
-                    problems.append(f"check timed out ({_CHECK_TIMEOUT_SECONDS}s)")
-                except OSError as exc:
-                    problems.append(f"check could not run: {exc}")
+        problems = node_problems(node, utils_path)
+        if problems:
+            missing[node.name] = problems
 
-    missing = {name: problems for name, problems in missing.items() if problems}
     if missing:
         lines = ["Missing dependencies:"]
         for name, problems in missing.items():

@@ -14,7 +14,7 @@ CONFIG    ?= configs/basic-online-boutique.yaml
         check-module install-system-deps-debian \
         check check-shell check-python lint validate-config \
         run-basic test smoke \
-        clean clean-venv clean-env clean-all
+        doctor clean clean-venv clean-env clean-all
 
 help:
 	@echo "Benchmark platform developer commands"
@@ -39,6 +39,7 @@ help:
 	@echo "    make smoke                         End-to-end smoke test on a real cluster (requires Kind)"
 	@echo
 	@echo "  MAINTENANCE"
+	@echo "    make doctor                        Overview of the machine and of the platform (informative)"
 	@echo "    make clean                         Remove Python caches (preserves venv and outputs)"
 	@echo "    make clean-venv                    Remove the local Python virtual environment"
 	@echo "    make clean-env [ID=...]            Destroy environments left behind by previous runs (all, or one id;"
@@ -107,6 +108,9 @@ smoke:
 	./tests/smoke/run_basic_config.sh
 
 # --- Maintenance ---
+
+doctor:
+	$(BENCHMARK) doctor
 
 clean:
 	@find . -type d -name '__pycache__' -prune -exec rm -rf {} +

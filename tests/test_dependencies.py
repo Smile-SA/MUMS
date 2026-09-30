@@ -116,3 +116,15 @@ def test_script_gets_utils_path(tmp_path):
     script = '#!/bin/sh\n[ "$BENCHMARK_UTILS_PATH" = "%s" ]\n' % (tmp_path / "u")
     _util(tmp_path, "m", {"entrypoint": "deps.sh"}, script=script)
     check_dependencies(discover(tmp_path), ["m"], tmp_path / "u")
+
+
+def test_doctor_reports_each_module(tmp_path, capsys, monkeypatch):
+    from benchmark_platform.doctor import run_doctor
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    _util(tmp_path, "good", {"commands": ["sh"]})
+    _util(tmp_path, "bad", {"commands": ["nope-cmd"]})
+    run_doctor(tmp_path)
+    out = capsys.readouterr().out
+    assert "[OK]  good" in out
+    assert "[KO]  bad: command not found: nope-cmd" in out

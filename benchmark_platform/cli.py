@@ -13,6 +13,7 @@ from benchmark_platform.dependencies import (
     install_dependencies,
 )
 from benchmark_platform.discovery import DiscoveryError, discover
+from benchmark_platform.doctor import run_doctor
 from benchmark_platform.modules import ModuleError
 from benchmark_platform.runner import prepare_scenario, run_scenario, utils_path
 
@@ -62,6 +63,13 @@ def build_parser() -> argparse.ArgumentParser:
         sub.add_argument(
             "--repo-root", default=".", help="Repository root. Defaults to current directory."
         )
+
+    doctor = subparsers.add_parser(
+        "doctor", help="Overview of the machine and of the platform (informative, checks nothing)."
+    )
+    doctor.add_argument(
+        "--repo-root", default=".", help="Repository root. Defaults to current directory."
+    )
 
     env = subparsers.add_parser(
         "env",
@@ -124,6 +132,10 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 check_dependencies(index, args.modules, utils_path(repo_root))
             print(f"Dependencies OK: {', '.join(args.modules)}")
+            return 0
+
+        if args.command == "doctor":
+            run_doctor(Path(args.repo_root))
             return 0
 
         if args.command == "env":
