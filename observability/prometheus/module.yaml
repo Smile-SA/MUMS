@@ -22,4 +22,4 @@ dependencies:
     - curl
     - python3
   utils:
-    - utils.prometheus
+    - utils.helm

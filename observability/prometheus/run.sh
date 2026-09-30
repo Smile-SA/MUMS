@@ -16,7 +16,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 SCRAPER="${SCRIPT_DIR}/scraper.py"
 
 usage() {
@@ -94,12 +93,12 @@ case "$ACTION" in
         # Prometheus is installed by this module, unless the cluster already
         # provides one (install_prometheus: false), e.g. on a managed cloud cluster.
         if [ "$INSTALL_PROMETHEUS" = "true" ]; then
-            "${UTILS_DIR}/prometheus/deploy.sh" "$KUBECONFIG_PATH"
+            "${SCRIPT_DIR}/deploy.sh" "$KUBECONFIG_PATH"
         else
             echo "=== Prometheus not installed by the module (install_prometheus: false) ==="
         fi
 
-        "${UTILS_DIR}/prometheus/port-forward.sh" \
+        "${SCRIPT_DIR}/port-forward.sh" \
             "$KUBECONFIG_PATH" "$LOCAL_PORT" "$PF_PID_FILE" "${LOG_DIR}/port-forward.log"
 
         python3 "$SCRAPER" \
@@ -120,7 +119,7 @@ case "$ACTION" in
             echo "ERROR: scraper exited right after start. Log: ${SCRAPER_LOG_FILE}" >&2
             cat "$SCRAPER_LOG_FILE" >&2 || true
             rm -f "$SCRAPER_PID_FILE"
-            "${UTILS_DIR}/prometheus/port-forward-stop.sh" "$PF_PID_FILE"
+            "${SCRIPT_DIR}/port-forward-stop.sh" "$PF_PID_FILE"
             exit 1
         fi
 
@@ -142,6 +141,6 @@ case "$ACTION" in
             echo "No scraper PID file: $SCRAPER_PID_FILE" >&2
         fi
 
-        "${UTILS_DIR}/prometheus/port-forward-stop.sh" "$PF_PID_FILE"
+        "${SCRIPT_DIR}/port-forward-stop.sh" "$PF_PID_FILE"
         ;;
 esac
