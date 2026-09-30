@@ -41,7 +41,7 @@ def test_full_run_order_and_outputs(platform):
     assert manifest["status"] == "completed"
     assert ENVIRONMENT_ID_PATTERN.match(manifest["environment_id"])
     assert (run_dir / "logs" / "traffic" / "start.log").is_file()
-    assert (run_dir / "outputs" / "observability").is_dir()
+    assert (run_dir / "data").is_dir()
 
 
 def test_arguments_passed(platform):
@@ -57,7 +57,7 @@ def test_arguments_passed(platform):
     run_dir = _run(platform)
     calls = platform.calls.read_text().splitlines()
     line = next(ln for ln in calls if ln.startswith("traffic start"))
-    assert f"{run_dir}/outputs/traffic" in line
+    assert f"{run_dir}/data" in line
     assert f"--extras_dir {run_dir}/extras/traffic" in line and "--log_dir" not in line
     assert "--shape night" in line and "--rate 5" in line
     stack_line = next(

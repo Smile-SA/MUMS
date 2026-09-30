@@ -14,10 +14,10 @@ import yaml
 SIGNATURES = {
     "environment": {"create": "<seed> <id> <output_file>", "destroy": "<id>"},
     "stack": {"deploy": "<kubeconfig> <seed>", "delete": "<kubeconfig>"},
-    "observability": {"start": "<kubeconfig> <output_dir>", "stop": "<kubeconfig>"},
-    "traffic": {"start": "<kubeconfig> <seed> <output_dir>", "stop": "<kubeconfig>"},
+    "observability": {"start": "<kubeconfig> <data_dir>", "stop": "<kubeconfig>"},
+    "traffic": {"start": "<kubeconfig> <seed> <data_dir>", "stop": "<kubeconfig>"},
     "optimizer": {"start": "<kubeconfig>", "stop": "<kubeconfig>"},
-    "post-processing": {"run": "<observability_dir> <traffic_dir> <output_dir>"},
+    "post-processing": {"run": "<data_dir>"},
 }
 
 # Records every call in $CALLS_LOG. `create` writes a kubeconfig path to its

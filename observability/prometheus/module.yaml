@@ -4,21 +4,22 @@ contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  start: "<kubeconfig> <output_dir>"
+  start: "<kubeconfig> <data_dir>"
   stop: "<kubeconfig>"
 
 args:
   log_dir:           { type: string }
   extras_dir:        { type: string }
+  install_prometheus: { required: false, default: true, type: bool }
   frequency_seconds: { required: false, default: 15, type: positive_int }
   local_port:        { required: false, default: 9090, type: positive_int }
   timeout_seconds:   { required: false, default: 10, type: positive_int }
 
 dependencies:
+  entrypoint: dependencies.sh
   commands:
     - kubectl
     - curl
     - python3
   utils:
     - utils.prometheus
-    - utils.scraper

@@ -392,7 +392,7 @@ def run_scenario(
             "config": str(paths.config),
             "modules": {c.role: c.module.as_manifest_record() for c in prepared.all},
             "paths": {
-                "outputs": str(paths.outputs),
+                "data": str(paths.data),
                 "extras": str(paths.extras),
                 "logs": str(paths.logs),
                 "runtime": str(paths.runtime),
@@ -443,13 +443,13 @@ def run_scenario(
         # its stop action also runs if the launch fails half-way (stop actions
         # must handle dirty states).
         launched.append(components["observability"])
-        steps.call(components["observability"], "start", kubeconfig, paths.observability)
+        steps.call(components["observability"], "start", kubeconfig, paths.data)
 
         launched.append(components["stack"])
         steps.call(components["stack"], "deploy", kubeconfig, config.seed)
 
         launched.append(components["traffic"])
-        steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.traffic)
+        steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.data)
 
         launched.append(components["optimizer"])
         steps.call(components["optimizer"], "start", kubeconfig)
@@ -507,9 +507,7 @@ def run_scenario(
                 steps.call(
                     post_processing,
                     "run",
-                    paths.observability,
-                    paths.traffic,
-                    paths.post_processing,
+                    paths.data,
                     check=False,
                 )
         finally:

@@ -11,16 +11,14 @@ args:
   extras_dir: { type: string }
   node_image: { required: false, type: string, default: "kindest/node:v1.34.0" }
   workers:    { required: false, type: mapping }
+  cgroups:    { required: false, type: string, default: "v1" }
 
 dependencies:
   entrypoint: dependencies.sh
-  commands:
+  commands:        # kind itself is checked by dependencies.sh (see kind-version)
     - docker
-    - kind
     - kubectl
     - jq
   utils:
-    - utils.kind
     - utils.helm
     - utils.metallb
-    - utils.prometheus

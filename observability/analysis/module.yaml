@@ -4,7 +4,7 @@ contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  run: "<observability_dir> <traffic_dir> <output_dir>"
+  run: "<data_dir>"
 
 args:
   csv_lines: { required: false, default: 100000, type: positive_int }

@@ -41,7 +41,7 @@ def test_contract_defaults_to_1(tmp_path):
         ({"lifecycle": {}}, "'lifecycle' must be a non-empty mapping"),
         ({"lifecycle": {"stop": "<kubeconfig>"}}, "required action 'start'"),
         (
-            {"lifecycle": {"start": "<kubeconfig> <seed> <output_dir>", "restart": "<x>"}},
+            {"lifecycle": {"start": "<kubeconfig> <seed> <data_dir>", "restart": "<x>"}},
             "'restart' is not part of the 'traffic' contract",
         ),
         ({"lifecycle": {"start": "<kubeconfig>"}}, "must be declared as"),

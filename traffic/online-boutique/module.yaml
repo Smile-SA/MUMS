@@ -4,7 +4,7 @@ contract: 1
 entrypoint: run.sh
 
 lifecycle:
-  start: "<kubeconfig> <seed> <output_dir>"
+  start: "<kubeconfig> <seed> <data_dir>"
   stop: "<kubeconfig>"
 
 args:

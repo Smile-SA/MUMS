@@ -8,9 +8,10 @@ from pathlib import Path
 class RunPaths:
     """Layout of a run directory.
 
-    - `outputs/<type>/`: contractual outputs, one directory per module type,
-      readable by other modules without knowing which module produced them
-      (e.g. `outputs/observability/metrics.om`).
+    - `data/<format>/`: standard data, one directory per data format (e.g.
+      `data/openmetrics/`). Modules that produce or consume standard data get
+      the whole `data/` directory; each one writes only the directories of the
+      formats it produces, and reads those it needs.
     - Per-module directories, private to each module: `logs/<module>/` and
       `extras/<module>/`.
     - Runner-owned: `config.yaml`, `manifest.yaml`, `runtime/`, `kubernetes/`.
@@ -25,10 +26,7 @@ class RunPaths:
     kubernetes: Path
     logs: Path
     extras: Path
-    outputs: Path
-    observability: Path
-    traffic: Path
-    post_processing: Path
+    data: Path
 
     @classmethod
     def create(cls, root: Path) -> RunPaths:
@@ -43,10 +41,7 @@ class RunPaths:
             kubernetes=root / "kubernetes",
             logs=root / "logs",
             extras=root / "extras",
-            outputs=root / "outputs",
-            observability=root / "outputs" / "observability",
-            traffic=root / "outputs" / "traffic",
-            post_processing=root / "outputs" / "post-processing",
+            data=root / "data",
         )
 
         for path in (
@@ -54,9 +49,7 @@ class RunPaths:
             paths.kubernetes,
             paths.logs,
             paths.extras,
-            paths.observability,
-            paths.traffic,
-            paths.post_processing,
+            paths.data,
         ):
             path.mkdir(parents=True, exist_ok=True)
 

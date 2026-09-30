@@ -41,11 +41,11 @@ TYPE_CONTRACTS: dict[str, dict[str, ActionContract]] = {
         "delete": ActionContract(("kubeconfig",), required=False),
     },
     "observability": {
-        "start": ActionContract(("kubeconfig", "output_dir"), required=True),
+        "start": ActionContract(("kubeconfig", "data_dir"), required=True),
         "stop": ActionContract(("kubeconfig",), required=False),
     },
     "traffic": {
-        "start": ActionContract(("kubeconfig", "seed", "output_dir"), required=True),
+        "start": ActionContract(("kubeconfig", "seed", "data_dir"), required=True),
         "stop": ActionContract(("kubeconfig",), required=False),
     },
     "optimizer": {
@@ -53,7 +53,7 @@ TYPE_CONTRACTS: dict[str, dict[str, ActionContract]] = {
         "stop": ActionContract(("kubeconfig",), required=False),
     },
     "post-processing": {
-        "run": ActionContract(("observability_dir", "traffic_dir", "output_dir"), required=True),
+        "run": ActionContract(("data_dir",), required=True),
     },
 }
 

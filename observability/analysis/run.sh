@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Refined-CSV post-processing module (contract 1): turns the observability
-# output (metrics.om, OpenMetrics) into the refined CSV tables (see README.md).
+# Refined-CSV post-processing module (contract 1): turns OpenMetrics scrapes
+# (<data_dir>/openmetrics/) into the refined CSV tables (<data_dir>/refined-csv/,
+# see README.md).
 #
 # Usage:
-#   run.sh run <observability_dir> <traffic_dir> <output_dir> [--csv_lines N]
-#
-# <traffic_dir> is not used yet.
+#   run.sh run <data_dir> [--csv_lines N]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 usage() {
-    echo "Usage: $0 run <observability_dir> <traffic_dir> <output_dir> [--csv_lines N]" >&2
+    echo "Usage: $0 run <data_dir> [--csv_lines N]" >&2
     exit 1
 }
 
@@ -22,11 +21,9 @@ if [ "$ACTION" != "run" ]; then
     usage
 fi
 shift
-[ "$#" -ge 3 ] || usage
-OBSERVABILITY_DIR="$1"
-TRAFFIC_DIR="$2"   # unused for now
-OUTPUT_DIR="$3"
-shift 3
+[ "$#" -ge 1 ] || usage
+DATA_DIR="$1"
+shift
 
 CSV_LINES=100000
 while [ "$#" -gt 0 ]; do
@@ -39,12 +36,17 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-METRICS_FILE="${OBSERVABILITY_DIR}/metrics.om"
+# Input: OpenMetrics scrapes (<data_dir>/openmetrics/<index>.om), read in order.
+# Output: the refined CSV tables (<data_dir>/refined-csv/).
+INPUT_DIR="${DATA_DIR}/openmetrics"
+OUTPUT_DIR="${DATA_DIR}/refined-csv"
+shopt -s nullglob
+SCRAPES=("$INPUT_DIR"/*.om)
 
-if [ ! -s "$METRICS_FILE" ]; then
-    echo "[SKIP] Metrics file is missing or empty: ${METRICS_FILE}" >&2
+if [ "${#SCRAPES[@]}" -eq 0 ]; then
+    echo "[SKIP] No OpenMetrics scrape found in ${INPUT_DIR}" >&2
     exit 0
 fi
 
 mkdir -p "$OUTPUT_DIR"
-"${SCRIPT_DIR}/run_all.sh" "$OUTPUT_DIR" --lines="$CSV_LINES" < "$METRICS_FILE"
+cat "${SCRAPES[@]}" | "${SCRIPT_DIR}/run_all.sh" "$OUTPUT_DIR" --lines="$CSV_LINES"

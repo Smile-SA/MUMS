@@ -2,11 +2,12 @@
 # Online Boutique traffic module (contract 1): Locust load from the host machine.
 #
 # Usage:
-#   run.sh start <kubeconfig> <seed> <output_dir> --log_dir <dir> --extras_dir <dir>
+#   run.sh start <kubeconfig> <seed> <data_dir> --log_dir <dir> --extras_dir <dir>
 #                [--shape <name>] [--cycle_minutes N]
 #   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
 #
-# Outputs: Locust CSV files in <output_dir> (locust_*.csv).
+# Data: none yet (standard traffic format to define). Locust CSV files are not
+# a standard format: they go to <extras_dir> (locust_*.csv).
 # Logs: <log_dir>/locust.log. Internal state: <extras_dir>/locust.pid.
 # Shapes: shapes/<shape>.py in this module.
 
@@ -17,7 +18,7 @@ NAMESPACE="online-boutique"
 
 usage() {
     echo "Usage:" >&2
-    echo "  $0 start <kubeconfig> <seed> <output_dir> --log_dir <dir> --extras_dir <dir> [--shape <name>] [--cycle_minutes N]" >&2
+    echo "  $0 start <kubeconfig> <seed> <data_dir> --log_dir <dir> --extras_dir <dir> [--shape <name>] [--cycle_minutes N]" >&2
     echo "  $0 stop  <kubeconfig> --log_dir <dir> --extras_dir <dir>" >&2
     exit 1
 }
@@ -29,7 +30,7 @@ shift
 case "$ACTION" in
     start)
         [ "$#" -ge 3 ] || usage
-        KUBECONFIG_PATH="$1"; SEED="$2"; OUTPUT_DIR="$3"
+        KUBECONFIG_PATH="$1"; SEED="$2"; DATA_DIR="$3"   # unused until the traffic format exists
         shift 3
         ;;
     stop)
@@ -91,11 +92,9 @@ case "$ACTION" in
             exit 1
         fi
 
-        mkdir -p "$OUTPUT_DIR"
-        OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
         KUBECONFIG_PATH="$(cd "$(dirname "$KUBECONFIG_PATH")" && pwd -P)/$(basename "$KUBECONFIG_PATH")"
         LOG_FILE="${LOG_DIR}/locust.log"
-        CSV_PREFIX="${OUTPUT_DIR}/locust"
+        CSV_PREFIX="${EXTRAS_DIR}/locust"
 
         TARGET="$("${SCRIPT_DIR}/check_frontend.sh" "$KUBECONFIG_PATH" "$NAMESPACE")"
 

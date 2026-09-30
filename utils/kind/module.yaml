@@ -1,6 +1,0 @@
-name: utils.kind
-type: util
-
-dependencies:
-  commands:
-    - docker

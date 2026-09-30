@@ -2,12 +2,14 @@
 # Prometheus observability module (contract 1): port-forward + scraper.
 #
 # Usage:
-#   run.sh start <kubeconfig> <output_dir> --log_dir <dir> --extras_dir <dir>
-#                [--frequency_seconds N] [--local_port N] [--timeout_seconds N]
+#   run.sh start <kubeconfig> <data_dir> --log_dir <dir> --extras_dir <dir>
+#                [--install_prometheus true|false] [--frequency_seconds N]
+#                [--local_port N] [--timeout_seconds N]
 #   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
 #
-# Contractual output: <output_dir>/metrics.om (OpenMetrics), plus
-# <output_dir>/scrapes.csv (scrape metadata).
+# Data: <data_dir>/openmetrics/<index>.om, one OpenMetrics file per scrape
+# (read them in order with: cat <data_dir>/openmetrics/*.om).
+# Extras: scrapes.csv (journal of every scrape attempt, for debugging).
 # Logs: <log_dir>/scraper.log, <log_dir>/port-forward.log.
 # Internal state: PID files in <extras_dir>.
 
@@ -15,11 +17,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
-SCRAPER="${UTILS_DIR}/scraper/scraper.py"
+SCRAPER="${SCRIPT_DIR}/scraper.py"
 
 usage() {
     echo "Usage:" >&2
-    echo "  $0 start <kubeconfig> <output_dir> --log_dir <dir> --extras_dir <dir> [--frequency_seconds N] [--local_port N] [--timeout_seconds N]" >&2
+    echo "  $0 start <kubeconfig> <data_dir> --log_dir <dir> --extras_dir <dir> [--frequency_seconds N] [--local_port N] [--timeout_seconds N]" >&2
     echo "  $0 stop  <kubeconfig> --log_dir <dir> --extras_dir <dir>" >&2
     exit 1
 }
@@ -31,7 +33,7 @@ shift
 case "$ACTION" in
     start)
         [ "$#" -ge 2 ] || usage
-        KUBECONFIG_PATH="$1"; OUTPUT_DIR="$2"
+        KUBECONFIG_PATH="$1"; DATA_DIR="$2"
         shift 2
         ;;
     stop)
@@ -47,6 +49,7 @@ esac
 
 LOG_DIR=""
 EXTRAS_DIR=""
+INSTALL_PROMETHEUS=true
 FREQUENCY=15
 LOCAL_PORT=9090
 TIMEOUT=10
@@ -55,6 +58,7 @@ while [ "$#" -gt 0 ]; do
     case "$1" in
         --log_dir)           LOG_DIR="$2";    shift 2 ;;
         --extras_dir)        EXTRAS_DIR="$2"; shift 2 ;;
+        --install_prometheus) INSTALL_PROMETHEUS="$2"; shift 2 ;;
         --frequency_seconds) FREQUENCY="$2";  shift 2 ;;
         --local_port)        LOCAL_PORT="$2"; shift 2 ;;
         --timeout_seconds)   TIMEOUT="$2";    shift 2 ;;
@@ -80,20 +84,28 @@ case "$ACTION" in
             echo "ERROR: kubeconfig '$KUBECONFIG_PATH' not found" >&2
             exit 1
         fi
-        mkdir -p "$OUTPUT_DIR"
+        mkdir -p "$DATA_DIR"
 
-        OUTPUT_FILE="${OUTPUT_DIR}/metrics.om"
-        SCRAPE_METADATA_FILE="${OUTPUT_DIR}/scrapes.csv"
+        METRICS_DIR="${DATA_DIR}/openmetrics"        # standard format: one OpenMetrics file per scrape
+        SCRAPE_JOURNAL="${EXTRAS_DIR}/scrapes.csv"   # debug: every scrape attempt
         SCRAPER_LOG_FILE="${LOG_DIR}/scraper.log"
         BASE_URL="http://127.0.0.1:${LOCAL_PORT}"
+
+        # Prometheus is installed by this module, unless the cluster already
+        # provides one (install_prometheus: false), e.g. on a managed cloud cluster.
+        if [ "$INSTALL_PROMETHEUS" = "true" ]; then
+            "${UTILS_DIR}/prometheus/deploy.sh" "$KUBECONFIG_PATH"
+        else
+            echo "=== Prometheus not installed by the module (install_prometheus: false) ==="
+        fi
 
         "${UTILS_DIR}/prometheus/port-forward.sh" \
             "$KUBECONFIG_PATH" "$LOCAL_PORT" "$PF_PID_FILE" "${LOG_DIR}/port-forward.log"
 
         python3 "$SCRAPER" \
             --url "$BASE_URL" \
-            --output "$OUTPUT_FILE" \
-            --metadata-output "$SCRAPE_METADATA_FILE" \
+            --output-dir "$METRICS_DIR" \
+            --journal "$SCRAPE_JOURNAL" \
             --frequency "$FREQUENCY" \
             --timeout "$TIMEOUT" \
             > /dev/null \
@@ -112,7 +124,7 @@ case "$ACTION" in
             exit 1
         fi
 
-        echo "=== Scraper started (PID ${SCRAPER_PID}, output: ${OUTPUT_FILE}, metadata: ${SCRAPE_METADATA_FILE}, log: ${SCRAPER_LOG_FILE}, source: ${BASE_URL})"
+        echo "=== Scraper started (PID ${SCRAPER_PID}, output: ${METRICS_DIR}/<index>.om, journal: ${SCRAPE_JOURNAL}, log: ${SCRAPER_LOG_FILE}, source: ${BASE_URL})"
         ;;
 
     stop)
