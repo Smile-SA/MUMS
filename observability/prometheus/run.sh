@@ -3,13 +3,15 @@
 #
 # Usage:
 #   run.sh start <kubeconfig> <data_dir> --log_dir <dir> --extras_dir <dir>
-#                [--install_prometheus true|false] [--frequency_seconds N]
-#                [--local_port N] [--timeout_seconds N]
+#                [--install_prometheus true|false] [--chart_version X.Y.Z]
+#                [--placement control-plane|any]
+#                [--frequency_seconds N] [--local_port N]
 #   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
 #
 # Data: <data_dir>/openmetrics/<index>.om, one OpenMetrics file per scrape
 # (read them in order with: cat <data_dir>/openmetrics/*.om).
-# Extras: scrapes.csv (journal of every scrape attempt, for debugging).
+# Extras: scrapes.csv (journal of every scrape attempt) and port-forward.csv
+# (port-forward starts and drops), for debugging.
 # Logs: <log_dir>/scraper.log, <log_dir>/port-forward.log.
 # Internal state: PID files in <extras_dir>.
 
@@ -17,10 +19,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SCRAPER="${SCRIPT_DIR}/scraper.py"
+UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+CHART_REPO_URL="https://prometheus-community.github.io/helm-charts"
 
 usage() {
     echo "Usage:" >&2
-    echo "  $0 start <kubeconfig> <data_dir> --log_dir <dir> --extras_dir <dir> [--frequency_seconds N] [--local_port N] [--timeout_seconds N]" >&2
+    echo "  $0 start <kubeconfig> <data_dir> --log_dir <dir> --extras_dir <dir> [--install_prometheus true|false] [--chart_version X.Y.Z] [--placement control-plane|any] [--frequency_seconds N] [--local_port N]" >&2
     echo "  $0 stop  <kubeconfig> --log_dir <dir> --extras_dir <dir>" >&2
     exit 1
 }
@@ -49,18 +53,20 @@ esac
 LOG_DIR=""
 EXTRAS_DIR=""
 INSTALL_PROMETHEUS=true
-FREQUENCY=15
+CHART_VERSION=""
+PLACEMENT=control-plane
+FREQUENCY=60
 LOCAL_PORT=9090
-TIMEOUT=10
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --log_dir)           LOG_DIR="$2";    shift 2 ;;
         --extras_dir)        EXTRAS_DIR="$2"; shift 2 ;;
         --install_prometheus) INSTALL_PROMETHEUS="$2"; shift 2 ;;
+        --placement)         PLACEMENT="$2";  shift 2 ;;
+        --chart_version)     CHART_VERSION="$2"; shift 2 ;;
         --frequency_seconds) FREQUENCY="$2";  shift 2 ;;
         --local_port)        LOCAL_PORT="$2"; shift 2 ;;
-        --timeout_seconds)   TIMEOUT="$2";    shift 2 ;;
         *)
             echo "ERROR: unknown option '$1'" >&2
             usage
@@ -93,20 +99,29 @@ case "$ACTION" in
         # Prometheus is installed by this module, unless the cluster already
         # provides one (install_prometheus: false), e.g. on a managed cloud cluster.
         if [ "$INSTALL_PROMETHEUS" = "true" ]; then
-            "${SCRIPT_DIR}/deploy.sh" "$KUBECONFIG_PATH"
+            # Prometheus collects its targets at our scrape frequency: each scrape
+            # then brings new samples, not the same ones more often.
+            if [ -z "$CHART_VERSION" ]; then
+                echo "ERROR: --chart_version is required to install Prometheus" >&2
+                exit 1
+            fi
+            # Like a node image: the requested chart version is fetched if missing.
+            "${UTILS_DIR}/helm/pull.sh" "$CHART_REPO_URL" prometheus "$CHART_VERSION"
+            "${SCRIPT_DIR}/deploy.sh" "$KUBECONFIG_PATH" "$CHART_VERSION" "$FREQUENCY" "$PLACEMENT"
         else
             echo "=== Prometheus not installed by the module (install_prometheus: false) ==="
         fi
 
         "${SCRIPT_DIR}/port-forward.sh" \
-            "$KUBECONFIG_PATH" "$LOCAL_PORT" "$PF_PID_FILE" "${LOG_DIR}/port-forward.log"
+            "$KUBECONFIG_PATH" "$LOCAL_PORT" "$PF_PID_FILE" "${LOG_DIR}/port-forward.log" \
+            "${EXTRAS_DIR}/port-forward.csv"
 
         python3 "$SCRAPER" \
             --url "$BASE_URL" \
             --output-dir "$METRICS_DIR" \
             --journal "$SCRAPE_JOURNAL" \
             --frequency "$FREQUENCY" \
-            --timeout "$TIMEOUT" \
+            --timeout "$FREQUENCY" \
             > /dev/null \
             2> "$SCRAPER_LOG_FILE" &
         SCRAPER_PID=$!

@@ -1,24 +1,15 @@
 #!/usr/bin/env bash
-# Koordinator Helm chart, fetched into utils/helm/chart-repository/.
-# The version is pinned so that every installation runs the same Koordinator.
+# Koordinator Helm chart (version in ./chart-version), fetched into
+# utils/helm/chart-repository/koordinator/<version>/.
 # Usage: ./dependencies.sh install|check
 set -euo pipefail
 
-VERSION="1.7.0"
-CHART_DIR="${BENCHMARK_UTILS_PATH:?}/helm/chart-repository/koordinator"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
+CHART_DIR="${BENCHMARK_UTILS_PATH:?}/helm/chart-repository/koordinator/${VERSION}"
 
 case "${1:-}" in
-    install)
-        if [ -d "$CHART_DIR" ]; then
-            echo "=== Chart koordinator already present, skipping ==="
-            exit 0
-        fi
-        "${BENCHMARK_UTILS_PATH}/helm/pull.sh" \
-            koordinator-sh \
-            https://koordinator-sh.github.io/charts/ \
-            koordinator-sh/koordinator \
-            "$VERSION"
-        ;;
-    check) [ -d "$CHART_DIR" ] || { echo "Chart koordinator not downloaded ($CHART_DIR)"; exit 1; } ;;
+    install) "${BENCHMARK_UTILS_PATH}/helm/pull.sh" https://koordinator-sh.github.io/charts/ koordinator "$VERSION" ;;
+    check) [ -d "$CHART_DIR" ] || { echo "Chart koordinator ${VERSION} not downloaded ($CHART_DIR)"; exit 1; } ;;
     *) echo "Usage: $0 install|check" >&2; exit 2 ;;
 esac

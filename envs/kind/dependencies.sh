@@ -3,8 +3,8 @@
 # utils; Docker is a prerequisite installed by hand.
 #
 # The kind version is set in ./kind-version:
-#   latest   use the `kind` on PATH; if missing, install the latest release to
-#            /usr/local/bin.
+#   system   use the system's `kind` (on PATH), whatever its version; if missing,
+#            install the latest release to /usr/local/bin.
 #   vX.Y.Z   use a module-local binary (.bin/kind-vX.Y.Z), installed here: several
 #            modules can then pin different kind versions side by side.
 #
@@ -15,11 +15,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 KIND_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/kind-version")"
 LOCAL_BIN="${SCRIPT_DIR}/.bin/kind-${KIND_VERSION}"
 
-download_kind() {  # <version: latest|vX.Y.Z> <destination>
+download_kind() {  # <version: latest|vX.Y.Z> <destination>  (latest = latest release)
     local arch
     case "$(uname -m)" in
+        x86_64|amd64)  arch=amd64 ;;
         aarch64|arm64) arch=arm64 ;;
-        *) arch=amd64 ;;
+        *) echo "ERROR: unsupported architecture '$(uname -m)' (kind is published for amd64 and arm64)" >&2; exit 1 ;;
     esac
     local tmp; tmp="$(mktemp)"
     echo "=== Downloading kind ${1} (${arch}) ==="
@@ -29,7 +30,7 @@ download_kind() {  # <version: latest|vX.Y.Z> <destination>
 }
 
 install() {
-    if [ "$KIND_VERSION" = "latest" ]; then
+    if [ "$KIND_VERSION" = "system" ]; then
         if command -v kind >/dev/null 2>&1; then
             echo "=== kind already installed: $(kind version) ==="
             return 0
@@ -50,7 +51,7 @@ install() {
 check() {
     # The Docker daemon must answer (the `docker` command itself is checked by the core).
     docker info >/dev/null 2>&1 || { echo "Docker daemon not reachable (running? user in the docker group?)"; exit 1; }
-    if [ "$KIND_VERSION" = "latest" ]; then
+    if [ "$KIND_VERSION" = "system" ]; then
         command -v kind >/dev/null 2>&1 || { echo "kind not found on PATH"; exit 1; }
     else
         [ -x "$LOCAL_BIN" ] || { echo "kind ${KIND_VERSION} not installed (${LOCAL_BIN})"; exit 1; }

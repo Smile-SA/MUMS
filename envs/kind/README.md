@@ -24,12 +24,16 @@ Environment module: a local Kubernetes cluster with [kind](https://kind.sigs.k8s
 
 ## kind version
 
-`kind-version` sets the kind binary: `latest` (default) uses the `kind` on PATH
-(installed from the latest release if missing); a pinned version (`vX.Y.Z`) uses a
-module-local binary, `.bin/kind-vX.Y.Z`. Kind releases build their own node
-images: recent kind versions usually run older images, but not always. To keep a
-setup that breaks with newer kind, copy this module (e.g. `envs.kind-v0.32`) and
-pin its `kind-version`.
+`kind-version` sets the kind binary:
+- `system` (default): the system's `kind` (on PATH), whatever its version. If it
+  is missing, the dependency script installs the latest release.
+- a pinned version (`vX.Y.Z`): a module-local binary, `.bin/kind-vX.Y.Z`,
+  installed by the dependency script, without touching the system's kind.
+
+Kind releases build their own node images: recent kind versions usually run older
+images, but not always. To keep a setup that breaks with newer kind, copy this
+module, change its `name` in `module.yaml` (e.g. `envs.kind-v0.32`: two modules
+cannot share a name), and pin its `kind-version`.
 
 ## Dependencies
 

@@ -23,9 +23,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
-# kind binary: the one on PATH, or a module-local pinned version (see kind-version).
+# kind binary: the system's one (on PATH), or a module-local pinned version (see kind-version).
 KIND_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/kind-version")"
-if [ "$KIND_VERSION" = "latest" ]; then
+if [ "$KIND_VERSION" = "system" ]; then
     KIND="kind"
 else
     KIND="${SCRIPT_DIR}/.bin/kind-${KIND_VERSION}"

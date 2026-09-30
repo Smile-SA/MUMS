@@ -28,9 +28,9 @@ module's concern.
 
 ## Dependencies
 
-kubectl, and `utils.helm`. The dependency script fetches the chart (version
-`v0.10.1`) from the GitHub repository, since it is not published on a Helm
-repository, and installs `git` if needed to do so.
+kubectl, and `utils.helm`. The dependency script fetches the chart (version in
+`chart-version`, a git tag: `v0.10.1`) from the GitHub repository, since it is not
+published on a Helm repository, and installs `git` if needed to do so.
 
 ## Known limitations
 

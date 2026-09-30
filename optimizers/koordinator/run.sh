@@ -49,10 +49,12 @@ if [ ! -f "$KUBECONFIG_PATH" ]; then
 fi
 
 # No --namespace: the chart creates its own namespace (koordinator-system).
+CHART_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
 "${UTILS_DIR}/helm/install.sh" \
     "$KUBECONFIG_PATH" \
     koordinator \
     koordinator \
+    "$CHART_VERSION" \
     --set "manager.replicas=${MANAGER_REPLICAS}" \
     --set "scheduler.replicas=${SCHEDULER_REPLICAS}" \
     --set "descheduler.replicas=${DESCHEDULER_REPLICAS}"

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Stops the Prometheus port-forward started by port-forward.sh.
+# Stops the Prometheus port-forward started by port-forward.sh (its supervising
+# loop and the current kubectl port-forward).
 # Usage: ./port-forward-stop.sh <pid_file>
 # Succeeds if nothing is running (dirty states are expected).
 
@@ -14,6 +15,9 @@ PID_FILE="$1"
 
 if [ -f "$PID_FILE" ]; then
     PID="$(cat "$PID_FILE")"
+    # The supervising loop stops its current port-forward on TERM; also stop
+    # its children directly, in case the loop is already gone.
+    pkill -TERM -P "$PID" 2>/dev/null || true
     if kill "$PID" 2>/dev/null; then
         echo "=== Port-forward stopped (PID $PID)" >&2
     else

@@ -2,6 +2,8 @@
 # Usage: ./deploy.sh <kubeconfig> <ip_range> [<ip_range> ...]
 set -e
 UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+CHART_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
 
 KUBECONFIG="${1:-}"
 shift || true
@@ -27,6 +29,7 @@ echo "=== Installation MetalLB ===" >&2
   "$KUBECONFIG" \
   metallb \
   metallb \
+  "$CHART_VERSION" \
   --namespace metallb-system
 
 echo "=== Waiting for MetalLB components ===" >&2

@@ -3,11 +3,12 @@
 #
 # Usage:
 #   run.sh start <kubeconfig> <seed> <data_dir> --log_dir <dir> --extras_dir <dir>
-#                [--shape <name>] [--cycle_minutes N]
+#                [--shape <name>] [--cycle_minutes N] [--requests_per_file N]
 #   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [...]
 #
-# Data: none yet (standard traffic format to define). Locust CSV files are not
-# a standard format: they go to <extras_dir> (locust_*.csv).
+# Data: <data_dir>/http-requests/<index>.csv, one row per request (standard
+# "http-requests" format, see README.md). Locust's own CSV files are not a
+# standard format: they go to <extras_dir> (locust_*.csv).
 # Logs: <log_dir>/locust.log. Internal state: <extras_dir>/locust.pid.
 # Shapes: shapes/<shape>.py in this module.
 
@@ -30,7 +31,7 @@ shift
 case "$ACTION" in
     start)
         [ "$#" -ge 3 ] || usage
-        KUBECONFIG_PATH="$1"; SEED="$2"; DATA_DIR="$3"   # unused until the traffic format exists
+        KUBECONFIG_PATH="$1"; SEED="$2"; DATA_DIR="$3"
         shift 3
         ;;
     stop)
@@ -48,6 +49,7 @@ LOG_DIR=""
 EXTRAS_DIR=""
 SHAPE="day_profile"
 CYCLE_MINUTES=60
+REQUESTS_PER_FILE=100000
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -55,6 +57,7 @@ while [ "$#" -gt 0 ]; do
         --extras_dir)    EXTRAS_DIR="$2";    shift 2 ;;
         --shape)         SHAPE="$2";         shift 2 ;;
         --cycle_minutes) CYCLE_MINUTES="$2"; shift 2 ;;
+        --requests_per_file) REQUESTS_PER_FILE="$2"; shift 2 ;;
         *)
             echo "ERROR: unknown option '$1'" >&2
             usage
@@ -94,6 +97,8 @@ case "$ACTION" in
 
         KUBECONFIG_PATH="$(cd "$(dirname "$KUBECONFIG_PATH")" && pwd -P)/$(basename "$KUBECONFIG_PATH")"
         LOG_FILE="${LOG_DIR}/locust.log"
+        mkdir -p "$DATA_DIR"
+        DATA_DIR="$(cd "$DATA_DIR" && pwd -P)"
         CSV_PREFIX="${EXTRAS_DIR}/locust"
 
         TARGET="$("${SCRIPT_DIR}/check_frontend.sh" "$KUBECONFIG_PATH" "$NAMESPACE")"
@@ -106,11 +111,13 @@ case "$ACTION" in
 
         cd "$SCRIPT_DIR"
         locust \
-            -f "${SCRIPT_DIR}/locustfile.py,${SHAPE_FILE}" \
+            -f "${SCRIPT_DIR}/locustfile.py,${SCRIPT_DIR}/request_log.py,${SHAPE_FILE}" \
             --host "$TARGET" \
             --headless \
             --seed "$SEED" \
             --duration-minutes "$CYCLE_MINUTES" \
+            --requests-dir "${DATA_DIR}/http-requests" \
+            --requests-per-file "$REQUESTS_PER_FILE" \
             --csv "$CSV_PREFIX" \
             --csv-full-history \
             > "$LOG_FILE" 2>&1 &

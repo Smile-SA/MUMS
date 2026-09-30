@@ -11,9 +11,10 @@ args:
   log_dir:           { type: string }
   extras_dir:        { type: string }
   install_prometheus: { required: false, default: true, type: bool }
-  frequency_seconds: { required: false, default: 15, type: positive_int }
+  chart_version:     { required: false, default: "28.13.0", type: string }
+  placement:         { required: false, default: control-plane, type: string }
+  frequency_seconds: { required: false, default: 60, type: positive_int }
   local_port:        { required: false, default: 9090, type: positive_int }
-  timeout_seconds:   { required: false, default: 10, type: positive_int }
 
 dependencies:
   entrypoint: dependencies.sh

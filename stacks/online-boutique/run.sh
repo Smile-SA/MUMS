@@ -40,10 +40,12 @@ if [ ! -f "$KUBECONFIG_PATH" ]; then
     exit 1
 fi
 
+CHART_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
 "${UTILS_DIR}/helm/install.sh" \
     "$KUBECONFIG_PATH" \
     "$RELEASE_NAME" \
     onlineboutique \
+    "$CHART_VERSION" \
     --namespace "$NAMESPACE" \
     --values "${SCRIPT_DIR}/values.yaml"
 

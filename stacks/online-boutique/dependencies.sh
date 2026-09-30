@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Online Boutique Helm chart, fetched from the GoogleCloudPlatform/microservices-demo
 # GitHub repository (not published on a standard Helm repository, and the
-# official OCI registry was removed), into utils/helm/chart-repository/.
+# official OCI registry was removed), into
+# utils/helm/chart-repository/onlineboutique/<version>/ (version in ./chart-version).
 # Usage: ./dependencies.sh install|check
 set -euo pipefail
 
-VERSION="v0.10.1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"   # git tag of microservices-demo
 REPO_URL="https://github.com/GoogleCloudPlatform/microservices-demo.git"
 CHART_REPOSITORY="${BENCHMARK_UTILS_PATH:?}/helm/chart-repository"
-CHART_DIR="$CHART_REPOSITORY/onlineboutique"
+CHART_DIR="$CHART_REPOSITORY/onlineboutique/$VERSION"
 
 install() {
     if [ -d "$CHART_DIR" ]; then
-        echo "=== Chart onlineboutique already present, skipping ==="
+        echo "=== Chart onlineboutique ${VERSION} already present, skipping ==="
         return 0
     fi
     # git is needed to fetch the chart: install it first if missing.
@@ -30,13 +32,13 @@ install() {
     local tmp; tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' RETURN
     git clone --depth 1 --branch "$VERSION" "$REPO_URL" "$tmp"
-    mkdir -p "$CHART_REPOSITORY"
+    mkdir -p "$CHART_REPOSITORY/onlineboutique"
     cp -r "$tmp/helm-chart" "$CHART_DIR"
     echo "=== Chart available at $CHART_DIR ==="
 }
 
 case "${1:-}" in
     install) install ;;
-    check) [ -d "$CHART_DIR" ] || { echo "Chart onlineboutique not downloaded ($CHART_DIR)"; exit 1; } ;;
+    check) [ -d "$CHART_DIR" ] || { echo "Chart onlineboutique ${VERSION} not downloaded ($CHART_DIR)"; exit 1; } ;;
     *) echo "Usage: $0 install|check" >&2; exit 2 ;;
 esac
