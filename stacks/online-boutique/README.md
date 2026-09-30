@@ -43,4 +43,4 @@ share a name) and its `chart-version`.
 
 - Fixed release name and namespace: one Online Boutique per cluster.
 - The frontend is exposed as a `LoadBalancer` service: the environment must
-  provide load balancers (e.g. MetalLB in `envs.kind`).
+  provide load balancers.

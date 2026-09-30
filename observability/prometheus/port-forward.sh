@@ -54,7 +54,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
         child=""
         sleep "$RESTART_DELAY_SECONDS" & wait $!   # interruptible by the TERM trap
     done
-) &
+) > /dev/null 2>&1 < /dev/null &
+# Detached from this script's output: the loop runs for the whole benchmark and
+# must not keep the caller's output open (the runner reads it until it closes).
 PF_PID=$!
 echo "$PF_PID" > "$PID_FILE"
 

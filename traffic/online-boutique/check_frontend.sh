@@ -23,7 +23,7 @@ diagnostics() {
   log "Diagnostics for namespace '${NAMESPACE}':"
   "${KUBECTL[@]}" -n "${NAMESPACE}" get pods -o wide >&2 || true
   "${KUBECTL[@]}" -n "${NAMESPACE}" get svc -o wide >&2 || true
-  # Generic, whatever provides load balancers (MetalLB, a cloud provider...):
+  # Generic, whatever provides load balancers:
   # the service's events show why no external address was allocated.
   "${KUBECTL[@]}" -n "${NAMESPACE}" describe service "${SERVICE_NAME}" >&2 || true
   "${KUBECTL[@]}" -n "${NAMESPACE}" get events --sort-by='.lastTimestamp' >&2 || true

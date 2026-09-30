@@ -16,7 +16,7 @@ Environment module: a local Kubernetes cluster with [kind](https://kind.sigs.k8s
 - **`v1`** (default, works on any host): the kubelet reserves the rest of the host
   (`system-reserved`). Each worker's **Allocatable** is the requested cpu/memory,
   but its **Capacity stays the host's values**. Tools that read Capacity, such as
-  some optimizers (e.g. Koordinator), then see wrong node sizes.
+  some optimizers, then see wrong node sizes.
 - **`v2`** (cgroup v2 hosts only): after creation, Docker limits
   (`docker update --cpus/--memory`) are applied to the worker containers. Each
   worker's **Capacity is the requested cpu/memory**. Use it for optimizers that

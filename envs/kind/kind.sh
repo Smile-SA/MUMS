@@ -13,8 +13,8 @@
 # --cgroups: how cpu/memory are enforced on each worker.
 #   v1 (default, works on any host): kubelet system-reserved. Workers expose the
 #       requested cpu/memory as Allocatable, but their Capacity stays the HOST's
-#       values: tools that read Capacity (e.g. some optimizers such as
-#       Koordinator) see wrong node sizes.
+#       values: tools that read Capacity (e.g. some optimizers) see wrong
+#       node sizes.
 #   v2 (cgroup v2 hosts only): Docker limits (docker update --cpus/--memory)
 #       after creation. Workers' Capacity is the requested cpu/memory.
 
@@ -137,7 +137,7 @@ nodes:
           - key: "node-role.kubernetes.io/control-plane"
             effect: "NoSchedule"
     - |
-      # cgroupRoot: / is required by some optimizers (e.g. Koordinator)
+      # cgroupRoot: / is required by some optimizers
       kind: KubeletConfiguration
       cgroupRoot: /
 YAML

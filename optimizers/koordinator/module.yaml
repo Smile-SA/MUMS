@@ -7,13 +7,11 @@ lifecycle:
   start: "<kubeconfig>"
 
 args:
+  chart_version:        { required: false, default: "1.7.0", type: string }
   manager_replicas:     { required: false, default: 1, type: positive_int }
   scheduler_replicas:   { required: false, default: 1, type: positive_int }
   descheduler_replicas: { required: false, default: 1, type: positive_int }
 
 dependencies:
-  entrypoint: dependencies.sh
-  commands:
-    - kubectl
   utils:
     - utils.helm

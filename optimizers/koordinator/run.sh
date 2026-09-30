@@ -1,19 +1,20 @@
 #!/usr/bin/env bash
 # Koordinator optimizer module (contract 1): installs Koordinator via Helm.
 # It goes away with the environment: no stop action.
-# The Helm chart is fetched at install time by dependencies.sh
-# (`make setup-module MODULE=optimizers/koordinator`).
+# The Helm chart of the requested version (--chart_version) is fetched at start
+# if missing, like a node image.
 #
 # Usage:
-#   run.sh start <kubeconfig> [--manager_replicas N] [--scheduler_replicas N] [--descheduler_replicas N]
+#   run.sh start <kubeconfig> [--chart_version X.Y.Z] [--manager_replicas N]
+#                [--scheduler_replicas N] [--descheduler_replicas N]
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+CHART_REPO_URL="https://koordinator-sh.github.io/charts/"
 
 usage() {
-    echo "Usage: $0 start <kubeconfig> [--manager_replicas N] [--scheduler_replicas N] [--descheduler_replicas N]" >&2
+    echo "Usage: $0 start <kubeconfig> [--chart_version X.Y.Z] [--manager_replicas N] [--scheduler_replicas N] [--descheduler_replicas N]" >&2
     exit 1
 }
 
@@ -27,12 +28,14 @@ shift
 KUBECONFIG_PATH="$1"
 shift
 
+CHART_VERSION=""
 MANAGER_REPLICAS=1
 SCHEDULER_REPLICAS=1
 DESCHEDULER_REPLICAS=1
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        --chart_version)        CHART_VERSION="$2";        shift 2 ;;
         --manager_replicas)     MANAGER_REPLICAS="$2";     shift 2 ;;
         --scheduler_replicas)   SCHEDULER_REPLICAS="$2";   shift 2 ;;
         --descheduler_replicas) DESCHEDULER_REPLICAS="$2"; shift 2 ;;
@@ -49,7 +52,14 @@ if [ ! -f "$KUBECONFIG_PATH" ]; then
 fi
 
 # No --namespace: the chart creates its own namespace (koordinator-system).
-CHART_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
+if [ -z "$CHART_VERSION" ]; then
+    echo "ERROR: --chart_version is required" >&2
+    exit 1
+fi
+
+# Like a node image: the requested chart version is fetched if missing.
+"${UTILS_DIR}/helm/pull.sh" "$CHART_REPO_URL" koordinator "$CHART_VERSION"
+
 "${UTILS_DIR}/helm/install.sh" \
     "$KUBECONFIG_PATH" \
     koordinator \
