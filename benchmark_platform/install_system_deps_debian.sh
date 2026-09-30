@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Global (core) system dependencies only: Python, jq, kubectl and base tools.
+# Global (core) system dependencies only: Python, kubectl and base tools.
 # Module dependencies are installed per module (benchmark-platform deps install
 # <module>), except Docker, a prerequisite installed separately.
 set -euo pipefail
@@ -37,7 +37,6 @@ sudo apt-get install -y \
   ca-certificates \
   curl \
   gnupg \
-  jq \
   lsb-release \
   python3 \
   python3-venv \
@@ -59,7 +58,6 @@ echo
 echo "=== Installed tool versions ==="
 python3 --version
 kubectl version --client=true || kubectl version --client || true
-jq --version || true
 
 echo
 echo "System dependency installation complete."

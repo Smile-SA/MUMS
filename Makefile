@@ -25,7 +25,7 @@ help:
 	@echo "    make setup-dev                     Core runtime + development dependencies (lint, tests)"
 	@echo "    make setup-module MODULE=<name>    Install a module's dependencies, then check them (e.g. envs.kind)"
 	@echo "    make setup-basic-online-boutique   Install all modules needed for the basic scenario"
-	@echo "    make install-system-deps-debian    Install the core system tools (Python, jq, kubectl) on Debian-like systems"
+	@echo "    make install-system-deps-debian    Install the core system tools (Python, kubectl) on Debian-like systems"
 	@echo
 	@echo "  QUALITY"
 	@echo "    make check-module  MODULE=<name>   Check a module's dependencies"
