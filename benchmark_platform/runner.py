@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_platform.cleanup import EnvironmentRegistry
-from benchmark_platform.config import ScenarioConfig
+from benchmark_platform.config import ScenarioConfig, post_processing_sections
 from benchmark_platform.dependencies import UTILS_PATH_ENV, DependencyError, check_dependencies
 from benchmark_platform.discovery import ModuleIndex, discover
 from benchmark_platform.manifest import RunManifest, utc_now_iso
@@ -89,7 +89,10 @@ class Component:
 
 
 def load_component(index: ModuleIndex, raw: dict[str, Any], role: str) -> Component:
-    section = raw[role]
+    return load_section(index, raw[role], role)
+
+
+def load_section(index: ModuleIndex, section: dict[str, Any], role: str) -> Component:
     module = load_module(index, str(section["module"]), expected_type=role)
     values = resolve_args(section, module.arg_schema, role, envelope_keys=ENVELOPE_KEYS)
     return Component(role=role, module=module, options=tuple(to_cli_args(values)))
@@ -347,12 +350,11 @@ def utils_path(repo_root: Path) -> Path:
 @dataclass(frozen=True)
 class PreparedScenario:
     components: dict[str, Component]
-    post_processing: Component | None
+    post_processing: tuple[Component, ...]  # in execution order
 
     @property
     def all(self) -> list[Component]:
-        optional = [self.post_processing] if self.post_processing else []
-        return [*self.components.values(), *optional]
+        return [*self.components.values(), *self.post_processing]
 
 
 def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScenario:
@@ -367,8 +369,9 @@ def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScen
     raw = config.raw
     index = discover(repo_root)
     components = {role: load_component(index, raw, role) for role in REQUIRED_COMPONENTS}
-    post_processing = (
-        load_component(index, raw, "post-processing") if "post-processing" in raw else None
+    post_processing = tuple(
+        load_section(index, section, "post-processing")
+        for section in post_processing_sections(raw)
     )
     prepared = PreparedScenario(components=components, post_processing=post_processing)
     check_dependencies(index, [c.module.name for c in prepared.all], utils_path(repo_root))
@@ -516,14 +519,12 @@ def run_scenario(
                     if result is not None and result.returncode == 0:
                         registry.unregister(environment_id)
 
-            # Post-processing only reads contractual data, so it runs after the
-            # environment is gone. Skipped when the user interrupted the run.
-            if post_processing is not None and not interrupted:
-                steps.call(
-                    post_processing,
-                    "run",
-                    paths.data,
-                    check=False,
-                )
+            # Post-processing only reads standard data, so it runs after the
+            # environment is gone, module after module in the scenario's order
+            # (each one may read what the previous ones wrote in data/).
+            # Skipped when the user interrupted the run.
+            if not interrupted:
+                for module in post_processing:
+                    steps.call(module, "run", paths.data, check=False)
         finally:
             manifest.update(ended_at=utc_now_iso())

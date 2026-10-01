@@ -223,3 +223,31 @@ def test_run_window_written(platform):
     assert lines[0] == "start,end"
     start, end = (float(x) for x in lines[1].split(","))  # Unix seconds
     assert start <= end and 10**9 < start < 10**11
+
+
+def test_post_processing_list_runs_in_order(platform):
+    from tests.conftest import make_module
+
+    make_module(platform.modules, "post2", "post-processing")
+    platform.scenario["post-processing"] = [
+        {"module": "post2"},
+        {"module": "post-processing"},
+    ]
+    _run(platform)
+    calls = platform.read_calls()
+    assert calls[-2:] == ["post2 run", "post-processing run"]
+
+
+def test_post_processing_listed_twice_runs_twice(platform):
+    platform.scenario["post-processing"] = [
+        {"module": "post-processing"},
+        {"module": "post-processing"},
+    ]
+    _run(platform)
+    assert platform.read_calls()[-2:] == ["post-processing run", "post-processing run"]
+
+
+def test_post_processing_must_be_module_or_list(platform):
+    platform.scenario["post-processing"] = "post-processing"
+    with pytest.raises(ConfigError, match="must be a module or a list"):
+        _run(platform)

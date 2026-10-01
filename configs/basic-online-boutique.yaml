@@ -30,7 +30,8 @@ optimizer:
   module: optimizers.baseline
 
 post-processing:
-  module: post-processing.essential-tables
+  - module: post-processing.essential-tables
+  - module: post-processing.basic-evaluation
 
 output:
   root_directory: output/runs
