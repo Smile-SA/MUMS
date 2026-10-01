@@ -215,3 +215,11 @@ def test_missing_core_prerequisite(platform, monkeypatch):
     monkeypatch.setattr(runner_module, "CORE_COMMANDS", ("definitely-not-installed",))
     with pytest.raises(DependencyError, match="prerequisite"):
         _run(platform)
+
+
+def test_run_window_written(platform):
+    run_dir = _run(platform)
+    lines = (run_dir / "data" / "run-window" / "run-window.csv").read_text().splitlines()
+    assert lines[0] == "start,end"
+    start, end = (float(x) for x in lines[1].split(","))  # Unix seconds
+    assert start <= end and 10**9 < start < 10**11

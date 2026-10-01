@@ -30,7 +30,7 @@ optimizer:
   module: optimizers.baseline
 
 post-processing:
-  module: post-processing.refined-csv
+  module: post-processing.essential-tables
 
 output:
   root_directory: output/runs

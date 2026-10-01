@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 node_timeseries.py
-stdin  : metrics.om (OpenMetrics)
+stdin  : OpenMetrics scrapes (cat <data_dir>/openmetrics/*.om)
 stdout : node_timeseries.csv
 
 Key    : (timestamp, node)
@@ -34,6 +34,11 @@ METRICS = {
 }
 
 CPU_MODES = ("user", "system", "nice", "iowait", "irq", "softirq", "steal", "idle")
+
+
+def seconds(ms):
+    """Prometheus sample timestamp (Unix milliseconds) -> Unix seconds."""
+    return f"{ms / 1000:.3f}"
 
 
 def parse_labels(s):
@@ -80,7 +85,9 @@ def main():
         if name == "node_cpu_seconds_total":
             mode = labels.get("mode", "")
             if mode in CPU_MODES:
-                data[key][f"cpu_{mode}"] = value
+                # One series per core: kept per (core, mode), summed below. Keyed so
+                # that the same sample read from several scrapes is counted once.
+                data[key].setdefault("cpu_cores", {})[(labels.get("cpu", ""), mode)] = value
 
         elif name == "node_memory_MemTotal_bytes":
             data[key]["mem_total"] = value
@@ -111,6 +118,13 @@ def main():
         elif name == "up":
             data[key]["up"] = int(value)
 
+    # Sum CPU time over the node's cores, per mode.
+    for metrics in data.values():
+        cores = metrics.pop("cpu_cores", None)
+        if cores:
+            for (_core, mode), value in cores.items():
+                metrics[f"cpu_{mode}"] = metrics.get(f"cpu_{mode}", 0) + value
+
     # Regrouper par nœud, trier par timestamp
     by_node = defaultdict(list)
     for (node, ts), metrics in data.items():
@@ -135,21 +149,24 @@ def main():
 
     for node, points in by_node.items():
         points.sort(key=lambda x: x[0])
-        prev_ts = None
-        prev = {}
+        # Last CPU counters seen for this node: node-exporter and
+        # kube-state-metrics samples do not share timestamps, so the previous
+        # row may carry no CPU data at all.
+        last_cpu = None
 
         for ts, metrics in points:
-            dt = (ts - prev_ts) / 1000.0 if prev_ts is not None else None
-
-            # CPU usage ratio
+            # CPU usage ratio: 1 - (idle time / total time) since the last CPU sample.
             cpu_usage_ratio = ""
-            if dt and prev:
-                total_delta = sum(
-                    metrics.get(f"cpu_{m}", 0) - prev.get(f"cpu_{m}", 0) for m in CPU_MODES
-                )
-                idle_delta = metrics.get("cpu_idle", 0) - prev.get("cpu_idle", 0)
-                if total_delta > 0:
-                    cpu_usage_ratio = 1.0 - (idle_delta / total_delta)
+            cpu_now = {m: metrics[f"cpu_{m}"] for m in CPU_MODES if f"cpu_{m}" in metrics}
+            if cpu_now:
+                if last_cpu is not None:
+                    deltas = {m: cpu_now.get(m, 0) - last_cpu.get(m, 0) for m in CPU_MODES}
+                    total_delta = sum(deltas.values())
+                    # A negative delta means the counters restarted (node-exporter
+                    # restart): no ratio for this sample.
+                    if total_delta > 0 and all(d >= 0 for d in deltas.values()):
+                        cpu_usage_ratio = 1.0 - (deltas.get("idle", 0) / total_delta)
+                last_cpu = cpu_now
 
             # Memory used = MemTotal - MemAvailable
             mem_total = metrics.get("mem_total", "")
@@ -161,7 +178,7 @@ def main():
 
             writer.writerow(
                 [
-                    ts,
+                    seconds(ts),
                     node,
                     cpu_usage_ratio,
                     memory_used,
@@ -175,8 +192,6 @@ def main():
                 ]
             )
 
-            prev_ts = ts
-            prev = metrics
 
 
 if __name__ == "__main__":

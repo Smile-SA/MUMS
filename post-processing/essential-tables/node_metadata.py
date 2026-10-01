@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 node_metadata.py
-stdin  : metrics.om (OpenMetrics)
+stdin  : OpenMetrics scrapes (cat <data_dir>/openmetrics/*.om)
 stdout : node_metadata.csv
 
 Key    : node
@@ -23,6 +23,11 @@ METRICS = {
     "kube_node_spec_taint",
     "kube_node_created",
 }
+
+
+def secs(value):
+    """A time carried by a metric value (Unix seconds), written with decimals."""
+    return "" if value in ("", None) else f"{float(value):.3f}"
 
 
 def parse_labels(s):
@@ -105,7 +110,7 @@ def main():
                 info.get("os", ""),
                 info.get("kernel_version", ""),
                 json.dumps(taints.get(node, [])),
-                info.get("created_time", ""),
+                secs(info.get("created_time", "")),
             ]
         )
 

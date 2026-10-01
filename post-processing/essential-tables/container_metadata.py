@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 container_metadata.py
-stdin  : metrics.om (OpenMetrics)
+stdin  : OpenMetrics scrapes (cat <data_dir>/openmetrics/*.om)
 stdout : container_metadata.csv
 
 Key    : (pod, namespace, container)

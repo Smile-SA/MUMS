@@ -7,6 +7,7 @@ file every --requests-per-file rows, each with its header). Columns:
 
   timestamp           request start, Unix seconds (with decimals)
   method, endpoint    e.g. GET, /product/OLJCESPC7Z
+  response_time_seconds  latency seen by the load generator
   status_code         HTTP status, when a response was received
   no_response_reason  only when no response was received, one of:
                         timeout             no answer in time (e.g. overloaded service)
@@ -27,7 +28,7 @@ FIELDS = [
     "method",
     "endpoint",
     "status_code",
-    "response_time_ms",
+    "response_time_seconds",
     "no_response_reason",
 ]
 
@@ -104,7 +105,7 @@ class RequestLog:
                 method,
                 endpoint,
                 status or "",
-                f"{response_time:.1f}" if response_time is not None else "",
+                f"{response_time / 1000:.6f}" if response_time is not None else "",
                 reason,
             ]
         )

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 controller_timeseries.py
-stdin  : metrics.om (OpenMetrics)
+stdin  : OpenMetrics scrapes (cat <data_dir>/openmetrics/*.om)
 stdout : controller_timeseries.csv
 
 Key    : (timestamp, controller_kind, controller_name, namespace)
 Columns: timestamp, controller_kind, controller_name, namespace,
          replicas_desired, replicas_ready
 
-Supports: ReplicaSet, StatefulSet, DaemonSet, Job
+Only for the kinds whose replica counts kube-state-metrics exposes: Deployment,
+ReplicaSet, StatefulSet, DaemonSet, Job (desired = active, ready = succeeded).
+Other controllers (custom ones...) appear in controller_metadata only.
 """
 
 import csv
@@ -18,15 +20,22 @@ from collections import defaultdict
 
 # (metric_name) -> (kind, label_key_for_name, field)
 METRIC_MAP = {
+    "kube_deployment_spec_replicas": ("Deployment", "deployment", "desired"),
+    "kube_deployment_status_replicas_ready": ("Deployment", "deployment", "ready"),
     "kube_replicaset_spec_replicas": ("ReplicaSet", "replicaset", "desired"),
     "kube_replicaset_status_ready_replicas": ("ReplicaSet", "replicaset", "ready"),
     "kube_statefulset_replicas": ("StatefulSet", "statefulset", "desired"),
     "kube_statefulset_status_replicas_ready": ("StatefulSet", "statefulset", "ready"),
     "kube_daemonset_status_desired_number_scheduled": ("DaemonSet", "daemonset", "desired"),
     "kube_daemonset_status_number_ready": ("DaemonSet", "daemonset", "ready"),
-    "kube_job_status_active": ("Job", "job", "desired"),
-    "kube_job_status_succeeded": ("Job", "job", "ready"),
+    "kube_job_status_active": ("Job", "job_name", "desired"),
+    "kube_job_status_succeeded": ("Job", "job_name", "ready"),
 }
+
+
+def seconds(ms):
+    """Prometheus sample timestamp (Unix milliseconds) -> Unix seconds."""
+    return f"{ms / 1000:.3f}"
 
 
 def parse_labels(s):
@@ -78,10 +87,10 @@ def main():
     )
 
     rows = [
-        [ts, kind, ctrl_name, ns, metrics.get("desired", ""), metrics.get("ready", "")]
+        [seconds(ts), kind, ctrl_name, ns, metrics.get("desired", ""), metrics.get("ready", "")]
         for (kind, ctrl_name, ns, ts), metrics in data.items()
     ]
-    rows.sort(key=lambda x: x[0])
+    rows.sort(key=lambda x: float(x[0]))
     writer.writerows(rows)
 
 

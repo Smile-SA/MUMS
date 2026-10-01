@@ -40,3 +40,8 @@ cannot share a name), and pin its `kind-version`.
 Docker (installed by hand; its daemon is checked before each run), kind (see
 above, installed by the module's `dependencies.sh`), kubectl, jq, and the utils
 `utils.helm` and `utils.metallb`.
+
+## Known limitations
+
+- Nodes are containers sharing the host's kernel: node-level metrics read from
+  `/proc` (e.g. by a node exporter) describe the whole host, not the node.

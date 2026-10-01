@@ -32,7 +32,7 @@ Locust: any load generator can produce it. Columns:
 | `method` | HTTP method, e.g. `GET` |
 | `endpoint` | requested path, e.g. `/product/OLJCESPC7Z` |
 | `status_code` | HTTP status, when a response was received (an HTTP error such as 500 included) |
-| `response_time_ms` | latency seen by the load generator |
+| `response_time_seconds` | latency seen by the load generator |
 | `no_response_reason` | only when no response was received: `timeout` (no answer in time, e.g. overloaded service), `connection_refused` (nothing listening, e.g. pod stopped), `connection_reset` (connection cut mid-request, e.g. pod evicted) or `other`; empty otherwise |
 
 A new file starts every 100,000 rows, each with its header. Rows are

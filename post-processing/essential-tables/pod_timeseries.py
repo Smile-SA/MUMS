@@ -112,6 +112,7 @@ def main():
                 v = safe_float(row.get(col))
                 if v is not None:
                     agg[key][col] += v
+                    agg[key]["seen_" + col] = 1  # at least one container had a value
 
             # Throttle: weighted average by cpu_request
             throttle = safe_float(row.get("cpu_throttled_ratio"))
@@ -158,24 +159,28 @@ def main():
 
         node = pod_meta.get((pod, ns), {}).get("node", "")
 
+        def total(col, d=d):
+            # Empty (not 0) when no container of the pod had a value at this time.
+            return d[col] if d.get("seen_" + col) else ""
+
         rows.append(
             [
                 ts,
                 pod,
                 ns,
                 node,
-                d["cpu_usage_rate"],
-                d["memory_working_set_bytes"],
-                d["memory_rss_bytes"],
+                total("cpu_usage_rate"),
+                total("memory_working_set_bytes"),
+                total("memory_rss_bytes"),
                 throttle_ratio,
-                d["network_receive_bytes_rate"],
-                d["network_transmit_bytes_rate"],
-                d["oom_events_total"],
-                d["restarts_total"],
+                total("network_receive_bytes_rate"),
+                total("network_transmit_bytes_rate"),
+                total("oom_events_total"),
+                total("restarts_total"),
             ]
         )
 
-    rows.sort(key=lambda x: int(x[0]) if x[0] else 0)
+    rows.sort(key=lambda x: float(x[0]) if x[0] else 0.0)
     writer.writerows(rows)
 
 

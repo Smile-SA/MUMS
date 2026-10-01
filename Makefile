@@ -85,13 +85,13 @@ check-shell:
 check-python:
 	@echo "=== Checking Python syntax ==="
 	@$(VENV_PYTHON) -m compileall -q \
-		benchmark_platform tests traffic observability utils
+		benchmark_platform tests traffic observability post-processing utils
 	@echo "Python syntax OK."
 
 lint:
 	$(VENV_PYTHON) -m ruff check \
 		--exclude utils/helm/chart-repository \
-		benchmark_platform tests traffic observability utils
+		benchmark_platform tests traffic observability post-processing utils
 
 # --- Run ---
 

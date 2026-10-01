@@ -224,6 +224,17 @@ def _run_step(
         raise
 
 
+def _write_run_window(data_dir: Path, start: float, end: float) -> None:
+    """Standard data `run-window`: when the run's wait started and ended, i.e. the
+    window in which every module was running (Unix seconds, with decimals). Written even if
+    the wait is interrupted (then `end` is the interruption)."""
+    window_dir = data_dir / "run-window"
+    window_dir.mkdir(parents=True, exist_ok=True)
+    (window_dir / "run-window.csv").write_text(
+        f"start,end\n{start:.3f},{end:.3f}\n", encoding="utf-8"
+    )
+
+
 class _Steps:
     """Calls module actions and records one manifest event per call."""
 
@@ -285,7 +296,11 @@ class _Steps:
         with self._event("run.wait", duration_seconds=duration_seconds):
             if not self.quiet:
                 _print_step("run", "wait", "...", verbose=self.verbose)
-            _sleep_with_interrupt(duration_seconds)
+            start = time.time()
+            try:
+                _sleep_with_interrupt(duration_seconds)
+            finally:
+                _write_run_window(self.paths.data, start, time.time())
             if not self.quiet:
                 _print_step("run", "wait", "✓", verbose=self.verbose)
                 print()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 pod_metadata.py
-stdin  : metrics.om (OpenMetrics)
+stdin  : OpenMetrics scrapes (cat <data_dir>/openmetrics/*.om)
 stdout : pod_metadata.csv
 
 Key    : (pod, namespace)
@@ -10,8 +10,8 @@ Columns: pod, namespace, node, controller_kind, controller_name,
          ready_time, succeeded_time, failed_time
 
 Notes:
-  - created_time, scheduled_time, running_time, ready_time are Unix timestamps
-    (seconds) carried by the metric value itself.
+  - All times are Unix seconds. created_time, scheduled_time, running_time,
+    ready_time are carried by the metric value itself.
   - succeeded_time and failed_time are approximated by the first scrape timestamp
     where the corresponding phase is observed (value = 1), as no dedicated
     timestamp metric exists for these transitions.
@@ -32,6 +32,16 @@ METRICS = {
     "kube_pod_status_ready_time",
     "kube_pod_status_phase",
 }
+
+
+def secs(value):
+    """A time carried by a metric value (Unix seconds), written with decimals."""
+    return "" if value in ("", None) else f"{float(value):.3f}"
+
+
+def seconds_or_empty(ms):
+    """A sample timestamp (Unix milliseconds) -> Unix seconds; empty if absent."""
+    return "" if ms is None else f"{ms / 1000:.3f}"
 
 
 def parse_labels(s):
@@ -127,12 +137,12 @@ def main():
                 info.get("controller_kind", ""),
                 info.get("controller_name", ""),
                 info.get("qos_class", ""),
-                info.get("created_time", ""),
-                info.get("scheduled_time", ""),
-                info.get("running_time", ""),
-                info.get("ready_time", ""),
-                phase_first_scrape[(pod, ns)].get("Succeeded", ""),
-                phase_first_scrape[(pod, ns)].get("Failed", ""),
+                secs(info.get("created_time", "")),
+                secs(info.get("scheduled_time", "")),
+                secs(info.get("running_time", "")),
+                secs(info.get("ready_time", "")),
+                seconds_or_empty(phase_first_scrape[(pod, ns)].get("Succeeded")),
+                seconds_or_empty(phase_first_scrape[(pod, ns)].get("Failed")),
             ]
         )
 

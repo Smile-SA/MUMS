@@ -1,4 +1,4 @@
-name: post-processing.refined-csv
+name: post-processing.essential-tables
 type: post-processing
 contract: 1
 entrypoint: run.sh
@@ -6,10 +6,6 @@ entrypoint: run.sh
 lifecycle:
   run: "<data_dir>"
 
-args:
-  csv_lines: { required: false, default: 100000, type: positive_int }
-
 dependencies:
   commands:
     - python3
-    - awk
