@@ -466,11 +466,14 @@ def run_scenario(
         launched.append(components["stack"])
         steps.call(components["stack"], "deploy", kubeconfig, config.seed)
 
-        launched.append(components["traffic"])
-        steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.data)
-
         launched.append(components["optimizer"])
         steps.call(components["optimizer"], "start", kubeconfig)
+
+        # Traffic starts right before the wait, once the optimizer is installed:
+        # the load shape then starts with the run window, the same for every
+        # optimizer, however long it takes to start.
+        launched.append(components["traffic"])
+        steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.data)
 
         steps.wait(config.duration_seconds)
 
