@@ -15,7 +15,7 @@ from typing import Any
 from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.config import ScenarioConfig, post_processing_sections
 from benchmark_platform.dependencies import UTILS_PATH_ENV, DependencyError, check_dependencies
-from benchmark_platform.discovery import ModuleIndex, discover
+from benchmark_platform.discovery import ModuleIndex, discover, utils_path
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
@@ -98,11 +98,7 @@ def load_section(index: ModuleIndex, section: dict[str, Any], role: str) -> Comp
     return Component(role=role, module=module, options=tuple(to_cli_args(values)))
 
 
-def _collect_kubernetes_state(
-    kubeconfig: str,
-    paths: RunPaths,
-    repo_root: Path,
-) -> None:
+def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths) -> None:
     commands = {
         "nodes.yaml": [
             "kubectl",
@@ -159,7 +155,6 @@ def _collect_kubernetes_state(
         with output_path.open("w", encoding="utf-8") as stream:
             subprocess.run(
                 command,
-                cwd=str(repo_root),
                 text=True,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
@@ -342,11 +337,6 @@ def _sleep_with_interrupt(duration_seconds: int) -> None:
         time.sleep(min(1.0, end - time.monotonic()))
 
 
-def utils_path(repo_root: Path) -> Path:
-    """The platform's `utils/` directory, given to modules as BENCHMARK_UTILS_PATH."""
-    return (repo_root / "utils").resolve()
-
-
 @dataclass(frozen=True)
 class PreparedScenario:
     components: dict[str, Component]
@@ -357,7 +347,7 @@ class PreparedScenario:
         return [*self.components.values(), *self.post_processing]
 
 
-def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScenario:
+def prepare_scenario(config: ScenarioConfig) -> PreparedScenario:
     """Load and validate every module of the scenario and check their
     dependencies. Creates nothing: used by both `validate` and `run`."""
     missing = [c for c in CORE_COMMANDS if shutil.which(c) is None]
@@ -367,27 +357,26 @@ def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScen
             f"(install them manually)."
         )
     raw = config.raw
-    index = discover(repo_root)
+    index = discover()
     components = {role: load_component(index, raw, role) for role in REQUIRED_COMPONENTS}
     post_processing = tuple(
         load_section(index, section, "post-processing")
         for section in post_processing_sections(raw)
     )
     prepared = PreparedScenario(components=components, post_processing=post_processing)
-    check_dependencies(index, [c.module.name for c in prepared.all], utils_path(repo_root))
+    check_dependencies(index, [c.module.name for c in prepared.all], utils_path())
     return prepared
 
 
 def run_scenario(
     config: ScenarioConfig,
     *,
-    repo_root: Path,
     verbose: bool = False,
     quiet: bool = False,
     registry: EnvironmentRegistry | None = None,
 ) -> Path:
     # Load and validate every module, and check dependencies, before creating anything.
-    prepared = prepare_scenario(config, repo_root=repo_root)
+    prepared = prepare_scenario(config)
     components = prepared.components
     post_processing = prepared.post_processing
 
@@ -423,7 +412,7 @@ def run_scenario(
         print(f"Run: {paths.root}")
         print(f"Environment id: {environment_id}")
 
-    steps = _Steps(paths, manifest, utils_path=utils_path(repo_root), verbose=verbose, quiet=quiet)
+    steps = _Steps(paths, manifest, utils_path=utils_path(), verbose=verbose, quiet=quiet)
     environment = components["environment"]
     kubeconfig: str | None = None
     launched: list[Component] = []
@@ -433,7 +422,7 @@ def run_scenario(
     # unregistered only once destroy succeeds.
     registry = registry or EnvironmentRegistry()
     registry.register(
-        environment_id, environment.module, environment.options, paths.root, utils_path(repo_root)
+        environment_id, environment.module, environment.options, paths.root, utils_path()
     )
 
     try:
@@ -501,7 +490,7 @@ def run_scenario(
                     manifest.append_event(
                         {"time": utc_now_iso(), "type": "kubernetes.collect-state"}
                     )
-                    _collect_kubernetes_state(kubeconfig, paths, repo_root)
+                    _collect_kubernetes_state(kubeconfig, paths)
 
                     manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
                     try:

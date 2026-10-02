@@ -1,5 +1,4 @@
 name: utils.metallb
-type: util
 
 dependencies:
   entrypoint: dependencies.sh

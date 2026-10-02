@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
 from benchmark_platform.config import ConfigError, load_config
@@ -26,15 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate a scenario: config, modules and their dependencies.",
     )
     validate.add_argument("config", help="Path to scenario YAML file.")
-    validate.add_argument(
-        "--repo-root", default=".", help="Repository root. Defaults to current directory."
-    )
 
     run = subparsers.add_parser("run", help="Run a scenario configuration.")
     run.add_argument("config", help="Path to scenario YAML file.")
-    run.add_argument(
-        "--repo-root", default=".", help="Repository root. Defaults to current directory."
-    )
     verbosity = run.add_mutually_exclusive_group()
     verbosity.add_argument(
         "-v",
@@ -59,15 +52,9 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         sub = deps_commands.add_parser(action, help=text)
         sub.add_argument("modules", nargs="+", help="Module names (e.g. envs.kind).")
-        sub.add_argument(
-            "--repo-root", default=".", help="Repository root. Defaults to current directory."
-        )
 
-    doctor = subparsers.add_parser(
+    subparsers.add_parser(
         "doctor", help="Overview of the machine and of the platform (informative, checks nothing)."
-    )
-    doctor.add_argument(
-        "--repo-root", default=".", help="Repository root. Defaults to current directory."
     )
 
     env = subparsers.add_parser(
@@ -95,17 +82,16 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "deps":
-            repo_root = Path(args.repo_root).resolve()
-            index = discover(repo_root)
+            index = discover()
             if args.deps_command == "install":
-                install_dependencies(index, args.modules, utils_path(repo_root))
+                install_dependencies(index, args.modules, utils_path())
             else:
-                check_dependencies(index, args.modules, utils_path(repo_root))
+                check_dependencies(index, args.modules, utils_path())
             print(f"Dependencies OK: {', '.join(args.modules)}")
             return 0
 
         if args.command == "doctor":
-            run_doctor(Path(args.repo_root))
+            run_doctor()
             return 0
 
         if args.command == "env":
@@ -146,14 +132,13 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(args.config)
 
         if args.command == "validate":
-            prepare_scenario(config, repo_root=Path(args.repo_root).resolve())
+            prepare_scenario(config)
             print(f"Valid scenario: {config.path}")
             return 0
 
         if args.command == "run":
             run_dir = run_scenario(
                 config,
-                repo_root=Path(args.repo_root).resolve(),
                 verbose=args.verbose,
                 quiet=args.quiet,
             )

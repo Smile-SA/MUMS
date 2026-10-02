@@ -30,7 +30,7 @@ FULL_RUN = [
 
 def _run(platform, **kwargs):
     return run_scenario(
-        load_config(platform.write_scenario()), repo_root=platform.root, quiet=True, **kwargs
+        load_config(platform.write_scenario()), quiet=True, **kwargs
     )
 
 

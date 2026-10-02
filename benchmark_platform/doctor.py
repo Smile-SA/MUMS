@@ -13,7 +13,7 @@ from pathlib import Path
 
 from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.dependencies import DependencyError, node_problems, resolve
-from benchmark_platform.discovery import MODULE_PATHS_ENV, DiscoveryError, discover
+from benchmark_platform.discovery import MODULE_PATHS_ENV, UTILS_PATH_ENV, DiscoveryError, discover
 from benchmark_platform.runner import CORE_COMMANDS, utils_path
 
 OK = "[OK]  "
@@ -37,8 +37,9 @@ def _section(title: str) -> None:
     print(f"\n=== {title} ===")
 
 
-def run_doctor(repo_root: Path) -> None:
-    repo_root = repo_root.resolve()
+def run_doctor() -> None:
+    # The platform's own code (for its git state), not where modules are.
+    repo_root = Path(__file__).resolve().parent.parent
 
     _section("Python")
     print(f"{INFO}interpreter: {sys.executable} ({sys.version.split()[0]})")
@@ -63,7 +64,10 @@ def run_doctor(repo_root: Path) -> None:
             print(f"{OK}{command}: {path} {version}".rstrip())
 
     _section("Repository")
-    print(f"{INFO}root: {repo_root}")
+    print(f"{INFO}platform: {repo_root}")
+    for variable in (MODULE_PATHS_ENV, UTILS_PATH_ENV):
+        value = os.environ.get(variable, "")
+        print(f"{INFO if value else KO}{variable}: {value or 'not set (see bootstrap.sh)'}")
     branch = _output(["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"])
     commit = _output(["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"])
     if branch and commit:
@@ -72,17 +76,16 @@ def run_doctor(repo_root: Path) -> None:
         print(f"{INFO}git: {branch} @ {commit} ({state})")
     else:
         print(f"{INFO}git: not a git working tree")
-    print(f"{INFO}{MODULE_PATHS_ENV}: {os.environ.get(MODULE_PATHS_ENV) or '(not set)'}")
 
     _section("Modules and utils (dependencies)")
     try:
-        index = discover(repo_root)
-        nodes = resolve(index, sorted(index.modules))
+        index = discover()
+        nodes = resolve(index, [*sorted(index.modules), *sorted(index.utils)])
     except (DiscoveryError, DependencyError) as exc:
         print(f"{KO}{exc}")
     else:
         for node in sorted(nodes, key=lambda n: n.name):
-            problems = node_problems(node, utils_path(repo_root))
+            problems = node_problems(node, utils_path())
             if problems:
                 print(f"{KO}{node.name}: {'; '.join(problems)}")
             else:

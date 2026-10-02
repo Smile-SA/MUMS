@@ -1,6 +1,6 @@
 """Module dependencies: installation and verification.
 
-A module (or util) declares its dependencies in `module.yaml`:
+A module declares its dependencies in `module.yaml`, a util in `util.yaml`:
 
     dependencies:
       entrypoint: dependencies.sh   # optional: the module's dependency script
@@ -36,9 +36,7 @@ from typing import Any
 
 import yaml
 
-from benchmark_platform.discovery import DiscoveryError, ModuleIndex
-
-UTILS_PATH_ENV = "BENCHMARK_UTILS_PATH"
+from benchmark_platform.discovery import UTILS_PATH_ENV, DiscoveryError, ModuleIndex
 
 DEPENDENCY_KEYS = frozenset({"entrypoint", "commands", "utils"})
 _CHECK_TIMEOUT_SECONDS = 60
@@ -81,12 +79,13 @@ class Node:
 
 
 def _read_dependencies(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load((path / "module.yaml").read_text(encoding="utf-8")) or {}
+    descriptor = path / "module.yaml" if (path / "module.yaml").is_file() else path / "util.yaml"
+    data = yaml.safe_load(descriptor.read_text(encoding="utf-8")) or {}
     dependencies = data.get("dependencies") if isinstance(data, dict) else None
     problems = dependency_problems(dependencies)
     if problems:
         raise DependencyError(
-            f"Invalid dependencies in {path / 'module.yaml'}: " + " ".join(problems)
+            f"Invalid dependencies in {descriptor}: " + " ".join(problems)
         )
     return dependencies or {}
 

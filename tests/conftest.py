@@ -69,6 +69,10 @@ def platform(tmp_path, monkeypatch):
     kubectl.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    # Where modules and utils are: set at installation, here for the test repo.
+    (root / "utils").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("BENCHMARK_MODULE_PATHS", str(root))
+    monkeypatch.setenv("BENCHMARK_UTILS_PATH", str(root / "utils"))
 
     kubeconfig = tmp_path / "kubeconfig"
     kubeconfig.write_text("fake", encoding="utf-8")

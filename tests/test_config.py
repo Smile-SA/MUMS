@@ -14,7 +14,7 @@ def test_type_key_refused(platform):
 
     platform.scenario["observability"]["type"] = "prometheus"
     with pytest.raises(ConfigError, match="Unknown field"):
-        prepare_scenario(load_config(platform.write_scenario()), repo_root=platform.root)
+        prepare_scenario(load_config(platform.write_scenario()))
 
 
 def test_module_required(platform):
