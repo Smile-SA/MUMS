@@ -10,5 +10,6 @@ dependencies:
   entrypoint: dependencies.sh
   commands:
     - kubectl
+    - git
   utils:
     - utils.helm

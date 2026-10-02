@@ -18,3 +18,4 @@ dependencies:
   commands:
     - curl
     - python3
+    - kubectl

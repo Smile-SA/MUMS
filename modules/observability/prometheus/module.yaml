@@ -22,5 +22,6 @@ dependencies:
     - kubectl
     - curl
     - python3
+    - pkill
   utils:
     - utils.helm

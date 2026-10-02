@@ -4,3 +4,4 @@ dependencies:
   entrypoint: dependencies.sh
   commands:
     - helm
+    - curl

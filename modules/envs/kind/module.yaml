@@ -19,6 +19,7 @@ dependencies:
     - docker
     - kubectl
     - jq
+    - curl
   utils:
     - utils.helm
     - utils.metallb
