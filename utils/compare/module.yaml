@@ -1,0 +1,6 @@
+name: utils.compare
+type: util
+
+dependencies:
+  commands:
+    - python3

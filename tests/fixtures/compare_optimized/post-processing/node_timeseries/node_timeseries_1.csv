@@ -1,7 +1,0 @@
-timestamp,node,cpu_usage_ratio,memory_used_bytes,memory_allocatable_bytes,cpu_pressure_waiting_seconds_total,memory_pressure_waiting_seconds_total,memory_pressure_stalled_seconds_total,condition_ready,unschedulable,up
-1000,node-a,0.55,1,1,0,0,0,1,0,1
-1000,node-b,0.50,1,1,0,0,0,1,0,1
-1010,node-a,0.52,1,1,0,0,0,1,0,1
-1010,node-b,0.48,1,1,0,0,0,1,0,1
-1020,node-a,0.20,1,1,0,0,0,1,0,1
-1020,node-b,0.18,1,1,0,0,0,1,0,1

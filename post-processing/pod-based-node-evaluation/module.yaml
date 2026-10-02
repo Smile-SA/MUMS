@@ -1,0 +1,14 @@
+name: post-processing.pod-based-node-evaluation
+type: post-processing
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  run: "<data_dir>"
+
+args:
+  run_window: { required: false, default: true, type: bool }
+
+dependencies:
+  commands:
+    - python3

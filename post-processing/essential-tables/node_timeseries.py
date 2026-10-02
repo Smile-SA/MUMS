@@ -5,7 +5,7 @@ stdin  : OpenMetrics scrapes (cat <data_dir>/openmetrics/*.om)
 stdout : node_timeseries.csv
 
 Key    : (timestamp, node)
-Columns: timestamp, node, cpu_usage_ratio, memory_used_bytes,
+Columns: timestamp, node, cpu_usage_ratio, memory_used_bytes, memory_total_bytes,
            memory_allocatable_bytes, cpu_pressure_waiting_seconds_total,
            memory_pressure_waiting_seconds_total,
            memory_pressure_stalled_seconds_total,
@@ -137,6 +137,7 @@ def main():
             "node",
             "cpu_usage_ratio",
             "memory_used_bytes",
+            "memory_total_bytes",
             "memory_allocatable_bytes",
             "cpu_pressure_waiting_seconds_total",
             "memory_pressure_waiting_seconds_total",
@@ -182,6 +183,7 @@ def main():
                     node,
                     cpu_usage_ratio,
                     memory_used,
+                    metrics.get("mem_total", ""),
                     metrics.get("mem_allocatable", ""),
                     metrics.get("cpu_pressure_waiting", ""),
                     metrics.get("mem_pressure_waiting", ""),

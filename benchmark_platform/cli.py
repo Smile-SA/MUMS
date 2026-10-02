@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
-from benchmark_platform.compare import compare_runs, default_output_dir, write_report
 from benchmark_platform.config import ConfigError, load_config
 from benchmark_platform.dependencies import (
     DependencyError,
@@ -87,23 +86,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     env_clean_all.add_argument("-v", "--verbose", action="store_true", help="Show module output.")
 
-    compare = subparsers.add_parser(
-        "compare", help="Compare two benchmark runs (e.g. baseline vs. optimized)."
-    )
-    compare.add_argument("baseline_run_dir", type=Path, help="Path to the baseline run directory.")
-    compare.add_argument(
-        "optimized_run_dir", type=Path, help="Path to the optimized run directory."
-    )
-    compare.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help=(
-            "Output directory. Default: "
-            "<optimized_run_dir>/../comparisons/<baseline>__vs__<optimized>/"
-        ),
-    )
-
     return parser
 
 
@@ -112,18 +94,6 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        if args.command == "compare":
-            output_dir = args.output or default_output_dir(
-                args.baseline_run_dir, args.optimized_run_dir
-            )
-
-            result = compare_runs(args.baseline_run_dir, args.optimized_run_dir)
-            json_path, md_path = write_report(result, output_dir)
-
-            print(result["headline"])
-            print(f"Report: {md_path} ({json_path})")
-            return 0
-
         if args.command == "deps":
             repo_root = Path(args.repo_root).resolve()
             index = discover(repo_root)

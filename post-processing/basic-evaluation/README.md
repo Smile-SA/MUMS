@@ -21,7 +21,7 @@ comparison can use them without knowing what they mean.
 | Format | Used for |
 |---|---|
 | `http-requests` | requests, response times, errors |
-| `essential-tables` (`pod_timeseries`, `node_metadata`, `controller_timeseries`) | node usage, availability |
+| `essential-tables` (`node_timeseries`, `node_metadata`, `controller_timeseries`) | node usage, availability |
 | `run-window` | the window, with `run_window: true` |
 
 Each one is optional: its indicators are simply absent if it is missing.
@@ -30,7 +30,8 @@ Each one is optional: its indicators are simply absent if it is missing.
 
 `<data_dir>/summary/post-processing.basic-evaluation.csv`, one row per indicator:
 `metric, value, unit, goal, description`. `goal` is the indicator's intent:
-`minimize`, `maximize` or `none`.
+`minimize`, `maximize` or `none`. Units: `seconds`, `ratio`, `count` (anything
+counted), `count/second`.
 
 | Metric | Goal | Definition |
 |---|---|---|
@@ -41,16 +42,16 @@ Each one is optional: its indicators are simply absent if it is missing.
 | `no_response_rate` | minimize | share of requests without any response |
 | `no_response_<reason>_rate` | minimize | the same, per reason (`timeout`, `connection_refused`, `connection_reset`, `other`) |
 | `nodes` | none | nodes taking workload: those without `NoSchedule` / `NoExecute` taint |
-| `node_cpu_usage_mean`, `node_memory_usage_mean` | none | mean usage of these nodes |
-| `node_cpu_usage_max`, `node_memory_usage_max` | minimize | highest usage of one of them |
+| `node_cpu_usage_mean`, `node_memory_usage_mean` | none | mean usage of these nodes' machines |
+| `node_cpu_usage_max`, `node_memory_usage_max` | minimize | highest usage of one of their machines |
 | `node_cpu_imbalance_mean`, `node_memory_imbalance_mean` | minimize | mean standard deviation of usage across them |
-| `node_overload_time_ratio` | minimize | share of time with one of them above 90 % of its CPU or memory allocatable |
+| `node_overload_time_ratio` | minimize | share of time with one of them above 90 % of its machine's CPU or memory |
 | `availability_mean`, `availability_min` | maximize | ready / desired replicas of Deployments (capped at 1) |
 
-A node's usage is the sum of its pods' usage (`pod_timeseries`) divided by its
-allocatable (`node_metadata`). Pods are measured at different instants: at regular
-instants (every typical sample spacing), each pod contributes its latest measure,
-if less than 1.5 spacing old.
+A node's usage comes from node-level metrics (`node_timeseries`): the CPU usage
+of its machine, and memory used / total memory of its machine. Nodes are
+measured at different instants: at regular instants (every typical sample
+spacing), each node contributes its latest measure, if less than 1.5 spacing old.
 
 ## Dependencies
 

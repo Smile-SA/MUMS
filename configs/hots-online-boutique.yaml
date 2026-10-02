@@ -38,6 +38,7 @@ optimizer:
 post-processing:
   - module: post-processing.essential-tables
   - module: post-processing.basic-evaluation
+  - module: post-processing.pod-based-node-evaluation
 
 output:
   root_directory: output/runs
