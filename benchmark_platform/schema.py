@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from benchmark_platform.config import ConfigError
+from benchmark_platform.warn import warn, warn_unknown
 
 _CHECKERS = {
     "string": lambda v: isinstance(v, str) and v.strip() != "",
@@ -19,11 +20,13 @@ _CHECKERS = {
 RUNNER_ARGS = frozenset({"log_dir", "extras_dir"})
 
 _ARG_NAME = re.compile(r"^[a-z][a-z0-9_-]*$")
-_SPEC_KEYS = frozenset({"required", "default", "type"})
+_SPEC_KEYS = frozenset({"required", "type", "description"})
 
 
-def arg_schema_problems(schema: Any) -> list[str]:
-    """Problems in a module's `args:` declaration (empty list if valid)."""
+def arg_schema_problems(schema: Any, where: str = "a module's args") -> list[str]:
+    """Problems in a module's `args:` declaration (empty list if valid). Unknown
+    keys of an argument are ignored with a warning; `default` among them: the
+    core applies no default, the module does (and says it in `description`)."""
     if not isinstance(schema, dict):
         return ["'args' must be a mapping."]
 
@@ -33,24 +36,24 @@ def arg_schema_problems(schema: Any) -> list[str]:
             problems.append(f"invalid argument name {key!r} (lowercase, digits, '_' or '-').")
             continue
         if not isinstance(spec, dict):
-            problems.append(f"'{key}' must be a mapping (required/default/type).")
+            problems.append(f"'{key}' must be a mapping (type, required, description).")
             continue
-        unknown = sorted(set(spec) - _SPEC_KEYS)
-        if unknown:
-            problems.append(f"'{key}' has unknown keys: {', '.join(unknown)}.")
+        if "default" in spec:
+            warn(
+                f"'default' of argument '{key}' in {where} is ignored: the core applies no "
+                "default; the module applies its own (describe it in 'description')."
+            )
+        warn_unknown(set(spec) - {"default"}, _SPEC_KEYS, f"argument '{key}' of {where}")
         type_name = spec.get("type")
         if key in RUNNER_ARGS:
-            if type_name != "string" or "default" in spec or spec.get("required"):
-                problems.append(
-                    f"'{key}' is provided by the runner: declare it as {{ type: string }} only."
-                )
+            if type_name != "string" or spec.get("required"):
+                problems.append(f"'{key}' is provided by the runner: declare it as type: string.")
             continue
         if type_name not in _CHECKERS:
             problems.append(f"'{key}' must declare a type among {', '.join(_CHECKERS)}.")
-            continue
-        default = spec.get("default")
-        if default is not None and not _CHECKERS[type_name](default):
-            problems.append(f"default of '{key}' is not of type '{type_name}'.")
+        description = spec.get("description")
+        if description is not None and not isinstance(description, str):
+            problems.append(f"'description' of '{key}' must be a string.")
     return problems
 
 
@@ -62,20 +65,18 @@ def resolve_args(
     envelope_keys: frozenset[str],
 ) -> dict[str, Any]:
     """Validate a scenario section against its module's `args:` and return the
-    module's arguments with defaults applied. Keys the module does not declare
-    are refused (except the runner's own envelope keys, e.g. `type`, `module`)."""
+    module's arguments: only those given by the scenario (the module applies its
+    own defaults). Keys the module does not declare are ignored with a warning
+    (except the runner's own envelope keys, e.g. `module`)."""
     runner_set = sorted(set(section) & RUNNER_ARGS)
     if runner_set:
         raise ConfigError(
             f"Field(s) {', '.join(runner_set)} in '{name}' are provided by the runner, "
             f"not by the scenario."
         )
-    unknown = sorted(set(section) - set(arg_schema) - envelope_keys)
-    if unknown:
-        raise ConfigError(
-            f"Unknown field(s) in '{name}': {', '.join(unknown)} "
-            f"(not declared in the module's args)."
-        )
+    warn_unknown(
+        set(section) - envelope_keys, set(arg_schema), f"'{name}' (not declared by its module)"
+    )
 
     values: dict[str, Any] = {}
     for key, spec in arg_schema.items():
@@ -87,8 +88,6 @@ def resolve_args(
             values[key] = section[key]
         elif spec.get("required"):
             raise ConfigError(f"Missing required field: '{field}'.")
-        elif spec.get("default") is not None:
-            values[key] = spec["default"]
     return values
 
 

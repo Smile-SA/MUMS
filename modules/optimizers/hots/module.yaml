@@ -8,16 +8,44 @@ lifecycle:
   stop:  "<kubeconfig>"
 
 args:
-  log_dir:               { type: string }
-  extras_dir:            { type: string }
-  kafka_port:            { required: false, default: 9092, type: positive_int }
-  prometheus_url:        { required: false, default: "http://127.0.0.1:9090", type: string }
-  k8s_workload_identity: { required: false, default: pod, type: string }
-  k8s_node_label_key:    { required: false, default: "kubernetes.io/hostname", type: string }
-  namespace:             { required: false, default: online-boutique, type: string }
-  metric:                { required: false, default: cpu, type: string }
-  nb_clusters:           { required: false, default: 3, type: positive_int }
-  tick_seconds:          { required: false, default: 10, type: positive_int }
+  log_dir:
+    type: string
+    description: "Directory where the module writes its logs."
+  extras_dir:
+    type: string
+    description: "Directory where the module writes its other files: internal state (PID files...), files for debugging."
+  kafka_port:
+    required: false
+    type: positive_int
+    description: "Host port of the per-run Kafka broker linking HOTS and hots-connector (default: 9092)."
+  prometheus_url:
+    required: false
+    type: string
+    description: "Prometheus that hots-connector reads usage from; must match the observability's local port (default: http://127.0.0.1:9090)."
+  k8s_workload_identity:
+    required: false
+    type: string
+    description: "What hots-connector treats as a workload to place, e.g. pod (default: pod)."
+  k8s_node_label_key:
+    required: false
+    type: string
+    description: "Node label hots-connector uses in the nodeSelector it sets to move a workload (default: kubernetes.io/hostname)."
+  namespace:
+    required: false
+    type: string
+    description: "Namespace of the workloads HOTS optimizes (default: online-boutique)."
+  metric:
+    required: false
+    type: string
+    description: "Usage metric HOTS optimizes on, e.g. cpu (default: cpu)."
+  nb_clusters:
+    required: false
+    type: positive_int
+    description: "Number of clusters in HOTS's clustering of workloads (default: 3)."
+  tick_seconds:
+    required: false
+    type: positive_int
+    description: "Period of HOTS's loop and of hots-connector's data publishing, in seconds (default: 10)."
 
 dependencies:
   entrypoint: dependencies.sh
@@ -28,5 +56,6 @@ dependencies:
     - python3
     - kubectl
     - curl
+    - sha1sum
   utils:
     - utils.kafka

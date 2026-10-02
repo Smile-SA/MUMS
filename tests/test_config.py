@@ -9,12 +9,16 @@ def test_valid(platform):
     assert load_config(platform.write_scenario()).seed == 42
 
 
-def test_type_key_refused(platform):
+def test_unknown_fields_only_warn(platform, capsys):
     from benchmark_platform.runner import prepare_scenario
 
     platform.scenario["observability"]["type"] = "prometheus"
-    with pytest.raises(ConfigError, match="Unknown field"):
-        prepare_scenario(load_config(platform.write_scenario()))
+    platform.scenario["scenario"]["colour"] = "red"
+    platform.scenario["extra"] = 1
+    prepare_scenario(load_config(platform.write_scenario()))  # valid: ignored
+    err = capsys.readouterr().err
+    assert "'observability'" in err and "type" in err
+    assert "colour" in err and "extra" in err
 
 
 def test_module_required(platform):

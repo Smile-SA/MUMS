@@ -7,10 +7,22 @@ lifecycle:
   start: "<kubeconfig>"
 
 args:
-  chart_version:        { required: false, default: "1.7.0", type: string }
-  manager_replicas:     { required: false, default: 1, type: positive_int }
-  scheduler_replicas:   { required: false, default: 1, type: positive_int }
-  descheduler_replicas: { required: false, default: 1, type: positive_int }
+  chart_version:
+    required: false
+    type: string
+    description: "Version of the koordinator Helm chart, fetched at start if missing (default: 1.7.0)."
+  manager_replicas:
+    required: false
+    type: positive_int
+    description: "Replicas of koord-manager (default: 1)."
+  scheduler_replicas:
+    required: false
+    type: positive_int
+    description: "Replicas of koord-scheduler (default: 1)."
+  descheduler_replicas:
+    required: false
+    type: positive_int
+    description: "Replicas of koord-descheduler (default: 1)."
 
 dependencies:
   utils:

@@ -9,8 +9,12 @@ import yaml
 from benchmark_platform.dependencies import dependency_problems
 from benchmark_platform.discovery import ModuleIndex
 from benchmark_platform.schema import arg_schema_problems
+from benchmark_platform.warn import warn_unknown
 
 CONTRACT_VERSION = 1
+DESCRIPTOR_KEYS = frozenset(
+    {"name", "type", "contract", "entrypoint", "lifecycle", "args", "dependencies", "description"}
+)
 
 
 class ModuleError(ValueError):
@@ -177,7 +181,11 @@ def _validate_descriptor(descriptor: dict[str, Any], module_path: str) -> None:
                     f"\"{contract_spec.signature}\" (got \"{declared}\")."
                 )
 
-    problems.extend(f"args: {p}" for p in arg_schema_problems(descriptor.get("args") or {}))
+    warn_unknown(descriptor, DESCRIPTOR_KEYS, f"{module_path}/module.yaml")
+    problems.extend(
+        f"args: {p}"
+        for p in arg_schema_problems(descriptor.get("args") or {}, f"{module_path}/module.yaml")
+    )
     problems.extend(
         f"dependencies: {p}" for p in dependency_problems(descriptor.get("dependencies"))
     )

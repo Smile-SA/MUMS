@@ -8,10 +8,20 @@ lifecycle:
   stop: "<kubeconfig>"
 
 args:
-  log_dir:       { type: string }
-  extras_dir:    { type: string }
-  shape:         { required: false, default: day_profile, type: string }
-  cycle_minutes: { required: false, default: 60, type: positive_int }
+  log_dir:
+    type: string
+    description: "Directory where the module writes its logs."
+  extras_dir:
+    type: string
+    description: "Directory where the module writes its other files: internal state (PID files...), files for debugging."
+  shape:
+    required: false
+    type: string
+    description: "Load shape: a file shapes/<shape>.py (default: day_profile)."
+  cycle_minutes:
+    required: false
+    type: positive_int
+    description: "Duration of one cycle of the shape, e.g. day_profile replays a full day in this time (default: 60)."
 
 dependencies:
   entrypoint: dependencies.sh

@@ -50,7 +50,7 @@ def test_arguments_passed(platform):
     data = yaml.safe_load(path.read_text())
     data["args"] = {
         "shape": {"type": "string"},
-        "rate": {"type": "positive_int", "default": 5},
+        "rate": {"type": "positive_int", "description": "default: 5, applied by the module"},
         "extras_dir": {"type": "string"},
     }
     path.write_text(yaml.safe_dump(data))
@@ -59,7 +59,7 @@ def test_arguments_passed(platform):
     line = next(ln for ln in calls if ln.startswith("traffic start"))
     assert f"{run_dir}/data" in line
     assert f"--extras_dir {run_dir}/extras/traffic" in line and "--log_dir" not in line
-    assert "--shape night" in line and "--rate 5" in line
+    assert "--shape night" in line and "--rate" not in line  # no default from the core
     stack_line = next(
         ln for ln in platform.calls.read_text().splitlines() if ln.startswith("stack deploy")
     )
@@ -111,7 +111,7 @@ def test_no_cleanup_keeps_environment(platform):
 
 
 def test_nothing_created_when_invalid(platform, tmp_path):
-    platform.scenario["traffic"]["typo"] = 1
+    del platform.scenario["stack"]["module"]
     with pytest.raises(ConfigError):
         _run(platform)
     assert not (tmp_path / "runs").exists()

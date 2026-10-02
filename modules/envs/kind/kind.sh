@@ -60,7 +60,7 @@ case "$ACTION" in
 esac
 
 EXTRAS_DIR=""
-NODE_IMAGE=""
+NODE_IMAGE="kindest/node:v1.34.0"
 WORKERS_JSON='{}'
 CGROUPS="v1"
 

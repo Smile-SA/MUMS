@@ -35,8 +35,10 @@ from typing import Any
 import yaml
 
 from benchmark_platform.discovery import UTILS_PATH_ENV, DiscoveryError, ModuleIndex
+from benchmark_platform.warn import warn_unknown
 
 DEPENDENCY_KEYS = frozenset({"entrypoint", "commands", "utils"})
+UTIL_KEYS = frozenset({"name", "dependencies", "description"})
 _CHECK_TIMEOUT_SECONDS = 60
 
 
@@ -51,11 +53,7 @@ def dependency_problems(dependencies: Any) -> list[str]:
     if not isinstance(dependencies, dict):
         return ["'dependencies' must be a mapping."]
     problems: list[str] = []
-    unknown = sorted(set(dependencies) - DEPENDENCY_KEYS)
-    if unknown:
-        problems.append(
-            f"unknown key(s): {', '.join(unknown)} (allowed: {', '.join(sorted(DEPENDENCY_KEYS))})."
-        )
+    warn_unknown(dependencies, DEPENDENCY_KEYS, "'dependencies'")
     entrypoint = dependencies.get("entrypoint")
     if entrypoint is not None and (not isinstance(entrypoint, str) or not entrypoint.strip()):
         problems.append("'entrypoint' must be a non-empty string.")
@@ -79,6 +77,8 @@ class Node:
 def _read_dependencies(path: Path) -> dict[str, Any]:
     descriptor = path / "module.yaml" if (path / "module.yaml").is_file() else path / "util.yaml"
     data = yaml.safe_load(descriptor.read_text(encoding="utf-8")) or {}
+    if descriptor.name == "util.yaml" and isinstance(data, dict):
+        warn_unknown(data, UTIL_KEYS, str(descriptor))
     dependencies = data.get("dependencies") if isinstance(data, dict) else None
     problems = dependency_problems(dependencies)
     if problems:

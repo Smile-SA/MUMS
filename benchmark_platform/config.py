@@ -6,6 +6,16 @@ from typing import Any
 
 import yaml
 
+from benchmark_platform.warn import warn_unknown
+
+# Fields the core knows; any other is ignored with a warning.
+ROOT_KEYS = frozenset(
+    {"version", "scenario", "environment", "stack", "observability", "traffic", "optimizer",
+     "post-processing", "output"}
+)
+SCENARIO_KEYS = frozenset({"name", "seed", "duration_seconds", "description"})
+OUTPUT_KEYS = frozenset({"root_directory", "cleanup_environment"})
+
 
 class ConfigError(ValueError):
     pass
@@ -114,6 +124,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
         raw = yaml.safe_load(stream)
 
     raw = _require_mapping(raw, "root")
+    warn_unknown(raw, ROOT_KEYS, f"scenario {config_path.name}")
 
     version = _require_field(raw, "root", "version")
     if int(version) != 1:
@@ -128,6 +139,8 @@ def load_config(path: str | Path) -> ScenarioConfig:
     output = _require_section(raw, "output")
     post_processing = post_processing_sections(raw)
 
+    warn_unknown(scenario, SCENARIO_KEYS, f"'scenario' of {config_path.name}")
+    warn_unknown(output, OUTPUT_KEYS, f"'output' of {config_path.name}")
     _require_non_empty_string(
         _require_field(scenario, "scenario", "name"),
         "scenario.name",
