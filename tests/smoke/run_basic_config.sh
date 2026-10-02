@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONFIG="${1:-configs/basic-online-boutique.yaml}"
+CONFIG="${1:-configs/basic-online-boutique-1min.yaml}"
 
 echo "=== Running standalone smoke test ==="
 echo "Config: ${CONFIG}"

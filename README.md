@@ -55,7 +55,7 @@ Detailed installation instructions are in [`docs/setup.md`](docs/setup.md).
 ### 1. Validate your config
 
 ```bash
-benchmark-platform validate configs/basic-online-boutique.yaml
+benchmark-platform validate configs/basic-online-boutique-1min.yaml
 ```
 
 or via Make:
@@ -67,7 +67,7 @@ make validate-config
 ### 2. Run the scenario
 
 ```bash
-benchmark-platform run configs/basic-online-boutique.yaml
+benchmark-platform run configs/basic-online-boutique-1min.yaml
 ```
 
 or via Make:
@@ -111,7 +111,7 @@ report. See `benchmark_platform/compare.py`.
 
 ## Configuration
 
-Scenarios are described in YAML. Example: [`configs/basic-online-boutique.yaml`](configs/basic-online-boutique.yaml).
+Scenarios are described in YAML. Example: [`configs/basic-online-boutique-1min.yaml`](configs/basic-online-boutique-1min.yaml).
 
 Each component section (`environment`, `stack`, `traffic`, …) names a `module:` path
 that must contain a `run.sh` and a `module.yaml`. Swap any component by pointing `module:`

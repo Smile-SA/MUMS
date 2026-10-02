@@ -1,9 +1,9 @@
 version: 1
 
 scenario:
-  name: koordinator-online-boutique
+  name: basic-online-boutique-15min
   seed: 42
-  duration_seconds: 120
+  duration_seconds: 900
 
 environment:
   module: envs.kind
@@ -27,7 +27,7 @@ traffic:
   cycle_minutes: 60
 
 optimizer:
-  module: optimizers.koordinator
+  module: optimizers.baseline
 
 post-processing:
   - module: post-processing.essential-tables

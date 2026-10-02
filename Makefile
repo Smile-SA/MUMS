@@ -7,7 +7,7 @@ VENV_BIN  := $(VENV_DIR)/bin
 # otherwise fall back to the active interpreter / the CLI on PATH.
 VENV_PYTHON := $(shell [ -x "$(VENV_BIN)/python" ] && echo "$(VENV_BIN)/python" || echo "$(PYTHON)")
 BENCHMARK := $(shell [ -x "$(VENV_BIN)/benchmark-platform" ] && echo "$(VENV_BIN)/benchmark-platform" || echo benchmark-platform)
-CONFIG    ?= configs/basic-online-boutique.yaml
+CONFIG    ?= configs/basic-online-boutique-1min.yaml
 
 .PHONY: help \
         setup-core setup-dev setup-module setup-basic-online-boutique \
@@ -58,7 +58,7 @@ setup-module:
 	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=traffic.online-boutique" >&2; exit 2)
 	$(BENCHMARK) deps install $(MODULE)
 
-# Installs all modules required by configs/basic-online-boutique.yaml.
+# Installs all modules required by configs/basic-online-boutique-1min.yaml.
 # Keep in sync with that config if modules change.
 setup-basic-online-boutique: setup-core
 	$(BENCHMARK) deps install envs.kind stacks.online-boutique observability.prometheus traffic.online-boutique optimizers.baseline post-processing.refined-csv
@@ -99,7 +99,7 @@ validate-config:
 	$(BENCHMARK) validate $(CONFIG)
 
 run-basic:
-	$(BENCHMARK) run configs/basic-online-boutique.yaml $(ARGS)
+	$(BENCHMARK) run configs/basic-online-boutique-1min.yaml $(ARGS)
 
 test:
 	$(VENV_PYTHON) -m pytest

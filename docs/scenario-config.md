@@ -9,7 +9,7 @@ The first supported config version is `version: 1`.
 See:
 
 ```text
-configs/basic-online-boutique.yaml
+configs/basic-online-boutique-1min.yaml
 ```
 
 ## Compatibility policy
