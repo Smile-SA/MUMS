@@ -19,9 +19,8 @@ The dependency script takes a single argument:
 The core walks a module and its utils recursively (utils first, each once).
 Installation runs every `install`, then the full check, so a failed
 installation shows up immediately. The script runs from the module directory,
-with the directory of the interpreter running the platform first on PATH (so
-that `python3 -m pip` installs into the platform's environment), and with
-BENCHMARK_UTILS_PATH pointing to the platform's `utils/` directory.
+in the caller's environment unchanged (the same as the modules' actions: the
+core does not assume any virtual environment), plus BENCHMARK_UTILS_PATH.
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -131,8 +129,9 @@ def resolve(index: ModuleIndex, names: list[str]) -> list[Node]:
 
 
 def _script_env(utils_path: Path) -> dict[str, str]:
+    # Same environment as the modules' actions (the caller's, unchanged), plus
+    # BENCHMARK_UTILS_PATH: a check sees exactly what an action will see.
     env = os.environ.copy()
-    env["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{env.get('PATH', '')}"
     env[UTILS_PATH_ENV] = str(utils_path)
     return env
 

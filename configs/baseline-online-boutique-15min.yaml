@@ -1,7 +1,7 @@
 version: 1
 
 scenario:
-  name: basic-online-boutique-15min
+  name: baseline-online-boutique-15min
   seed: 42
   duration_seconds: 900
 

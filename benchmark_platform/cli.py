@@ -12,6 +12,7 @@ from benchmark_platform.dependencies import (
 )
 from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.doctor import run_doctor
+from benchmark_platform.environment import EnvironmentFileError, load_environment
 from benchmark_platform.modules import ModuleError
 from benchmark_platform.runner import prepare_scenario, run_scenario, utils_path
 
@@ -79,6 +80,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    try:
+        load_environment()
+    except EnvironmentFileError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 1
 
     try:
         if args.command == "deps":

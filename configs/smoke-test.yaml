@@ -1,7 +1,7 @@
 version: 1
 
 scenario:
-  name: hots-online-boutique-1min
+  name: smoke-test
   seed: 42
   duration_seconds: 60
 
@@ -19,7 +19,7 @@ stack:
 observability:
   module: observability.prometheus
   frequency_seconds: 15
-  local_port: 9090         # <-- if you change this, update optimizer.prometheus_url below
+  local_port: 9090
 
 traffic:
   module: traffic.online-boutique
@@ -27,18 +27,10 @@ traffic:
   cycle_minutes: 60
 
 optimizer:
-  module: optimizers.hots
-  prometheus_url: http://127.0.0.1:9090   # <-- must match observability.local_port above
-  kafka_port: 9092
-  namespace: online-boutique
-  metric: cpu
-  nb_clusters: 3
-  tick_seconds: 10
+  module: optimizers.baseline
 
 post-processing:
   - module: post-processing.essential-tables
-  - module: post-processing.basic-evaluation
-  - module: post-processing.pod-based-node-evaluation
 
 output:
   root_directory: output/runs
