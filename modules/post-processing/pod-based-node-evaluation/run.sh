@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Pod-based node evaluation post-processing module (contract 1): nodes' usage
 # as the sum of their pods, against their allocatable, into
-# <data_dir>/summary/post-processing.pod-based-node-evaluation.csv (see README.md).
+# <data_dir>/summary/pod-based-node-evaluation.csv (see README.md).
 #
 # Usage:
 #   run.sh run <data_dir> [--run_window true|false]

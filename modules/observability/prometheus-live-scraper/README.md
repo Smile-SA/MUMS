@@ -1,4 +1,4 @@
-# observability.prometheus
+# prometheus-live-scraper
 
 Observability module: installs Prometheus in the cluster (optional) and scrapes
 it for the whole run. It does nothing else: all processing of the scraped data
@@ -58,7 +58,7 @@ complete. Read all scrapes in order with `cat <data_dir>/openmetrics/*.om`.
 
 ## Dependencies
 
-kubectl, curl, python3, and `utils.helm`. The dependency script installs the
+kubectl, curl, python3, and `helm`. The dependency script installs the
 scraper's Python package (`requests`). The Prometheus chart is fetched at `start`
 (version `chart_version`), so the first run with a given version needs network
 access.

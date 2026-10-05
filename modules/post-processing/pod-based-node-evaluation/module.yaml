@@ -1,4 +1,4 @@
-name: post-processing.pod-based-node-evaluation
+name: pod-based-node-evaluation
 type: post-processing
 contract: 1
 entrypoint: run.sh

@@ -22,7 +22,7 @@ help:
 	@echo "    make setup-core                    Create .venv and install core runtime dependencies"
 	@echo "                                       (options: ./benchmark_platform/bootstrap.sh --help)"
 	@echo "    make setup-dev                     Core runtime + development dependencies (lint, tests)"
-	@echo "    make setup-module MODULE=<name>    Install a module's dependencies, then check them (e.g. envs.kind)"
+	@echo "    make setup-module MODULE=<name>    Install a module's dependencies, then check them (e.g. kind)"
 	@echo "    make setup-smoke-test            Install all modules needed for the smoke test"
 	@echo "    make install-system-deps-debian    Install the core system tools (Python, kubectl) on Debian-like systems"
 	@echo
@@ -60,16 +60,16 @@ setup-dev:
 	./benchmark_platform/bootstrap.sh --dev
 
 setup-module: require-cli
-	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=traffic.online-boutique" >&2; exit 2)
+	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=online-boutique-locust" >&2; exit 2)
 	$(BENCHMARK) deps install $(MODULE)
 
 # Installs all modules required by configs/smoke-test.yaml.
 # Keep in sync with that config if modules change.
 setup-smoke-test: setup-core require-cli
-	$(BENCHMARK) deps install envs.kind stacks.online-boutique observability.prometheus traffic.online-boutique optimizers.baseline post-processing.essential-tables
+	$(BENCHMARK) deps install kind online-boutique-v0.10.1 prometheus-live-scraper online-boutique-locust baseline essential-tables
 
 check-module: require-cli
-	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=traffic.online-boutique" >&2; exit 2)
+	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=online-boutique-locust" >&2; exit 2)
 	$(BENCHMARK) deps check $(MODULE)
 
 install-system-deps-debian:

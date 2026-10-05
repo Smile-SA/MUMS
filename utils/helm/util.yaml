@@ -1,4 +1,4 @@
-name: utils.helm
+name: helm
 
 dependencies:
   entrypoint: dependencies.sh

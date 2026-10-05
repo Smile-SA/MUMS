@@ -159,23 +159,17 @@ def _real_util(repo, name, dependencies=None):
 
 
 def test_utils_found_only_in_utils_directory(tmp_path):
-    _real_util(tmp_path, "utils.helm")
+    _real_util(tmp_path, "helm")
     stray = tmp_path / "ext" / "stray"
     stray.mkdir(parents=True)
     (stray / "util.yaml").write_text(yaml.safe_dump({"name": "utils.stray"}))
     index = discover()
-    assert set(index.utils) == {"utils.helm"}  # a util.yaml elsewhere is ignored
-    assert index.path("utils.helm") == tmp_path / "utils" / "helm"
+    assert set(index.utils) == {"helm"}  # a util.yaml elsewhere is ignored
+    assert index.path("helm") == tmp_path / "utils" / "helm"
 
 
 def test_module_depends_on_util(tmp_path):
-    _real_util(tmp_path, "utils.base", {"commands": ["sh"]})
-    _util(tmp_path / "mods", "m", {"utils": ["utils.base"]})
+    _real_util(tmp_path, "base", {"commands": ["sh"]})
+    _util(tmp_path / "mods", "m", {"utils": ["base"]})
     order = [n.name for n in resolve(discover(), ["m"])]
-    assert order == ["utils.base", "m"]
-
-
-def test_util_name_prefix_required(tmp_path):
-    _real_util(tmp_path, "helm")
-    with pytest.raises(DiscoveryError, match="must start with 'utils.'"):
-        discover()
+    assert order == ["base", "m"]

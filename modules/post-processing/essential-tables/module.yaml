@@ -1,4 +1,4 @@
-name: post-processing.essential-tables
+name: essential-tables
 type: post-processing
 contract: 1
 entrypoint: run.sh

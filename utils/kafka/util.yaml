@@ -1,4 +1,4 @@
-name: utils.kafka
+name: kafka
 
 dependencies:
   commands:

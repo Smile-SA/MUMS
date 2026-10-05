@@ -1,4 +1,4 @@
-# post-processing.pod-based-node-evaluation
+# pod-based-node-evaluation
 
 Post-processing module: summarizes the **Kubernetes part** of the nodes' usage.
 A node's usage is the sum of its pods' usage, against its allocatable (what
@@ -8,7 +8,7 @@ the machine rather than the node.
 
 ## Action
 
-- `run <data_dir>`: writes `<data_dir>/summary/post-processing.pod-based-node-evaluation.csv`.
+- `run <data_dir>`: writes `<data_dir>/summary/pod-based-node-evaluation.csv`.
 
 ## Arguments
 
@@ -25,7 +25,7 @@ the machine rather than the node.
 
 ## Data produced: `summary`
 
-`<data_dir>/summary/post-processing.pod-based-node-evaluation.csv`, one row per
+`<data_dir>/summary/pod-based-node-evaluation.csv`, one row per
 indicator: `metric, value, unit, goal, description`.
 
 | Metric | Goal | Definition |

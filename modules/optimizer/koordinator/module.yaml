@@ -1,4 +1,4 @@
-name: optimizers.koordinator
+name: koordinator
 type: optimizer
 contract: 1
 entrypoint: run.sh
@@ -26,4 +26,4 @@ args:
 
 dependencies:
   utils:
-    - utils.helm
+    - helm

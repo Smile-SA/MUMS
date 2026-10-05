@@ -3,7 +3,7 @@
 evaluate.py
 Summarizes the Kubernetes part of the nodes' usage: for each node, the sum of
 its pods' usage, against its allocatable (what Kubernetes may give to pods),
-into <data_dir>/summary/post-processing.pod-based-node-evaluation.csv
+into <data_dir>/summary/pod-based-node-evaluation.csv
 (columns: metric, value, unit, goal, description). Meant for nodes whose machine
 does more than run that node (e.g. several nodes on one host), where node-level
 metrics describe the machine.
@@ -22,7 +22,7 @@ from collections import defaultdict
 from pathlib import Path
 
 OVERLOAD_THRESHOLD = 0.9  # node usage / allocatable
-SUMMARY_NAME = "post-processing.pod-based-node-evaluation.csv"
+SUMMARY_NAME = "pod-based-node-evaluation.csv"
 
 
 def read_table(directory: Path):

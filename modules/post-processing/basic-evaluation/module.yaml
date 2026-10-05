@@ -1,4 +1,4 @@
-name: post-processing.basic-evaluation
+name: basic-evaluation
 type: post-processing
 contract: 1
 entrypoint: run.sh

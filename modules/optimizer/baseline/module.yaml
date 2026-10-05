@@ -1,4 +1,4 @@
-name: optimizers.baseline
+name: baseline
 type: optimizer
 contract: 1
 entrypoint: baseline.sh

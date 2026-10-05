@@ -1,4 +1,4 @@
-name: envs.kind
+name: kind
 type: environment
 contract: 1
 entrypoint: kind.sh
@@ -32,5 +32,5 @@ dependencies:
     - jq
     - curl
   utils:
-    - utils.helm
-    - utils.metallb
+    - helm
+    - metallb

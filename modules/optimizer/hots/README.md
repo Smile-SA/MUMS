@@ -74,7 +74,7 @@ connector, and the moves recorder, and tears down the per-run Kafka broker.
 
 ## Artifacts
 
-Everything lands under `artifacts/optimizers.hots/`:
+Everything lands under `artifacts/hots/`:
 `hots-config.json`, `hots-metrics.csv`, `hots.log`, `moves.jsonl`.
 
 ## Offline dataset -> HOTS (no live cluster/Kafka)

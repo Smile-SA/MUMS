@@ -1,4 +1,4 @@
-# stacks.online-boutique
+# online-boutique-v0.10.1
 
 Stack module: deploys [Online Boutique](https://github.com/GoogleCloudPlatform/microservices-demo)
 (Google's microservices demo: 11 services and a Redis cart) in the cluster.
@@ -28,7 +28,7 @@ module's concern.
 
 ## Dependencies
 
-kubectl, and `utils.helm`. The dependency script fetches the chart (version in
+kubectl, and `helm`. The dependency script fetches the chart (version in
 `chart-version`, a git tag: `v0.10.1`) from the GitHub repository, since it is not
 published on a Helm repository, and installs `git` if needed to do so.
 
@@ -36,7 +36,7 @@ published on a Helm repository, and installs `git` if needed to do so.
 
 The application version is fixed in `chart-version` (a git tag of
 microservices-demo). To benchmark another version, copy this module, change its
-`name` in `module.yaml` (e.g. `stacks.online-boutique-v0.11.0`: two modules cannot
+`name` in `module.yaml` (e.g. `online-boutique-v0.11.0`: two modules cannot
 share a name) and its `chart-version`.
 
 ## Known limitations

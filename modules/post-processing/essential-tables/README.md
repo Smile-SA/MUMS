@@ -1,4 +1,4 @@
-# post-processing.essential-tables
+# essential-tables
 
 Post-processing module: turns the raw OpenMetrics scrapes of a run into eight
 tables holding the **essential data about the cluster's objects and their use**

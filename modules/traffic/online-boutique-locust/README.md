@@ -1,4 +1,4 @@
-# traffic.online-boutique
+# online-boutique-locust
 
 Traffic module: generates load on Online Boutique with [Locust](https://locust.io),
 following a load shape (a simulated day by default), and records every request.

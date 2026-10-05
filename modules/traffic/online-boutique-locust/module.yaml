@@ -1,4 +1,4 @@
-name: traffic.online-boutique
+name: online-boutique-locust
 type: traffic
 contract: 1
 entrypoint: run.sh

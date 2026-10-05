@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Basic-evaluation post-processing module (contract 1): summarizes one run from
-# standard data into <data_dir>/summary/post-processing.basic-evaluation.csv
+# standard data into <data_dir>/summary/basic-evaluation.csv
 # (see README.md).
 #
 # Usage:

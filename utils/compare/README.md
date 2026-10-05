@@ -1,4 +1,4 @@
-# utils.compare
+# compare
 
 Compares benchmark runs from their summaries (`<run>/data/summary/*.csv`, the
 standard summary format: `metric, value, unit, goal, description`), outside any

@@ -1,4 +1,4 @@
-# optimizers.koordinator
+# koordinator
 
 Optimizer module: installs [Koordinator](https://koordinator.sh) (QoS-based
 scheduling and rescheduling for Kubernetes) in the cluster, with its manager,
@@ -34,7 +34,7 @@ current step order, Koordinator therefore acts through its descheduler
 
 ## Dependencies
 
-`utils.helm`. The chart is fetched at `start`, so the first run with a given
+`helm`. The chart is fetched at `start`, so the first run with a given
 version needs network access.
 
 ## Files

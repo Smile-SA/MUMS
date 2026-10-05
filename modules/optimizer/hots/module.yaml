@@ -1,4 +1,4 @@
-name: optimizers.hots
+name: hots
 type: optimizer
 contract: 1
 entrypoint: run.sh
@@ -58,4 +58,4 @@ dependencies:
     - curl
     - sha1sum
   utils:
-    - utils.kafka
+    - kafka

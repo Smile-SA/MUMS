@@ -1,4 +1,4 @@
-name: stacks.online-boutique
+name: online-boutique-v0.10.1
 type: stack
 contract: 1
 entrypoint: run.sh
@@ -12,4 +12,4 @@ dependencies:
     - kubectl
     - git
   utils:
-    - utils.helm
+    - helm

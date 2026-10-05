@@ -5,7 +5,7 @@ A module declares its dependencies in `module.yaml`, a util in `util.yaml`:
     dependencies:
       entrypoint: dependencies.sh   # optional: the module's dependency script
       commands: [kubectl, helm]     # must be on PATH
-      utils: [utils.helm]           # utils, by name
+      utils: [helm]                 # utils, by name
 
 The dependency script takes a single argument:
 

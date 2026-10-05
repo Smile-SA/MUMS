@@ -1,4 +1,4 @@
-name: observability.prometheus
+name: prometheus-live-scraper
 type: observability
 contract: 1
 entrypoint: run.sh
@@ -43,4 +43,4 @@ dependencies:
     - python3
     - pkill
   utils:
-    - utils.helm
+    - helm

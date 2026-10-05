@@ -4,7 +4,7 @@ Modules and utils are designated by their `name`, never by path.
 
 - Modules (`module.yaml`) are searched in every directory listed in
   BENCHMARK_MODULE_PATHS (separated by ':', like PATH).
-- Utils (`util.yaml`, named `utils.<name>`) are searched in the directory
+- Utils (`util.yaml`) are searched in the directory
   BENCHMARK_UTILS_PATH, the one modules also receive to call them.
 
 These two variables are the only sources of truth on where modules and utils
@@ -29,7 +29,6 @@ import yaml
 
 MODULE_PATHS_ENV = "BENCHMARK_MODULE_PATHS"
 UTILS_PATH_ENV = "BENCHMARK_UTILS_PATH"
-UTIL_PREFIX = "utils."
 
 # Directories never scanned: tooling, outputs, downloaded charts, and the parts
 # of the platform repository that are not modules.
@@ -105,8 +104,6 @@ def discover() -> ModuleIndex:
         raise DiscoveryError(f"Utils directory does not exist ({UTILS_PATH_ENV}): {utils_dir}")
     _scan(utils_dir, "util.yaml", utils)
     for name, path in utils.items():
-        if not name.startswith(UTIL_PREFIX):
-            raise DiscoveryError(f"Util name must start with '{UTIL_PREFIX}': '{name}' ({path}).")
         if name in modules:
             raise DiscoveryError(
                 f"A module and a util are both named '{name}': {modules[name]} and {path}."

@@ -1,4 +1,4 @@
-# envs.kind
+# kind
 
 Environment module: a local Kubernetes cluster with [kind](https://kind.sigs.k8s.io)
 (Kubernetes in Docker), plus MetalLB for `LoadBalancer` services.
@@ -32,14 +32,14 @@ Environment module: a local Kubernetes cluster with [kind](https://kind.sigs.k8s
 
 Kind releases build their own node images: recent kind versions usually run older
 images, but not always. To keep a setup that breaks with newer kind, copy this
-module, change its `name` in `module.yaml` (e.g. `envs.kind-v0.32`: two modules
+module, change its `name` in `module.yaml` (e.g. `kind-v0.32`: two modules
 cannot share a name), and pin its `kind-version`.
 
 ## Dependencies
 
 Docker (installed by hand; its daemon is checked before each run), kind (see
 above, installed by the module's `dependencies.sh`), kubectl, jq, and the utils
-`utils.helm` and `utils.metallb`.
+`helm` and `metallb`.
 
 ## Known limitations
 

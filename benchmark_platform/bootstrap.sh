@@ -75,7 +75,7 @@ echo "Setup complete."
 if [[ "${USE_VENV}" == "true" ]]; then
   echo "Activate the environment with: source ${VENV_DIR}/bin/activate"
 fi
-echo "Then install the dependencies of the modules you use, e.g.: benchmark-platform deps install envs.kind"
+echo "Then install the dependencies of the modules you use, e.g.: benchmark-platform deps install kind"
 
 # Where modules and utils are: the only sources of truth, read by the core.
 # A variable already set is kept as is. The missing ones are written to the

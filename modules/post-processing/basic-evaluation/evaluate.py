@@ -2,7 +2,7 @@
 """
 evaluate.py
 Summarizes one run from standard data, into
-<data_dir>/summary/post-processing.basic-evaluation.csv
+<data_dir>/summary/basic-evaluation.csv
 (columns: metric, value, unit, goal, description).
 
 Inputs (each optional: missing data gives no metric):
@@ -20,7 +20,7 @@ from collections import defaultdict
 from pathlib import Path
 
 OVERLOAD_THRESHOLD = 0.9  # node usage / allocatable
-SUMMARY_NAME = "post-processing.basic-evaluation.csv"
+SUMMARY_NAME = "basic-evaluation.csv"
 
 
 def read_table(directory: Path):

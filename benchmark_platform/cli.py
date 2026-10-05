@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("check", "Check dependencies."),
     ):
         sub = deps_commands.add_parser(action, help=text)
-        sub.add_argument("modules", nargs="+", help="Module names (e.g. envs.kind).")
+        sub.add_argument("modules", nargs="+", help="Module or util names (e.g. kind).")
 
     subparsers.add_parser(
         "doctor", help="Overview of the machine and of the platform (informative, checks nothing)."

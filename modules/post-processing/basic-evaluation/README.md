@@ -1,4 +1,4 @@
-# post-processing.basic-evaluation
+# basic-evaluation
 
 Post-processing module: summarizes one run in a few comparable indicators
 (response times, errors, node usage and balance, availability), computed from
@@ -8,7 +8,7 @@ comparison can use them without knowing what they mean.
 ## Action
 
 - `run <data_dir>`: reads the data below and writes
-  `<data_dir>/summary/post-processing.basic-evaluation.csv`.
+  `<data_dir>/summary/basic-evaluation.csv`.
 
 ## Arguments
 
@@ -28,7 +28,7 @@ Each one is optional: its indicators are simply absent if it is missing.
 
 ## Data produced: `summary`
 
-`<data_dir>/summary/post-processing.basic-evaluation.csv`, one row per indicator:
+`<data_dir>/summary/basic-evaluation.csv`, one row per indicator:
 `metric, value, unit, goal, description`. `goal` is the indicator's intent:
 `minimize`, `maximize` or `none`. Units: `seconds`, `ratio`, `count` (anything
 counted), `count/second`.
