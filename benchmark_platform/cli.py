@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 from benchmark_platform import settings
 from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
@@ -15,6 +18,7 @@ from benchmark_platform.dependencies import (
 from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.doctor import run_doctor
 from benchmark_platform.modules import ModuleError
+from benchmark_platform.paths import RunPaths
 from benchmark_platform.runner import prepare_scenario, run_scenario, scenario_modules, utils_path
 
 
@@ -99,6 +103,18 @@ def build_parser() -> argparse.ArgumentParser:
     config_unset = config_commands.add_parser("unset", help="Remove a setting from the file.")
     config_unset.add_argument("key", choices=list(settings.VARIABLES))
 
+    compare = subparsers.add_parser(
+        "compare",
+        help="Compare runs from their summaries (first run: reference), with the util "
+        "`compare`; run directories, glob patterns accepted.",
+    )
+    compare.add_argument("runs", nargs="+", help="Run directories (the first one: reference).")
+    compare.add_argument("-v", "--verbose", action="store_true", help="Aligned console report.")
+    compare.add_argument("-m", "--markdown", nargs="?", const="comparison.md", metavar="FILE",
+                         help="Markdown report (default: comparison.md).")
+    compare.add_argument("-c", "--csv", nargs="?", const="comparison.csv", metavar="FILE",
+                         help="All values in long form (default: comparison.csv).")
+
     exec_parser = subparsers.add_parser(
         "exec",
         help="Run a command in the platform's environment (settings applied), "
@@ -132,6 +148,35 @@ def _config_command(args: argparse.Namespace) -> int:
             shown = ", ".join(value) if isinstance(value, list) else (value or "-")
             print(f"  {key:<13} {shown}   ({setting.source})")
     return 0
+
+
+def _compare_command(args: argparse.Namespace) -> int:
+    """Runs → their data directories (the core knows how a run is organized), then
+    the util `compare`, which only knows data directories."""
+    runs: list[Path] = []
+    for pattern in args.runs:
+        for match in sorted(glob.glob(pattern)) or [pattern]:
+            runs.append(Path(match))
+    data_dirs = []
+    for run in runs:
+        data = RunPaths.of(run).data
+        if not data.is_dir():
+            print(f"[ERROR] not a run directory (no {data.name}/ inside): {run}", file=sys.stderr)
+            return 1
+        data_dirs.append(str(data))
+    tool = utils_path() / "compare" / "compare.py"
+    if not tool.is_file():
+        print(f"[ERROR] util compare not found: {tool}", file=sys.stderr)
+        return 1
+    options = []
+    if args.verbose:
+        options.append("-v")
+    for flag, value in (("-m", args.markdown), ("-c", args.csv)):
+        if value:
+            options += [flag, value]
+    if not options:
+        options.append("-v")
+    return subprocess.run([sys.executable, str(tool), *data_dirs, *options], check=False).returncode
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -178,6 +223,9 @@ def main(argv: list[str] | None = None) -> int:
                 check_dependencies(index, names, utils_path())
             print(f"Dependencies OK: {', '.join(names)}")
             return 0
+
+        if args.command == "compare":
+            return _compare_command(args)
 
         if args.command == "doctor":
             run_doctor()

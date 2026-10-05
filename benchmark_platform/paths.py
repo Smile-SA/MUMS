@@ -29,9 +29,10 @@ class RunPaths:
     data: Path
 
     @classmethod
-    def create(cls, root: Path) -> RunPaths:
+    def of(cls, root: Path) -> RunPaths:
+        """The paths of the run at `root`, without creating anything."""
         runtime = root / "runtime"
-        paths = cls(
+        return cls(
             root=root,
             config=root / "config.yaml",
             manifest=root / "manifest.yaml",
@@ -43,6 +44,10 @@ class RunPaths:
             extras=root / "extras",
             data=root / "data",
         )
+
+    @classmethod
+    def create(cls, root: Path) -> RunPaths:
+        paths = cls.of(root)
 
         for path in (
             paths.runtime,

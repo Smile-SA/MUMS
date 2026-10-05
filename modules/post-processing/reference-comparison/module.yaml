@@ -1,0 +1,19 @@
+name: reference-comparison
+type: post-processing
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  run: "<data_dir>"
+
+args:
+  reference:
+    required: true
+    type: string
+    description: "Absolute path to the data directory of the reference run (e.g. a baseline's), whose summaries this run's are compared with."
+
+dependencies:
+  commands:
+    - python3
+  utils:
+    - compare
