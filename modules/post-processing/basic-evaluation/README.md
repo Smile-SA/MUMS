@@ -5,7 +5,7 @@ Post-processing module: summarizes one run in a few comparable indicators
 standard data only. Writes them in the standard summary format, so that any
 comparison can use them without knowing what they mean.
 
-## Action
+## Actions
 
 - `run <data_dir>`: reads the data below and writes
   `<data_dir>/summary/basic-evaluation.csv`.

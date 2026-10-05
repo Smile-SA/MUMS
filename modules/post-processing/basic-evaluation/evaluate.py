@@ -19,7 +19,7 @@ import statistics
 from collections import defaultdict
 from pathlib import Path
 
-OVERLOAD_THRESHOLD = 0.9  # node usage / allocatable
+OVERLOAD_THRESHOLD = 0.9  # usage of a node's machine (CPU or memory)
 SUMMARY_NAME = "basic-evaluation.csv"
 
 

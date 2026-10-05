@@ -18,7 +18,9 @@ following a load shape (a simulated day by default), and records every request.
 | `shape` | `day_profile` | Load shape: a file `shapes/<shape>.py`. |
 | `cycle_minutes` | `60` | Duration of one cycle of the shape (e.g. `day_profile` replays a full day in this time). |
 
-The seed makes Locust's random choices (products, currencies...) reproducible.
+The seed initializes Locust's random choices (products, currencies...): runs with
+the same seed send similar requests, but not an identical sequence (see "Known
+limitations").
 
 ## Data produced
 
@@ -47,15 +49,16 @@ written as responses arrive, so they are not strictly sorted by `timestamp`.
 
 ## Dependencies
 
-curl, python3. The dependency script installs the Python packages
-(`requirements.txt`: Locust, Faker) and checks them.
+curl, python3, kubectl (to find the frontend). The dependency script installs the
+Python packages (`requirements.txt`: Locust, Faker) and checks them.
 
 ## Files
 
 `run.sh` (actions), `locustfile.py` (user behaviour: Online Boutique's official
 locustfile, modifications listed at its top), `request_log.py` (writes the
 http-requests files; loaded by Locust next to the locustfile),
-`shapes/` (load shapes), `check_frontend.sh`, `dependencies.sh`, `requirements.txt`.
+`shapes/` (load shapes), `check_frontend.sh`, `dependencies.sh`, `requirements.txt`,
+`module.yaml`.
 
 ## Known limitations
 
@@ -63,3 +66,7 @@ http-requests files; loaded by Locust next to the locustfile),
   `online-boutique`, service `frontend-external`) are specific to it.
 - Shapes live in this module for now; they should be shared by all Locust-based
   traffic modules.
+- Not fully reproducible: the random choices go through one generator shared by
+  all users, so the sequence of requests depends on how users interleave; and
+  `requirements.txt` gives version ranges, so two installations may run different
+  Locust versions.

@@ -6,10 +6,14 @@ tables holding the **essential data about the cluster's objects and their use**
 a large mass of raw data, mostly irrelevant, becomes a smaller, organized set of
 tables that other post-processing modules build on (instances, evaluation...).
 
-## Action
+## Actions
 
 - `run <data_dir>`: reads `<data_dir>/openmetrics/*.om` (in order) and writes
   `<data_dir>/essential-tables/`. Does nothing if there is no scrape.
+
+## Arguments
+
+None.
 
 ## Data consumed
 
@@ -263,9 +267,9 @@ kube-state-metrics rather than a list of known kinds; parents are listed too.
 
 ---
 
-## Scripts
+## Files
 
-| Script | Role | Input | Output |
+| File | Role | Input | Output |
 |--------|------|-------|--------|
 | `run.sh` | Module action: reads `<data_dir>/openmetrics/`, writes `<data_dir>/essential-tables/` | `<data_dir>` | 8 tables |
 | `run_all.sh` | Orchestrates generation of all 8 CSVs | stdin (OpenMetrics) + output directory | 8 tables |
@@ -278,6 +282,7 @@ kube-state-metrics rather than a list of known kinds; parents are listed too.
 | `controller_metadata.py` | Controller metadata | stdin (OpenMetrics) | stdout (CSV) |
 | `pod_timeseries.py` | Pod-level series | stdin (OpenMetrics) + `pod_metadata.csv` (arg) | stdout (CSV) |
 | `csv_split.py` | Splits a CSV into numbered files | stdin (CSV) + directory | `directory/basename_N.csv` |
+| `module.yaml` | Module descriptor | | |
 
 ---
 

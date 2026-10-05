@@ -28,9 +28,10 @@ module's concern.
 
 ## Dependencies
 
-kubectl, and `helm`. The dependency script fetches the chart (version in
-`chart-version`, a git tag: `v0.10.1`) from the GitHub repository, since it is not
-published on a Helm repository, and installs `git` if needed to do so.
+kubectl, git, and the util `helm`. The dependency script fetches the chart
+(version in `chart-version`, a git tag: `v0.10.1`) from the GitHub repository with
+git, since it is not published on a Helm repository; it installs git if it is
+missing.
 
 ## Version
 
@@ -38,6 +39,11 @@ The application version is fixed in `chart-version` (a git tag of
 microservices-demo). To benchmark another version, copy this module, change its
 `name` in `module.yaml` (e.g. `online-boutique-v0.11.0`: two modules cannot
 share a name) and its `chart-version`.
+
+## Files
+
+`run.sh` (actions), `values.yaml` (Helm values), `chart-version`,
+`dependencies.sh`, `module.yaml`.
 
 ## Known limitations
 

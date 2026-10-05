@@ -3,12 +3,20 @@
 Environment module: a local Kubernetes cluster with [kind](https://kind.sigs.k8s.io)
 (Kubernetes in Docker), plus MetalLB for `LoadBalancer` services.
 
+## Actions
+
+- `create <seed> <id> <output_file>`: creates the cluster, named after `<id>`
+  (its Docker network too), and writes the path of its kubeconfig to
+  `<output_file>`.
+- `destroy <id>`: deletes the cluster `<id>` and its kubeconfig. Succeeds whatever
+  is left: a complete, partial or absent cluster.
+
 ## Arguments
 
 | Argument | Default | Description |
 |---|---|---|
 | `node_image` | `kindest/node:v1.34.0` | Kind node image (the Kubernetes version of the cluster). Kubernetes v1.35+ does not run on cgroup v1 hosts: the module refuses such an image there. |
-| `workers` | 1 worker, host resources | `{count: N, cpu: X, memory: "YGi"}`: number of workers and the cpu/memory each one gets. |
+| `workers` | one worker, without cpu or memory limit | `{count: N, cpu: X, memory: "YGi"}`: number of workers and the cpu/memory each one gets (cpu and memory optional). |
 | `cgroups` | `v1` | How `cpu`/`memory` are enforced on the workers (see below). |
 
 ## `cgroups`: v1 or v2
@@ -35,11 +43,22 @@ images, but not always. To keep a setup that breaks with newer kind, copy this
 module, change its `name` in `module.yaml` (e.g. `kind-v0.32`: two modules
 cannot share a name), and pin its `kind-version`.
 
+## Extras
+
+- `kubeconfig`: the kubeconfig of the cluster (its path is the one written to
+  `<output_file>`).
+- `kind-config.yaml`: the kind configuration the cluster was created with.
+
 ## Dependencies
 
 Docker (installed by hand; its daemon is checked before each run), kind (see
-above, installed by the module's `dependencies.sh`), kubectl, jq, and the utils
-`helm` and `metallb`.
+above, installed by the module's `dependencies.sh`), kubectl, jq, curl (to
+download kind), and the utils `helm` and `metallb`.
+
+## Files
+
+`kind.sh` (actions), `dependencies.sh`, `kind-version`, `module.yaml`; `.bin/`
+(pinned kind binaries, not versioned).
 
 ## Known limitations
 

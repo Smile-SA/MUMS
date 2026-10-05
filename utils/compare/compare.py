@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare benchmark runs from their summaries (<run>/data/summary/*.csv).
+"""Compare benchmark runs from their summaries (<data_dir>/summary/*.csv).
 
 The first run is the reference. For every indicator found in the runs'
 summaries, gives each run's value, its change against the reference, and a
@@ -8,13 +8,14 @@ about the indicators themselves: any module adding a summary file is compared
 too.
 
 Usage:
-  compare.py <reference_run> <run> [<run> ...] [-v] [-m [FILE]] [-c [FILE]]
+  compare.py <reference_data_dir> <data_dir> [<data_dir> ...] [-v] [-m [FILE]] [-c [FILE]]
 
-  <run>: a run directory (containing data/) or its data/ directory. Glob
-  patterns are accepted, expanded by the shell or, if quoted, by this script
-  (e.g. 'output/runs/koordinator-*'); order is kept. The first run is the
-  reference; a run given twice is compared once; a run without summary is left
-  out (with a warning).
+  <data_dir>: the data directory of a run (holding its standard data, summary/
+  included). Glob patterns are accepted, expanded by the shell or, if quoted, by
+  this script (e.g. 'path/to/runs-*/data'); order is kept. The first one is the
+  reference; a directory given twice is compared once; one without summary is
+  left out (with a warning). Each run is named after its path, without the parts
+  all paths share (e.g. a common parent, or a common last directory).
 
 Outputs (at least one, any combination):
   -v, --verbose          aligned report on the console
@@ -34,12 +35,23 @@ from pathlib import Path
 # --------------------------------------------------------------------------- data
 
 
-def summary_dir(run: Path) -> Path:
-    return run / "summary" if (run / "summary").is_dir() else run / "data" / "summary"
+def summary_dir(data_dir: Path) -> Path:
+    return data_dir / "summary"
 
 
-def run_label(run: Path) -> str:
-    return (run.parent if run.name == "data" else run).name
+def run_labels(data_dirs: list[Path]) -> list[str]:
+    """Each directory's path, without the leading and trailing parts all share."""
+    parts = [Path(d).resolve().parts for d in data_dirs]
+    if len(parts) < 2:
+        return [Path(d).name for d in data_dirs]
+    shortest = min(len(p) for p in parts)
+    head = 0
+    while head < shortest - 1 and len({p[head] for p in parts}) == 1:
+        head += 1
+    tail = 0
+    while tail < shortest - head - 1 and len({p[-1 - tail] for p in parts}) == 1:
+        tail += 1
+    return ["/".join(p[head:len(p) - tail]) for p in parts]
 
 
 def read_summaries(run: Path) -> dict[tuple[str, str], dict[str, str]]:
@@ -107,7 +119,7 @@ def change(reference: float | None, value: float | None) -> str:
 
 
 def compare(runs: list[Path], summaries: list[dict]) -> Comparison:
-    comparison = Comparison(runs=[run_label(run) for run in runs])
+    comparison = Comparison(runs=run_labels(runs))
     keys = []
     for summary in summaries:
         keys.extend(k for k in summary if k not in keys)
@@ -252,10 +264,13 @@ class CsvOutput(Output):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Compare benchmark runs from their summaries (first run: reference).",
+        description="Compare runs from their summaries (<data_dir>/summary/*.csv; first one: "
+        "reference).",
         epilog="At least one output: -v, -m or -c (any combination).",
     )
-    parser.add_argument("runs", nargs="*", help="Runs (glob patterns accepted).")
+    parser.add_argument(
+        "runs", nargs="*", help="Data directories of the runs (glob patterns accepted)."
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Aligned console report.")
     parser.add_argument("-m", "--markdown", nargs="?", const="comparison.md", metavar="FILE",
                         help="Markdown report (default: comparison.md).")
@@ -288,16 +303,16 @@ def main() -> int:
             if Path(match).resolve() not in [r.resolve() for r in runs]:
                 runs.append(Path(match))
     if not runs:
-        parser.error("no run given")
+        parser.error("no data directory given")
     kept = []
     for run in runs:
         summary = read_summaries(run)
         if summary:
             kept.append((run, summary))
         else:
-            print(f"[WARN] no summary in {summary_dir(run)}: run left out", file=sys.stderr)
+            print(f"[WARN] no summary in {summary_dir(run)}: left out", file=sys.stderr)
     if not kept or kept[0][0] != runs[0]:
-        parser.error(f"the reference run has no summary: {summary_dir(runs[0])}")
+        parser.error(f"the reference has no summary: {summary_dir(runs[0])}")
     if len(kept) < 2:
         parser.error("no run with a summary to compare to the reference")
 

@@ -25,7 +25,7 @@ args:
   placement:
     required: false
     type: string
-    description: "Where Prometheus runs: control-plane, or any (default: control-plane)."
+    description: "Where the installed Prometheus runs: control-plane (away from the measured workload) or any (let Kubernetes choose, e.g. when the control-plane is not schedulable) (default: control-plane)."
   frequency_seconds:
     required: false
     type: positive_int

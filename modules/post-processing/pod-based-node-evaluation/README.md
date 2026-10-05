@@ -6,7 +6,7 @@ Kubernetes may give to pods). Meant for nodes whose machine does more than run
 that node (e.g. several nodes on one host), where node-level metrics describe
 the machine rather than the node.
 
-## Action
+## Actions
 
 - `run <data_dir>`: writes `<data_dir>/summary/pod-based-node-evaluation.csv`.
 
@@ -48,3 +48,9 @@ python3.
 ## Files
 
 `run.sh` (action), `evaluate.py` (computations), `module.yaml`.
+
+## Known limitations
+
+- A node so overloaded that its pods are no longer measured looks **less**
+  loaded: a pod without a recent measure drops out of the sum. Its usage should
+  rather count as unknown at that time.

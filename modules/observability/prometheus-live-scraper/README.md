@@ -58,16 +58,16 @@ complete. Read all scrapes in order with `cat <data_dir>/openmetrics/*.om`.
 
 ## Dependencies
 
-kubectl, curl, python3, and `helm`. The dependency script installs the
-scraper's Python package (`requests`). The Prometheus chart is fetched at `start`
-(version `chart_version`), so the first run with a given version needs network
-access.
+kubectl, curl, python3, pkill (to stop the port-forward's processes), and the util
+`helm`. The dependency script installs the scraper's Python package (`requests`).
+The Prometheus chart is fetched at `start` (version `chart_version`), so the first
+run with a given version needs network access.
 
 ## Files
 
 `run.sh` (actions), `scraper.py` (the scraper), `deploy.sh` (Helm install),
 `port-forward.sh` / `port-forward-stop.sh`, `check_local_port.sh`,
-`dependencies.sh`, `requirements.txt`.
+`dependencies.sh`, `requirements.txt`, `module.yaml`.
 
 ## Known limitations
 
