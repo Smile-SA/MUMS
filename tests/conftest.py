@@ -109,6 +109,5 @@ def platform(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _isolated_config(tmp_path, monkeypatch):
-    """Never read the user's own configuration file in tests."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
-    monkeypatch.delenv("BENCHMARK_CONFIG", raising=False)
+    """Never read the configuration file of the installation running the tests."""
+    monkeypatch.setenv("BENCHMARK_CONFIG", str(tmp_path / "benchmark-platform.yaml"))

@@ -64,3 +64,11 @@ def test_module_paths_empty_element_means_file(tmp_path, monkeypatch):
     setting = settings.get("module_paths")
     assert setting.value == [str(tmp_path / "repo"), "/mine"]  # adds before
     assert "variable" in setting.source and "file" in setting.source
+
+
+def test_default_file_is_in_the_installation(monkeypatch):
+    import sys
+    from pathlib import Path
+
+    monkeypatch.delenv("BENCHMARK_CONFIG")
+    assert settings.config_file() == Path(sys.prefix) / "benchmark-platform.yaml"

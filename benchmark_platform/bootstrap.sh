@@ -13,9 +13,10 @@
 # Environment: PYTHON, the interpreter used to create the venv (or, with
 # --no-venv, to install into; default: python3).
 #
-# Writes the settings to the platform's configuration file (module_paths,
-# utils_path, and with a venv env: its activate script, sourced by the core at the
-# start of every command), unless already in the file (then kept); see
+# Writes the settings to the configuration file of this installation, in its
+# Python environment (<venv>/benchmark-platform.yaml): module_paths, utils_path,
+# and with a venv env (its activate script, sourced by the core at the start of
+# every command), unless already in the file (then kept); see
 # `benchmark-platform config`. With a venv, also links
 # ~/.local/bin/benchmark-platform to it, and puts ~/.local/bin on PATH in the
 # shell's profile if needed.
@@ -73,7 +74,8 @@ if [[ "${INSTALL_DEV}" == "true" ]]; then
 fi
 
 # Settings (where modules and utils are, the environment everything runs in),
-# in the platform's configuration file (see `benchmark-platform config`). A
+# in the configuration file of this installation, in its Python environment
+# (<venv>/benchmark-platform.yaml; see `benchmark-platform config`). A
 # setting already in the file is kept as is (an environment variable only
 # overrides it for one command: it is not taken into account here).
 cli() { "${PY}" -c 'import sys; from benchmark_platform.cli import main; sys.exit(main(sys.argv[1:]))' "$@"; }
@@ -86,7 +88,7 @@ if [[ "${USE_VENV}" == "true" ]]; then
   SETTINGS+=("env=${VENV_DIR}/bin/activate")
 fi
 # Looked up in the file itself (environment variables are only overrides).
-CONFIG_FILE="${BENCHMARK_CONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/benchmark-platform/config.yaml}"
+CONFIG_FILE="${BENCHMARK_CONFIG:-$("${PY}" -c 'import sys; print(sys.prefix)')/benchmark-platform.yaml}"
 for pair in "${SETTINGS[@]}"; do
   key="${pair%%=*}"
   if [[ -f "${CONFIG_FILE}" ]] && grep -q "^${key}:" "${CONFIG_FILE}"; then

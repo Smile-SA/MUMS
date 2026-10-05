@@ -4,10 +4,11 @@ the start of every command): everything else only sees environment variables.
 
 Each setting is looked up, by priority:
   1. its environment variable (to override for one command, a CI, a test...);
-  2. the configuration file: $BENCHMARK_CONFIG, or else
-     $XDG_CONFIG_HOME/benchmark-platform/config.yaml (default:
-     ~/.config/benchmark-platform/config.yaml), written by bootstrap.sh and
-     edited with `benchmark-platform config`.
+  2. the configuration file of this installation: <prefix>/benchmark-platform.yaml,
+     where <prefix> is the Python environment the platform runs in (its venv),
+     or $BENCHMARK_CONFIG. Written by bootstrap.sh, edited with
+     `benchmark-platform config`. Each installation (each copy of the repository,
+     with its venv) thus has its own settings: they cannot mix.
 
 | Setting      | Variable                 | Meaning                                         |
 |--------------|--------------------------|-------------------------------------------------|
@@ -24,6 +25,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -52,8 +54,7 @@ def config_file() -> Path:
     explicit = os.environ.get(CONFIG_ENV, "").strip()
     if explicit:
         return Path(explicit).expanduser()
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "benchmark-platform" / "config.yaml"
+    return Path(sys.prefix) / "benchmark-platform.yaml"
 
 
 def read_file() -> dict:
