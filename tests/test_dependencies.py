@@ -173,3 +173,28 @@ def test_module_depends_on_util(tmp_path):
     _util(tmp_path / "mods", "m", {"utils": ["base"]})
     order = [n.name for n in resolve(discover(), ["m"])]
     assert order == ["base", "m"]
+
+
+def test_install_keep_going_reports_all_failures(tmp_path):
+    for name in ("a", "b"):
+        path = _util(tmp_path, name, {"entrypoint": "deps.sh"})
+        script = path / "deps.sh"
+        script.write_text('#!/bin/sh\n[ "$1" = check ] && exit 0\nexit 3\n')
+        script.chmod(0o755)
+    index = discover()
+    with pytest.raises(DependencyError) as exc:
+        install_dependencies(index, ["a", "b"], tmp_path / "utils", keep_going=True)
+    assert "a: install failed" in str(exc.value) and "b: install failed" in str(exc.value)
+    with pytest.raises(DependencyError) as exc:
+        install_dependencies(index, ["a", "b"], tmp_path / "utils")
+    assert "a: install failed" in str(exc.value) and "b:" not in str(exc.value)
+
+
+def test_cli_deps_all_and_scenario(platform, capsys):
+    from benchmark_platform.cli import main
+
+    assert main(["deps", "check", "--all"]) == 0
+    out = capsys.readouterr().out
+    assert "environment" in out and "post-processing" in out
+    assert main(["deps", "check", "--scenario", str(platform.write_scenario())]) == 0
+    assert "Dependencies OK" in capsys.readouterr().out

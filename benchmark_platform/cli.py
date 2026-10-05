@@ -15,7 +15,7 @@ from benchmark_platform.dependencies import (
 from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.doctor import run_doctor
 from benchmark_platform.modules import ModuleError
-from benchmark_platform.runner import prepare_scenario, run_scenario, utils_path
+from benchmark_platform.runner import prepare_scenario, run_scenario, scenario_modules, utils_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -53,7 +53,15 @@ def build_parser() -> argparse.ArgumentParser:
         ("check", "Check dependencies."),
     ):
         sub = deps_commands.add_parser(action, help=text)
-        sub.add_argument("modules", nargs="+", help="Module or util names (e.g. kind).")
+        sub.add_argument("modules", nargs="*", help="Module or util names (e.g. kind).")
+        which = sub.add_mutually_exclusive_group()
+        which.add_argument(
+            "--all", action="store_true", help="Every module and util found (one failure "
+            "does not stop the others; all failures are reported at the end)."
+        )
+        which.add_argument(
+            "--scenario", metavar="FILE", help="The modules of a scenario (and their utils)."
+        )
 
     subparsers.add_parser(
         "doctor", help="Overview of the machine and of the platform (informative, checks nothing)."
@@ -156,11 +164,19 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "deps":
             index = discover()
-            if args.deps_command == "install":
-                install_dependencies(index, args.modules, utils_path())
+            if sum(bool(x) for x in (args.modules, args.all, args.scenario)) != 1:
+                parser.error("deps: give module names, or --all, or --scenario FILE")
+            if args.all:
+                names = [*sorted(index.modules), *sorted(index.utils)]
+            elif args.scenario:
+                names = scenario_modules(load_config(args.scenario))
             else:
-                check_dependencies(index, args.modules, utils_path())
-            print(f"Dependencies OK: {', '.join(args.modules)}")
+                names = args.modules
+            if args.deps_command == "install":
+                install_dependencies(index, names, utils_path(), keep_going=args.all)
+            else:
+                check_dependencies(index, names, utils_path())
+            print(f"Dependencies OK: {', '.join(names)}")
             return 0
 
         if args.command == "doctor":

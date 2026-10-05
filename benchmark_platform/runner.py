@@ -88,6 +88,13 @@ class Component:
     options: tuple[str, ...]
 
 
+def scenario_modules(config: ScenarioConfig) -> list[str]:
+    """Names of the modules a scenario uses, in its order."""
+    names = [str(config.raw[role]["module"]) for role in REQUIRED_COMPONENTS]
+    names += [str(section["module"]) for section in post_processing_sections(config.raw)]
+    return list(dict.fromkeys(names))
+
+
 def load_component(index: ModuleIndex, raw: dict[str, Any], role: str) -> Component:
     return load_section(index, raw[role], role)
 

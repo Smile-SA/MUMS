@@ -63,10 +63,9 @@ setup-module: require-cli
 	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=online-boutique-locust" >&2; exit 2)
 	$(BENCHMARK) deps install $(MODULE)
 
-# Installs all modules required by configs/smoke-test.yaml.
-# Keep in sync with that config if modules change.
+# Installs the dependencies of the modules of the smoke test.
 setup-smoke-test: setup-core require-cli
-	$(BENCHMARK) deps install kind online-boutique-v0.10.1 prometheus-live-scraper online-boutique-locust baseline essential-tables
+	$(BENCHMARK) deps install --scenario configs/smoke-test.yaml
 
 check-module: require-cli
 	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=online-boutique-locust" >&2; exit 2)

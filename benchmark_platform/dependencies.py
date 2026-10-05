@@ -193,18 +193,37 @@ def check_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -
         raise DependencyError("\n".join(lines))
 
 
-def install_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -> None:
-    """Run every `install` (dependencies first), then the full check."""
+def install_dependencies(
+    index: ModuleIndex, names: list[str], utils_path: Path, *, keep_going: bool = False
+) -> None:
+    """Run every `install` (dependencies first), then the full check. With
+    keep_going, a failed install does not stop the others: every failure is
+    reported at the end, with the check of everything."""
+    failures: list[str] = []
     for node in resolve(index, names):
         if node.script is None:
             continue
-        if not node.script.is_file():
-            raise DependencyError(f"{node.name}: dependency script not found: {node.script}")
         print(f"=== Installing dependencies: {node.name} ===", flush=True)
         try:
-            result = _run_script(node, "install", utils_path, capture=False)
-        except OSError as exc:
-            raise DependencyError(f"{node.name}: install could not run: {exc}") from exc
-        if result.returncode != 0:
-            raise DependencyError(f"{node.name}: install failed (exit code {result.returncode}).")
-    check_dependencies(index, names, utils_path)
+            if not node.script.is_file():
+                raise DependencyError(f"{node.name}: dependency script not found: {node.script}")
+            try:
+                result = _run_script(node, "install", utils_path, capture=False)
+            except OSError as exc:
+                raise DependencyError(f"{node.name}: install could not run: {exc}") from exc
+            if result.returncode != 0:
+                raise DependencyError(
+                    f"{node.name}: install failed (exit code {result.returncode})."
+                )
+        except DependencyError as exc:
+            if not keep_going:
+                raise
+            failures.append(str(exc))
+    try:
+        check_dependencies(index, names, utils_path)
+    except DependencyError as exc:
+        if failures:
+            raise DependencyError("\n".join(["Failed installs:", *failures, str(exc)])) from exc
+        raise
+    if failures:
+        raise DependencyError("\n".join(["Failed installs:", *failures]))
