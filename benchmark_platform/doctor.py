@@ -5,16 +5,15 @@ commands (they do their own checks) and knows no module in particular."""
 from __future__ import annotations
 
 import importlib
-import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from benchmark_platform import settings
 from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.dependencies import DependencyError, node_problems, resolve
-from benchmark_platform.discovery import MODULE_PATHS_ENV, UTILS_PATH_ENV, DiscoveryError, discover
-from benchmark_platform.environment import ENV_FILE_ENV
+from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.runner import CORE_COMMANDS, utils_path
 
 OK = "[OK]  "
@@ -66,11 +65,17 @@ def run_doctor() -> None:
 
     _section("Repository")
     print(f"{INFO}platform: {repo_root}")
-    env_file = os.environ.get(ENV_FILE_ENV) or "not set (environment unchanged)"
-    print(f"{INFO}{ENV_FILE_ENV}: {env_file}")
-    for variable in (MODULE_PATHS_ENV, UTILS_PATH_ENV):
-        value = os.environ.get(variable, "")
-        print(f"{INFO if value else KO}{variable}: {value or 'not set (see bootstrap.sh)'}")
+    print(f"{INFO}configuration file: {settings.config_file()}")
+    for key in settings.VARIABLES:
+        try:
+            setting = settings.describe(key)
+        except settings.SettingsError as exc:
+            print(f"{KO}{exc}")
+            break
+        value = setting.value
+        shown = ", ".join(value) if isinstance(value, list) else value
+        missing = KO if value is None and key != "env" else INFO
+        print(f"{missing}{key}: {shown or 'not set'} ({setting.source})")
     branch = _output(["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"])
     commit = _output(["git", "-C", str(repo_root), "rev-parse", "--short", "HEAD"])
     if branch and commit:

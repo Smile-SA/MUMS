@@ -1,6 +1,6 @@
-"""BENCHMARK_ENV: an environment for everything the platform runs.
+"""Setting `env` (BENCHMARK_ENV): an environment for everything the platform runs.
 
-If BENCHMARK_ENV names a file, the core sources it at startup (`source <file>`,
+If the setting names a file, the core sources it at startup (`source <file>`,
 in bash) and takes the resulting environment as its own: every command it then
 runs (modules' actions, dependency scripts, its own checks of the commands
 modules need) sees that environment. A Python venv's `bin/activate` is one such
@@ -15,6 +15,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from benchmark_platform.settings import get
+
 ENV_FILE_ENV = "BENCHMARK_ENV"
 
 
@@ -25,7 +27,7 @@ class EnvironmentFileError(RuntimeError):
 def load_environment() -> Path | None:
     """Source BENCHMARK_ENV (if set) and apply the resulting environment to this
     process. Returns the sourced file, or None."""
-    value = os.environ.get(ENV_FILE_ENV, "").strip()
+    value = get("env").value
     if not value:
         return None
     path = Path(value).expanduser().resolve()

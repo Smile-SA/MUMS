@@ -105,3 +105,10 @@ def platform(tmp_path, monkeypatch):
 
     p.write_scenario, p.read_calls = write_scenario, read_calls
     return p
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config(tmp_path, monkeypatch):
+    """Never read the user's own configuration file in tests."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+    monkeypatch.delenv("BENCHMARK_CONFIG", raising=False)

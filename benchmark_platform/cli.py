@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
+from benchmark_platform import settings
 from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
 from benchmark_platform.config import ConfigError, load_config
 from benchmark_platform.dependencies import (
@@ -12,7 +14,6 @@ from benchmark_platform.dependencies import (
 )
 from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.doctor import run_doctor
-from benchmark_platform.environment import EnvironmentFileError, load_environment
 from benchmark_platform.modules import ModuleError
 from benchmark_platform.runner import prepare_scenario, run_scenario, utils_path
 
@@ -74,18 +75,83 @@ def build_parser() -> argparse.ArgumentParser:
     )
     env_clean_all.add_argument("-v", "--verbose", action="store_true", help="Show module output.")
 
+    config = subparsers.add_parser(
+        "config",
+        help="Show or change the settings: module_paths, utils_path, env "
+        "(configuration file; an environment variable takes precedence).",
+    )
+    config_commands = config.add_subparsers(dest="config_command")
+    config_commands.add_parser("show", help="Each setting, its value and where it comes from.")
+    config_commands.add_parser("path", help="The configuration file.")
+    config_get = config_commands.add_parser("get", help="The value of one setting.")
+    config_get.add_argument("key", choices=list(settings.VARIABLES))
+    config_set = config_commands.add_parser("set", help="Write a setting to the file.")
+    config_set.add_argument("key", choices=list(settings.VARIABLES))
+    config_set.add_argument("values", nargs="+", help="Value (module_paths: one or more).")
+    config_unset = config_commands.add_parser("unset", help="Remove a setting from the file.")
+    config_unset.add_argument("key", choices=list(settings.VARIABLES))
+
+    exec_parser = subparsers.add_parser(
+        "exec",
+        help="Run a command in the platform's environment (settings applied), "
+        "e.g. benchmark-platform exec -- python3 -m pytest.",
+    )
+    exec_parser.add_argument("command_line", nargs=argparse.REMAINDER)
+
     return parser
+
+
+def _config_command(args: argparse.Namespace) -> int:
+    command = args.config_command or "show"
+    if command == "path":
+        print(settings.config_file())
+    elif command == "get":
+        value = settings.get(args.key).value
+        if value is None:
+            return 1
+        print(os.pathsep.join(value) if isinstance(value, list) else value)
+    elif command == "set":
+        path = settings.set_value(args.key, args.values)
+        print(f"{args.key} written to {path}")
+    elif command == "unset":
+        path = settings.unset(args.key)
+        print(f"{args.key} removed from {path}")
+    else:
+        print(f"Configuration file: {settings.config_file()}")
+        for key in settings.VARIABLES:
+            setting = settings.get(key)
+            value = setting.value
+            shown = ", ".join(value) if isinstance(value, list) else (value or "-")
+            print(f"  {key:<13} {shown}   ({setting.source})")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "config":
+        try:
+            return _config_command(args)
+        except settings.SettingsError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 1
+
     try:
-        load_environment()
-    except EnvironmentFileError as exc:
+        settings.apply()
+    except settings.SettingsError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
+
+    if args.command == "exec":
+        command = args.command_line[1:] if args.command_line[:1] == ["--"] else args.command_line
+        if not command:
+            parser.error("exec: give a command, e.g. benchmark-platform exec -- python3 -m pytest")
+        try:
+            os.execvp(command[0], command)
+        except FileNotFoundError:
+            print(f"[ERROR] command not found: {command[0]}", file=sys.stderr)
+            return 127
 
     try:
         if args.command == "deps":

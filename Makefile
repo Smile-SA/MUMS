@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
-# Agnostic of any virtual environment: commands are taken from PATH. Activate a
-# venv first if the platform is installed in one (source .venv/bin/activate).
+# Agnostic of any virtual environment: the platform's CLI applies its settings
+# itself; tools that need its environment run through `benchmark-platform exec`.
 PYTHON    ?= python3
 BENCHMARK ?= benchmark-platform
 VENV_DIR  ?= .venv
@@ -16,7 +16,7 @@ CONFIG    ?= configs/smoke-test.yaml
 
 help:
 	@echo "Benchmark platform developer commands"
-	@echo "(commands are taken from PATH: activate the platform's venv first if it has one)"
+	@echo "(lint and test run in the platform's environment: benchmark-platform exec)"
 	@echo
 	@echo "  SETUP"
 	@echo "    make setup-core                    Create .venv and install core runtime dependencies"
@@ -48,8 +48,8 @@ help:
 
 # The platform's CLI must be on PATH (installed, and its venv activated if any).
 require-cli:
-	@command -v $(BENCHMARK) >/dev/null || { echo "$(BENCHMARK) not found on PATH: install the platform" \
-		"(make setup-core), and activate its venv if it has one (source $(VENV_DIR)/bin/activate)." >&2; exit 1; }
+	@command -v $(BENCHMARK) >/dev/null || { echo "$(BENCHMARK) not found: install the" \
+		"platform (make setup-core), then open a new terminal." >&2; exit 1; }
 
 # --- Setup ---
 
@@ -93,8 +93,8 @@ check-python:
 		benchmark_platform tests modules utils
 	@echo "Python syntax OK."
 
-lint:
-	$(PYTHON) -m ruff check \
+lint: require-cli
+	$(BENCHMARK) exec -- $(PYTHON) -m ruff check \
 		--exclude utils/helm/chart-repository \
 		benchmark_platform tests modules utils
 
@@ -106,8 +106,8 @@ validate-config: require-cli
 smoke-test: require-cli
 	$(BENCHMARK) run configs/smoke-test.yaml $(ARGS)
 
-test:
-	$(PYTHON) -m pytest
+test: require-cli
+	$(BENCHMARK) exec -- $(PYTHON) -m pytest
 
 # --- Maintenance ---
 

@@ -70,7 +70,7 @@ def test_discovery_several_roots_and_duplicates(tmp_path, monkeypatch):
 @pytest.mark.parametrize("variable", ["BENCHMARK_MODULE_PATHS", "BENCHMARK_UTILS_PATH"])
 def test_variables_required(monkeypatch, variable):
     monkeypatch.delenv(variable)
-    with pytest.raises(DiscoveryError, match=f"{variable} is not set"):
+    with pytest.raises(DiscoveryError, match="is not set"):
         discover()
 
 

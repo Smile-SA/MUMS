@@ -2,14 +2,13 @@
 
 Modules and utils are designated by their `name`, never by path.
 
-- Modules (`module.yaml`) are searched in every directory listed in
-  BENCHMARK_MODULE_PATHS (separated by ':', like PATH).
-- Utils (`util.yaml`) are searched in the directory
-  BENCHMARK_UTILS_PATH, the one modules also receive to call them.
+- Modules (`module.yaml`) are searched in the directories of
+  BENCHMARK_MODULE_PATHS (separated by ':').
+- Utils (`util.yaml`) are searched in the directory BENCHMARK_UTILS_PATH, which
+  modules also receive to call them.
 
-These two variables are the only sources of truth on where modules and utils
-are: the core knows no directory of its own. They are set when the platform is
-installed (see bootstrap.sh).
+Both come from the settings (settings.py, which exports them at the start of
+every command): the core knows no directory of its own.
 
 The two searches are independent: modules are only `module.yaml` files (wherever
 they are, the utils directory included), utils only `util.yaml` files of the
@@ -64,30 +63,30 @@ class ModuleIndex:
         raise DiscoveryError(
             f"Unknown module or util '{name}'. Known modules: {', '.join(sorted(self.modules))}. "
             f"Known utils: {', '.join(sorted(self.utils)) or 'none'}. Modules are searched in "
-            f"{MODULE_PATHS_ENV}, utils in {UTILS_PATH_ENV}."
+            "module_paths, utils in utils_path (see 'benchmark-platform config')."
         )
 
 
-def _required_env(name: str) -> str:
-    value = os.environ.get(name, "").strip()
+def _required(variable: str) -> str:
+    value = os.environ.get(variable, "").strip()
     if not value:
         raise DiscoveryError(
-            f"{name} is not set. It is set when the platform is installed (bootstrap.sh "
-            "tells what to export); export it, e.g. in your shell's profile."
+            f"{variable} is not set: run benchmark_platform/bootstrap.sh, or "
+            "'benchmark-platform config set …'."
         )
     return value
 
 
 def utils_path() -> Path:
     """The utils directory (BENCHMARK_UTILS_PATH)."""
-    return Path(_required_env(UTILS_PATH_ENV)).expanduser().resolve()
+    return Path(_required(UTILS_PATH_ENV)).expanduser().resolve()
 
 
 def module_roots() -> list[Path]:
     """The directories where modules are searched (BENCHMARK_MODULE_PATHS)."""
     return [
         Path(entry).expanduser().resolve()
-        for entry in _required_env(MODULE_PATHS_ENV).split(os.pathsep)
+        for entry in _required(MODULE_PATHS_ENV).split(os.pathsep)
         if entry.strip()
     ]
 
