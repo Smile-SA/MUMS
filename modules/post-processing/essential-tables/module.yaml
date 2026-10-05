@@ -1,0 +1,11 @@
+name: essential-tables
+type: post-processing
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  run: "<data_dir>"
+
+dependencies:
+  commands:
+    - python3

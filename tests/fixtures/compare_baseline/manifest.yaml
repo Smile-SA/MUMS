@@ -1,7 +1,0 @@
-run_id: compare-baseline-fixture
-scenario: basic-online-boutique
-status: completed
-modules:
-  optimizer:
-    name: optimizers.baseline
-    type: optimizer

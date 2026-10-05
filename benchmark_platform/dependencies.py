@@ -1,11 +1,11 @@
 """Module dependencies: installation and verification.
 
-A module (or util) declares its dependencies in `module.yaml`:
+A module declares its dependencies in `module.yaml`, a util in `util.yaml`:
 
     dependencies:
       entrypoint: dependencies.sh   # optional: the module's dependency script
       commands: [kubectl, helm]     # must be on PATH
-      utils: [utils.helm]           # utils, by name
+      utils: [helm]                 # utils, by name
 
 The dependency script takes a single argument:
 
@@ -19,9 +19,8 @@ The dependency script takes a single argument:
 The core walks a module and its utils recursively (utils first, each once).
 Installation runs every `install`, then the full check, so a failed
 installation shows up immediately. The script runs from the module directory,
-with the directory of the interpreter running the platform first on PATH (so
-that `python3 -m pip` installs into the platform's environment), and with
-BENCHMARK_UTILS_PATH pointing to the platform's `utils/` directory.
+in the caller's environment unchanged (the same as the modules' actions: the
+core does not assume any virtual environment), plus BENCHMARK_UTILS_PATH.
 """
 
 from __future__ import annotations
@@ -29,18 +28,17 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from benchmark_platform.discovery import DiscoveryError, ModuleIndex
-
-UTILS_PATH_ENV = "BENCHMARK_UTILS_PATH"
+from benchmark_platform.discovery import UTILS_PATH_ENV, DiscoveryError, ModuleIndex
+from benchmark_platform.warn import warn_unknown
 
 DEPENDENCY_KEYS = frozenset({"entrypoint", "commands", "utils"})
+UTIL_KEYS = frozenset({"name", "dependencies", "description"})
 _CHECK_TIMEOUT_SECONDS = 60
 
 
@@ -55,11 +53,7 @@ def dependency_problems(dependencies: Any) -> list[str]:
     if not isinstance(dependencies, dict):
         return ["'dependencies' must be a mapping."]
     problems: list[str] = []
-    unknown = sorted(set(dependencies) - DEPENDENCY_KEYS)
-    if unknown:
-        problems.append(
-            f"unknown key(s): {', '.join(unknown)} (allowed: {', '.join(sorted(DEPENDENCY_KEYS))})."
-        )
+    warn_unknown(dependencies, DEPENDENCY_KEYS, "'dependencies'")
     entrypoint = dependencies.get("entrypoint")
     if entrypoint is not None and (not isinstance(entrypoint, str) or not entrypoint.strip()):
         problems.append("'entrypoint' must be a non-empty string.")
@@ -81,12 +75,15 @@ class Node:
 
 
 def _read_dependencies(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load((path / "module.yaml").read_text(encoding="utf-8")) or {}
+    descriptor = path / "module.yaml" if (path / "module.yaml").is_file() else path / "util.yaml"
+    data = yaml.safe_load(descriptor.read_text(encoding="utf-8")) or {}
+    if descriptor.name == "util.yaml" and isinstance(data, dict):
+        warn_unknown(data, UTIL_KEYS, str(descriptor))
     dependencies = data.get("dependencies") if isinstance(data, dict) else None
     problems = dependency_problems(dependencies)
     if problems:
         raise DependencyError(
-            f"Invalid dependencies in {path / 'module.yaml'}: " + " ".join(problems)
+            f"Invalid dependencies in {descriptor}: " + " ".join(problems)
         )
     return dependencies or {}
 
@@ -132,8 +129,9 @@ def resolve(index: ModuleIndex, names: list[str]) -> list[Node]:
 
 
 def _script_env(utils_path: Path) -> dict[str, str]:
+    # Same environment as the modules' actions (the caller's, unchanged), plus
+    # BENCHMARK_UTILS_PATH: a check sees exactly what an action will see.
     env = os.environ.copy()
-    env["PATH"] = f"{Path(sys.executable).parent}{os.pathsep}{env.get('PATH', '')}"
     env[UTILS_PATH_ENV] = str(utils_path)
     return env
 
@@ -195,18 +193,37 @@ def check_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -
         raise DependencyError("\n".join(lines))
 
 
-def install_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -> None:
-    """Run every `install` (dependencies first), then the full check."""
+def install_dependencies(
+    index: ModuleIndex, names: list[str], utils_path: Path, *, keep_going: bool = False
+) -> None:
+    """Run every `install` (dependencies first), then the full check. With
+    keep_going, a failed install does not stop the others: every failure is
+    reported at the end, with the check of everything."""
+    failures: list[str] = []
     for node in resolve(index, names):
         if node.script is None:
             continue
-        if not node.script.is_file():
-            raise DependencyError(f"{node.name}: dependency script not found: {node.script}")
         print(f"=== Installing dependencies: {node.name} ===", flush=True)
         try:
-            result = _run_script(node, "install", utils_path, capture=False)
-        except OSError as exc:
-            raise DependencyError(f"{node.name}: install could not run: {exc}") from exc
-        if result.returncode != 0:
-            raise DependencyError(f"{node.name}: install failed (exit code {result.returncode}).")
-    check_dependencies(index, names, utils_path)
+            if not node.script.is_file():
+                raise DependencyError(f"{node.name}: dependency script not found: {node.script}")
+            try:
+                result = _run_script(node, "install", utils_path, capture=False)
+            except OSError as exc:
+                raise DependencyError(f"{node.name}: install could not run: {exc}") from exc
+            if result.returncode != 0:
+                raise DependencyError(
+                    f"{node.name}: install failed (exit code {result.returncode})."
+                )
+        except DependencyError as exc:
+            if not keep_going:
+                raise
+            failures.append(str(exc))
+    try:
+        check_dependencies(index, names, utils_path)
+    except DependencyError as exc:
+        if failures:
+            raise DependencyError("\n".join(["Failed installs:", *failures, str(exc)])) from exc
+        raise
+    if failures:
+        raise DependencyError("\n".join(["Failed installs:", *failures]))

@@ -1,7 +1,0 @@
-run_id: compare-optimized-fixture
-scenario: hots-online-boutique
-status: completed
-modules:
-  optimizer:
-    name: optimizers.hots
-    type: optimizer

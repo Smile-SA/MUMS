@@ -41,15 +41,13 @@ def test_contract_defaults_to_1(tmp_path):
         ({"lifecycle": {}}, "'lifecycle' must be a non-empty mapping"),
         ({"lifecycle": {"stop": "<kubeconfig>"}}, "required action 'start'"),
         (
-            {"lifecycle": {"start": "<kubeconfig> <seed> <output_dir>", "restart": "<x>"}},
+            {"lifecycle": {"start": "<kubeconfig> <seed> <data_dir>", "restart": "<x>"}},
             "'restart' is not part of the 'traffic' contract",
         ),
         ({"lifecycle": {"start": "<kubeconfig>"}}, "must be declared as"),
-        ({"args": {"log_dir": {"type": "string", "default": "x"}}}, "provided by the runner"),
-        ({"args": {"x": {"default": 1}}}, "must declare a type"),
-        ({"args": {"x": {"type": "positive_int", "default": "a"}}}, "is not of type"),
-        ({"dependencies": {"command": ["x"]}}, "unknown key(s): command"),
-        ({"dependencies": {"checks": ["x"]}}, "unknown key(s): checks"),
+        ({"args": {"log_dir": {"type": "string", "required": True}}}, "provided by the runner"),
+        ({"args": {"x": {"description": "no type"}}}, "must declare a type"),
+        ({"args": {"x": {"type": "string", "description": 3}}}, "'description' of 'x'"),
     ],
 )
 def test_invalid_descriptor(tmp_path, overrides, message):
@@ -72,3 +70,18 @@ def test_command_signature(tmp_path):
     assert command[1:] == ["start", "kc", "42", "out", "--shape", "day"]
     with pytest.raises(ModuleError, match="expects"):
         module.command("start", ("kc",))
+
+
+def test_unknown_keys_only_warn(tmp_path, capsys):
+    make_module(
+        tmp_path,
+        "t",
+        "traffic",
+        args={"x": {"type": "positive_int", "default": 5, "colour": "red"}},
+        dependencies={"checks": ["x"]},
+        extra_top_level=1,
+    )
+    load_module_at(tmp_path / "t")  # loads: unknown fields are ignored
+    err = capsys.readouterr().err
+    assert "'default' of argument 'x'" in err
+    assert "colour" in err and "checks" in err and "extra_top_level" in err

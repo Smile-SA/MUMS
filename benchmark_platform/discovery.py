@@ -1,26 +1,33 @@
-"""Module discovery: find a module (or util) from its name.
+"""Discovery: find a module or a util from its name.
 
-Modules are designated by the `name` of their `module.yaml`, never by path.
-Discovery scans a list of root directories for `module.yaml` files and builds a
-`name -> module directory` index:
+Modules and utils are designated by their `name`, never by path.
 
-- the platform repository itself;
-- every directory listed in BENCHMARK_MODULE_PATHS (separated by ':', like
-  PATH), for modules that live elsewhere.
+- Modules (`module.yaml`) are searched in the directories of
+  BENCHMARK_MODULE_PATHS (separated by ':').
+- Utils (`util.yaml`) are searched in the directory BENCHMARK_UTILS_PATH, which
+  modules also receive to call them.
 
-A module's own subdirectories are not scanned (a module does not contain other
-modules), and two modules with the same name are an error.
+Both come from the settings (settings.py, which exports them at the start of
+every command): the core knows no directory of its own.
+
+The two searches are independent: modules are only `module.yaml` files (wherever
+they are, the utils directory included), utils only `util.yaml` files of the
+utils directory (a `util.yaml` anywhere else is ignored).
+
+A module's or util's own subdirectories are not scanned (it does not contain
+others), and two of them with the same name are an error.
 """
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
 
 MODULE_PATHS_ENV = "BENCHMARK_MODULE_PATHS"
+UTILS_PATH_ENV = "BENCHMARK_UTILS_PATH"
 
 # Directories never scanned: tooling, outputs, downloaded charts, and the parts
 # of the platform repository that are not modules.
@@ -46,42 +53,74 @@ class DiscoveryError(ValueError):
 @dataclass(frozen=True)
 class ModuleIndex:
     modules: dict[str, Path]
+    utils: dict[str, Path] = field(default_factory=dict)
 
     def path(self, name: str) -> Path:
-        if name not in self.modules:
-            raise DiscoveryError(
-                f"Unknown module '{name}'. Known modules: {', '.join(sorted(self.modules))}. "
-                f"Modules outside the platform repository are found through {MODULE_PATHS_ENV}."
-            )
-        return self.modules[name]
+        if name in self.modules:
+            return self.modules[name]
+        if name in self.utils:
+            return self.utils[name]
+        raise DiscoveryError(
+            f"Unknown module or util '{name}'. Known modules: {', '.join(sorted(self.modules))}. "
+            f"Known utils: {', '.join(sorted(self.utils)) or 'none'}. Modules are searched in "
+            "module_paths, utils in utils_path (see 'benchmark-platform config')."
+        )
 
 
-def module_roots(repo_root: Path) -> list[Path]:
-    roots = [repo_root.resolve()]
-    for entry in os.environ.get(MODULE_PATHS_ENV, "").split(os.pathsep):
-        if entry.strip():
-            roots.append(Path(entry).expanduser().resolve())
-    return roots
+def _required(variable: str) -> str:
+    value = os.environ.get(variable, "").strip()
+    if not value:
+        raise DiscoveryError(
+            f"{variable} is not set: run benchmark_platform/bootstrap.sh, or "
+            "'benchmark-platform config set …'."
+        )
+    return value
 
 
-def discover(repo_root: Path) -> ModuleIndex:
-    found: dict[str, Path] = {}
-    for root in module_roots(repo_root):
+def utils_path() -> Path:
+    """The utils directory (BENCHMARK_UTILS_PATH)."""
+    return Path(_required(UTILS_PATH_ENV)).expanduser().resolve()
+
+
+def module_roots() -> list[Path]:
+    """The directories where modules are searched (BENCHMARK_MODULE_PATHS)."""
+    return [
+        Path(entry).expanduser().resolve()
+        for entry in _required(MODULE_PATHS_ENV).split(os.pathsep)
+        if entry.strip()
+    ]
+
+
+def discover() -> ModuleIndex:
+    modules: dict[str, Path] = {}
+    for root in module_roots():
         if not root.is_dir():
-            raise DiscoveryError(f"Module root does not exist: {root}")
-        for dirpath, dirnames, filenames in os.walk(root):
-            current = Path(dirpath)
-            if "module.yaml" in filenames:
-                dirnames[:] = []  # a module does not contain other modules
-                name = _module_name(current / "module.yaml")
-                if name in found and found[name] != current:
-                    raise DiscoveryError(
-                        f"Two modules are named '{name}': {found[name]} and {current}."
-                    )
-                found[name] = current
-                continue
-            dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in _SKIPPED_DIRS]
-    return ModuleIndex(found)
+            raise DiscoveryError(f"Module directory does not exist ({MODULE_PATHS_ENV}): {root}")
+        _scan(root, "module.yaml", modules)
+    utils: dict[str, Path] = {}
+    utils_dir = utils_path()
+    if not utils_dir.is_dir():
+        raise DiscoveryError(f"Utils directory does not exist ({UTILS_PATH_ENV}): {utils_dir}")
+    _scan(utils_dir, "util.yaml", utils)
+    for name, path in utils.items():
+        if name in modules:
+            raise DiscoveryError(
+                f"A module and a util are both named '{name}': {modules[name]} and {path}."
+            )
+    return ModuleIndex(modules, utils)
+
+
+def _scan(root: Path, descriptor: str, found: dict[str, Path]) -> None:
+    for dirpath, dirnames, filenames in os.walk(root):
+        current = Path(dirpath)
+        if descriptor in filenames:
+            dirnames[:] = []  # a module or util does not contain others
+            name = _module_name(current / descriptor)
+            if name in found and found[name] != current:
+                raise DiscoveryError(f"Two are named '{name}': {found[name]} and {current}.")
+            found[name] = current
+            continue
+        dirnames[:] = [d for d in dirnames if not d.startswith(".") and d not in _SKIPPED_DIRS]
 
 
 def _module_name(descriptor: Path) -> str:

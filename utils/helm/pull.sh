@@ -1,42 +1,33 @@
 #!/bin/bash
-# Usage: ./pull.sh <repo_name> <repo_url> <chart> <version>
-#
-# If repo_name is "oci", the `helm repo add` step is skipped and repo_url is
-# used directly as the chart source. The chart argument is then ignored.
-set -e
+# Fetches a Helm chart at a given version into chart-repository/<chart>/<version>/.
+# Does nothing if that version is already there (safe to run again).
+# Usage: ./pull.sh <repo_url> <chart> <version>
+#   e.g. ./pull.sh https://prometheus-community.github.io/helm-charts prometheus 28.13.0
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHART_REPOSITORY="$SCRIPT_DIR/chart-repository"
 
-REPO_NAME=$1
-REPO_URL=$2
-CHART=$3
-VERSION=$4
+REPO_URL="${1:-}"
+CHART="${2:-}"
+VERSION="${3:-}"
 
-if [ -z "$REPO_NAME" ] || [ -z "$REPO_URL" ] || [ -z "$CHART" ] || [ -z "$VERSION" ]; then
-    echo "Usage: $0 <repo_name> <repo_url> <chart> <version>" >&2
+if [ -z "$REPO_URL" ] || [ -z "$CHART" ] || [ -z "$VERSION" ]; then
+    echo "Usage: $0 <repo_url> <chart> <version>" >&2
     exit 1
 fi
 
-mkdir -p "$CHART_REPOSITORY"
-
-if [[ "$REPO_NAME" == oci ]]; then
-    # OCI mode: REPO_URL is the full chart URL; REPO_NAME and CHART are ignored.
-    echo "=== Pulling OCI chart: $REPO_URL version $VERSION ===" >&2
-    helm pull "$REPO_URL" \
-        --version "$VERSION" \
-        --destination "$CHART_REPOSITORY" \
-        --untar
-else
-    echo "=== Adding Helm repo: $REPO_NAME ===" >&2
-    helm repo add "$REPO_NAME" "$REPO_URL"
-    helm repo update "$REPO_NAME"
-
-    echo "=== Pulling chart: $CHART version $VERSION ===" >&2
-    helm pull "$CHART" \
-        --version "$VERSION" \
-        --destination "$CHART_REPOSITORY" \
-        --untar
+DEST="$CHART_REPOSITORY/$CHART/$VERSION"
+if [ -d "$DEST" ]; then
+    echo "=== Chart ${CHART} ${VERSION} already present ===" >&2
+    exit 0
 fi
 
-echo "=== Chart available in $CHART_REPOSITORY ===" >&2
+echo "=== Pulling chart: ${CHART} ${VERSION} (${REPO_URL}) ===" >&2
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+# --repo: no `helm repo add`, so nothing is changed in the user's Helm configuration.
+helm pull "$CHART" --repo "$REPO_URL" --version "$VERSION" --untar --untardir "$TMP"
+mkdir -p "$CHART_REPOSITORY/$CHART"
+mv "$TMP/$CHART" "$DEST"
+echo "=== Chart available at $DEST ===" >&2

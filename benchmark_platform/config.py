@@ -6,6 +6,16 @@ from typing import Any
 
 import yaml
 
+from benchmark_platform.warn import warn_unknown
+
+# Fields the core knows; any other is ignored with a warning.
+ROOT_KEYS = frozenset(
+    {"version", "scenario", "environment", "stack", "observability", "traffic", "optimizer",
+     "post-processing", "output"}
+)
+SCENARIO_KEYS = frozenset({"name", "seed", "duration_seconds", "description"})
+OUTPUT_KEYS = frozenset({"root_directory", "cleanup_environment"})
+
 
 class ConfigError(ValueError):
     pass
@@ -78,6 +88,23 @@ def _require_positive_int(value: Any, field: str) -> int:
     return parsed
 
 
+def post_processing_sections(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """The scenario's post-processing modules, in execution order. The section is
+    a list of modules (each one `module:` plus its arguments), or a single
+    module (a list of one)."""
+    if "post-processing" not in raw:
+        return []
+    value = raw["post-processing"]
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list):
+        return [
+            _require_mapping(item, f"post-processing[{index}]")
+            for index, item in enumerate(value)
+        ]
+    raise ConfigError("Section 'post-processing' must be a module or a list of modules.")
+
+
 def _validate_component(section: dict[str, Any], section_name: str) -> None:
     # The section name is the module type; `module` points to the module
     # directory, whose module.yaml must declare that type (checked on load).
@@ -97,6 +124,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
         raw = yaml.safe_load(stream)
 
     raw = _require_mapping(raw, "root")
+    warn_unknown(raw, ROOT_KEYS, f"scenario {config_path.name}")
 
     version = _require_field(raw, "root", "version")
     if int(version) != 1:
@@ -109,8 +137,10 @@ def load_config(path: str | Path) -> ScenarioConfig:
     traffic = _require_section(raw, "traffic")
     optimizer = _require_section(raw, "optimizer")
     output = _require_section(raw, "output")
-    post_processing = _optional_section(raw, "post-processing")
+    post_processing = post_processing_sections(raw)
 
+    warn_unknown(scenario, SCENARIO_KEYS, f"'scenario' of {config_path.name}")
+    warn_unknown(output, OUTPUT_KEYS, f"'output' of {config_path.name}")
     _require_non_empty_string(
         _require_field(scenario, "scenario", "name"),
         "scenario.name",
@@ -132,8 +162,8 @@ def load_config(path: str | Path) -> ScenarioConfig:
     _validate_component(traffic, "traffic")
     _validate_component(optimizer, "optimizer")
 
-    if post_processing:
-        _validate_component(post_processing, "post-processing")
+    for index, section in enumerate(post_processing):
+        _validate_component(section, f"post-processing[{index}]")
 
     _require_non_empty_string(
         _require_field(output, "output", "root_directory"),

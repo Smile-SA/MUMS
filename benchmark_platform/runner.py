@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from benchmark_platform.cleanup import EnvironmentRegistry
-from benchmark_platform.config import ScenarioConfig
+from benchmark_platform.config import ScenarioConfig, post_processing_sections
 from benchmark_platform.dependencies import UTILS_PATH_ENV, DependencyError, check_dependencies
-from benchmark_platform.discovery import ModuleIndex, discover
+from benchmark_platform.discovery import ModuleIndex, discover, utils_path
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
@@ -88,18 +88,24 @@ class Component:
     options: tuple[str, ...]
 
 
+def scenario_modules(config: ScenarioConfig) -> list[str]:
+    """Names of the modules a scenario uses, in its order."""
+    names = [str(config.raw[role]["module"]) for role in REQUIRED_COMPONENTS]
+    names += [str(section["module"]) for section in post_processing_sections(config.raw)]
+    return list(dict.fromkeys(names))
+
+
 def load_component(index: ModuleIndex, raw: dict[str, Any], role: str) -> Component:
-    section = raw[role]
+    return load_section(index, raw[role], role)
+
+
+def load_section(index: ModuleIndex, section: dict[str, Any], role: str) -> Component:
     module = load_module(index, str(section["module"]), expected_type=role)
     values = resolve_args(section, module.arg_schema, role, envelope_keys=ENVELOPE_KEYS)
     return Component(role=role, module=module, options=tuple(to_cli_args(values)))
 
 
-def _collect_kubernetes_state(
-    kubeconfig: str,
-    paths: RunPaths,
-    repo_root: Path,
-) -> None:
+def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths) -> None:
     commands = {
         "nodes.yaml": [
             "kubectl",
@@ -156,7 +162,6 @@ def _collect_kubernetes_state(
         with output_path.open("w", encoding="utf-8") as stream:
             subprocess.run(
                 command,
-                cwd=str(repo_root),
                 text=True,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
@@ -224,6 +229,17 @@ def _run_step(
         raise
 
 
+def _write_run_window(data_dir: Path, start: float, end: float) -> None:
+    """Standard data `run-window`: when the run's wait started and ended, i.e. the
+    window in which every module was running (Unix seconds, with decimals). Written even if
+    the wait is interrupted (then `end` is the interruption)."""
+    window_dir = data_dir / "run-window"
+    window_dir.mkdir(parents=True, exist_ok=True)
+    (window_dir / "run-window.csv").write_text(
+        f"start,end\n{start:.3f},{end:.3f}\n", encoding="utf-8"
+    )
+
+
 class _Steps:
     """Calls module actions and records one manifest event per call."""
 
@@ -285,7 +301,11 @@ class _Steps:
         with self._event("run.wait", duration_seconds=duration_seconds):
             if not self.quiet:
                 _print_step("run", "wait", "...", verbose=self.verbose)
-            _sleep_with_interrupt(duration_seconds)
+            start = time.time()
+            try:
+                _sleep_with_interrupt(duration_seconds)
+            finally:
+                _write_run_window(self.paths.data, start, time.time())
             if not self.quiet:
                 _print_step("run", "wait", "✓", verbose=self.verbose)
                 print()
@@ -324,23 +344,17 @@ def _sleep_with_interrupt(duration_seconds: int) -> None:
         time.sleep(min(1.0, end - time.monotonic()))
 
 
-def utils_path(repo_root: Path) -> Path:
-    """The platform's `utils/` directory, given to modules as BENCHMARK_UTILS_PATH."""
-    return (repo_root / "utils").resolve()
-
-
 @dataclass(frozen=True)
 class PreparedScenario:
     components: dict[str, Component]
-    post_processing: Component | None
+    post_processing: tuple[Component, ...]  # in execution order
 
     @property
     def all(self) -> list[Component]:
-        optional = [self.post_processing] if self.post_processing else []
-        return [*self.components.values(), *optional]
+        return [*self.components.values(), *self.post_processing]
 
 
-def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScenario:
+def prepare_scenario(config: ScenarioConfig) -> PreparedScenario:
     """Load and validate every module of the scenario and check their
     dependencies. Creates nothing: used by both `validate` and `run`."""
     missing = [c for c in CORE_COMMANDS if shutil.which(c) is None]
@@ -350,26 +364,26 @@ def prepare_scenario(config: ScenarioConfig, *, repo_root: Path) -> PreparedScen
             f"(install them manually)."
         )
     raw = config.raw
-    index = discover(repo_root)
+    index = discover()
     components = {role: load_component(index, raw, role) for role in REQUIRED_COMPONENTS}
-    post_processing = (
-        load_component(index, raw, "post-processing") if "post-processing" in raw else None
+    post_processing = tuple(
+        load_section(index, section, "post-processing")
+        for section in post_processing_sections(raw)
     )
     prepared = PreparedScenario(components=components, post_processing=post_processing)
-    check_dependencies(index, [c.module.name for c in prepared.all], utils_path(repo_root))
+    check_dependencies(index, [c.module.name for c in prepared.all], utils_path())
     return prepared
 
 
 def run_scenario(
     config: ScenarioConfig,
     *,
-    repo_root: Path,
     verbose: bool = False,
     quiet: bool = False,
     registry: EnvironmentRegistry | None = None,
 ) -> Path:
     # Load and validate every module, and check dependencies, before creating anything.
-    prepared = prepare_scenario(config, repo_root=repo_root)
+    prepared = prepare_scenario(config)
     components = prepared.components
     post_processing = prepared.post_processing
 
@@ -392,7 +406,7 @@ def run_scenario(
             "config": str(paths.config),
             "modules": {c.role: c.module.as_manifest_record() for c in prepared.all},
             "paths": {
-                "outputs": str(paths.outputs),
+                "data": str(paths.data),
                 "extras": str(paths.extras),
                 "logs": str(paths.logs),
                 "runtime": str(paths.runtime),
@@ -405,7 +419,7 @@ def run_scenario(
         print(f"Run: {paths.root}")
         print(f"Environment id: {environment_id}")
 
-    steps = _Steps(paths, manifest, utils_path=utils_path(repo_root), verbose=verbose, quiet=quiet)
+    steps = _Steps(paths, manifest, utils_path=utils_path(), verbose=verbose, quiet=quiet)
     environment = components["environment"]
     kubeconfig: str | None = None
     launched: list[Component] = []
@@ -415,7 +429,7 @@ def run_scenario(
     # unregistered only once destroy succeeds.
     registry = registry or EnvironmentRegistry()
     registry.register(
-        environment_id, environment.module, environment.options, paths.root, utils_path(repo_root)
+        environment_id, environment.module, environment.options, paths.root, utils_path()
     )
 
     try:
@@ -443,16 +457,19 @@ def run_scenario(
         # its stop action also runs if the launch fails half-way (stop actions
         # must handle dirty states).
         launched.append(components["observability"])
-        steps.call(components["observability"], "start", kubeconfig, paths.observability)
+        steps.call(components["observability"], "start", kubeconfig, paths.data)
 
         launched.append(components["stack"])
         steps.call(components["stack"], "deploy", kubeconfig, config.seed)
 
-        launched.append(components["traffic"])
-        steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.traffic)
-
         launched.append(components["optimizer"])
         steps.call(components["optimizer"], "start", kubeconfig)
+
+        # Traffic starts right before the wait, once the optimizer is installed:
+        # the load shape then starts with the run window, the same for every
+        # optimizer, however long it takes to start.
+        launched.append(components["traffic"])
+        steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.data)
 
         steps.wait(config.duration_seconds)
 
@@ -480,7 +497,7 @@ def run_scenario(
                     manifest.append_event(
                         {"time": utc_now_iso(), "type": "kubernetes.collect-state"}
                     )
-                    _collect_kubernetes_state(kubeconfig, paths, repo_root)
+                    _collect_kubernetes_state(kubeconfig, paths)
 
                     manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
                     try:
@@ -501,16 +518,12 @@ def run_scenario(
                     if result is not None and result.returncode == 0:
                         registry.unregister(environment_id)
 
-            # Post-processing only reads contractual data, so it runs after the
-            # environment is gone. Skipped when the user interrupted the run.
-            if post_processing is not None and not interrupted:
-                steps.call(
-                    post_processing,
-                    "run",
-                    paths.observability,
-                    paths.traffic,
-                    paths.post_processing,
-                    check=False,
-                )
+            # Post-processing only reads standard data, so it runs after the
+            # environment is gone, module after module in the scenario's order
+            # (each one may read what the previous ones wrote in data/).
+            # Skipped when the user interrupted the run.
+            if not interrupted:
+                for module in post_processing:
+                    steps.call(module, "run", paths.data, check=False)
         finally:
             manifest.update(ended_at=utc_now_iso())

@@ -17,10 +17,10 @@ FULL_RUN = [
     "environment create",
     "observability start",
     "stack deploy",
-    "traffic start",
     "optimizer start",
-    "optimizer stop",
+    "traffic start",
     "traffic stop",
+    "optimizer stop",
     "stack delete",
     "observability stop",
     "environment destroy",
@@ -30,7 +30,7 @@ FULL_RUN = [
 
 def _run(platform, **kwargs):
     return run_scenario(
-        load_config(platform.write_scenario()), repo_root=platform.root, quiet=True, **kwargs
+        load_config(platform.write_scenario()), quiet=True, **kwargs
     )
 
 
@@ -41,7 +41,7 @@ def test_full_run_order_and_outputs(platform):
     assert manifest["status"] == "completed"
     assert ENVIRONMENT_ID_PATTERN.match(manifest["environment_id"])
     assert (run_dir / "logs" / "traffic" / "start.log").is_file()
-    assert (run_dir / "outputs" / "observability").is_dir()
+    assert (run_dir / "data").is_dir()
 
 
 def test_arguments_passed(platform):
@@ -50,16 +50,16 @@ def test_arguments_passed(platform):
     data = yaml.safe_load(path.read_text())
     data["args"] = {
         "shape": {"type": "string"},
-        "rate": {"type": "positive_int", "default": 5},
+        "rate": {"type": "positive_int", "description": "default: 5, applied by the module"},
         "extras_dir": {"type": "string"},
     }
     path.write_text(yaml.safe_dump(data))
     run_dir = _run(platform)
     calls = platform.calls.read_text().splitlines()
     line = next(ln for ln in calls if ln.startswith("traffic start"))
-    assert f"{run_dir}/outputs/traffic" in line
+    assert f"{run_dir}/data" in line
     assert f"--extras_dir {run_dir}/extras/traffic" in line and "--log_dir" not in line
-    assert "--shape night" in line and "--rate 5" in line
+    assert "--shape night" in line and "--rate" not in line  # no default from the core
     stack_line = next(
         ln for ln in platform.calls.read_text().splitlines() if ln.startswith("stack deploy")
     )
@@ -111,7 +111,7 @@ def test_no_cleanup_keeps_environment(platform):
 
 
 def test_nothing_created_when_invalid(platform, tmp_path):
-    platform.scenario["traffic"]["typo"] = 1
+    del platform.scenario["stack"]["module"]
     with pytest.raises(ConfigError):
         _run(platform)
     assert not (tmp_path / "runs").exists()
@@ -214,4 +214,40 @@ def test_missing_core_prerequisite(platform, monkeypatch):
 
     monkeypatch.setattr(runner_module, "CORE_COMMANDS", ("definitely-not-installed",))
     with pytest.raises(DependencyError, match="prerequisite"):
+        _run(platform)
+
+
+def test_run_window_written(platform):
+    run_dir = _run(platform)
+    lines = (run_dir / "data" / "run-window" / "run-window.csv").read_text().splitlines()
+    assert lines[0] == "start,end"
+    start, end = (float(x) for x in lines[1].split(","))  # Unix seconds
+    assert start <= end and 10**9 < start < 10**11
+
+
+def test_post_processing_list_runs_in_order(platform):
+    from tests.conftest import make_module
+
+    make_module(platform.modules, "post2", "post-processing")
+    platform.scenario["post-processing"] = [
+        {"module": "post2"},
+        {"module": "post-processing"},
+    ]
+    _run(platform)
+    calls = platform.read_calls()
+    assert calls[-2:] == ["post2 run", "post-processing run"]
+
+
+def test_post_processing_listed_twice_runs_twice(platform):
+    platform.scenario["post-processing"] = [
+        {"module": "post-processing"},
+        {"module": "post-processing"},
+    ]
+    _run(platform)
+    assert platform.read_calls()[-2:] == ["post-processing run", "post-processing run"]
+
+
+def test_post_processing_must_be_module_or_list(platform):
+    platform.scenario["post-processing"] = "post-processing"
+    with pytest.raises(ConfigError, match="must be a module or a list"):
         _run(platform)

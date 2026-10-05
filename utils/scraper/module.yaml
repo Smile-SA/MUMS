@@ -1,7 +1,0 @@
-name: utils.scraper
-type: util
-
-dependencies:
-  entrypoint: dependencies.sh
-  commands:
-    - python3

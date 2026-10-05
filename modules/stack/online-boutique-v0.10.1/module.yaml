@@ -1,0 +1,15 @@
+name: online-boutique-v0.10.1
+type: stack
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  deploy: "<kubeconfig> <seed>"
+
+dependencies:
+  entrypoint: dependencies.sh
+  commands:
+    - kubectl
+    - git
+  utils:
+    - helm

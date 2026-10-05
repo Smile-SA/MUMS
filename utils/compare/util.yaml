@@ -1,0 +1,5 @@
+name: compare
+
+dependencies:
+  commands:
+    - python3

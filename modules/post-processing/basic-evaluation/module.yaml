@@ -1,0 +1,17 @@
+name: basic-evaluation
+type: post-processing
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  run: "<data_dir>"
+
+args:
+  run_window:
+    required: false
+    type: bool
+    description: "Only count data inside the run window; false: all the data (default: true)."
+
+dependencies:
+  commands:
+    - python3

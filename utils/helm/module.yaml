@@ -1,7 +1,0 @@
-name: utils.helm
-type: util
-
-dependencies:
-  entrypoint: dependencies.sh
-  commands:
-    - helm

@@ -1,27 +1,24 @@
 #!/usr/bin/env bash
 # Starts/stops a single-node, ZooKeeper-less (KRaft) Kafka broker as one Docker
-# container, for modules that need a live Kafka broker reachable from
-# host-side processes (e.g. optimizers/hots).
+# container on the host, reachable by host-side processes at 127.0.0.1:<port>.
 #
 # Usage:
-#   ./broker.sh start <name> [port]   # default port: 9092
+#   ./broker.sh start <name> [port] [image]   # defaults: 9092 (Kafka's), apache/kafka:3.7.1
 #   ./broker.sh stop  <name>
 #
-# The container is named benchmark-kafka-<name> so concurrent runs (named by
-# kubeconfig basename, same convention as traffic-<name>.pid/scraper-<name>.pid)
-# don't collide.
+# The container is named benchmark-kafka-<name>: give each broker its own name
+# (and port) to run several at once.
 
 set -euo pipefail
 
-IMAGE="apache/kafka:3.7.1"
-
 usage() {
-    echo "Usage: $0 <start|stop> <name> [port]" >&2
+    echo "Usage: $0 start <name> [port] [image] | $0 stop <name>" >&2
 }
 
 ACTION="${1:-}"
 NAME="${2:-}"
 PORT="${3:-9092}"
+IMAGE="${4:-apache/kafka:3.7.1}"
 
 if [ -z "$ACTION" ] || [ -z "$NAME" ]; then
     usage
@@ -57,17 +54,14 @@ case "$ACTION" in
         echo "=== Waiting for Kafka broker (${CONTAINER}) on 127.0.0.1:${PORT}..." >&2
         for _ in $(seq 1 30); do
             if (exec 3<>"/dev/tcp/127.0.0.1/${PORT}") 2>/dev/null; then
-                exec 3<&- 3>&- 2>/dev/null || true
-
                 # This image's single-node KRaft combined broker+controller
                 # never completes auto-creation of __consumer_offsets on its
-                # own (observed consistently: the broker logs endless "Sent
-                # auto-creation request... to the active controller" and the
-                # topic never appears) -- without it, no consumer *group*
-                # (subscribe(), as opposed to manual partition assign()) ever
-                # gets a partition assignment, so every group-based consumer
-                # silently receives nothing forever. Creating it explicitly
-                # sidesteps the broken auto-creation path.
+                # own (the broker logs endless "Sent auto-creation request...
+                # to the active controller" and the topic never appears):
+                # without it, no consumer *group* (subscribe(), as opposed to
+                # manual partition assign()) ever gets a partition assignment,
+                # so every group-based consumer silently receives nothing.
+                # Creating it explicitly sidesteps the broken auto-creation.
                 docker exec "$CONTAINER" /opt/kafka/bin/kafka-topics.sh \
                     --bootstrap-server localhost:9092 \
                     --create --if-not-exists --topic __consumer_offsets \
@@ -76,9 +70,8 @@ case "$ACTION" in
 
                 # Group-coordinator election for the new topic is normally
                 # near-instant but was occasionally observed to still be
-                # settling immediately after creation; this costs nothing and
-                # narrows (does not eliminate) that window -- see the "known
-                # limitation" note in optimizers/hots/README.md.
+                # settling right after creation: this narrows (does not
+                # eliminate) that window.
                 sleep 3
 
                 echo "=== Kafka broker ready at 127.0.0.1:${PORT} (container ${CONTAINER})" >&2

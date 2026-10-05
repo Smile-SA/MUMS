@@ -14,10 +14,10 @@ import yaml
 SIGNATURES = {
     "environment": {"create": "<seed> <id> <output_file>", "destroy": "<id>"},
     "stack": {"deploy": "<kubeconfig> <seed>", "delete": "<kubeconfig>"},
-    "observability": {"start": "<kubeconfig> <output_dir>", "stop": "<kubeconfig>"},
-    "traffic": {"start": "<kubeconfig> <seed> <output_dir>", "stop": "<kubeconfig>"},
+    "observability": {"start": "<kubeconfig> <data_dir>", "stop": "<kubeconfig>"},
+    "traffic": {"start": "<kubeconfig> <seed> <data_dir>", "stop": "<kubeconfig>"},
     "optimizer": {"start": "<kubeconfig>", "stop": "<kubeconfig>"},
-    "post-processing": {"run": "<observability_dir> <traffic_dir> <output_dir>"},
+    "post-processing": {"run": "<data_dir>"},
 }
 
 # Records every call in $CALLS_LOG. `create` writes a kubeconfig path to its
@@ -69,6 +69,10 @@ def platform(tmp_path, monkeypatch):
     kubectl.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    # Where modules and utils are: set at installation, here for the test repo.
+    (root / "utils").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("BENCHMARK_MODULE_PATHS", str(root))
+    monkeypatch.setenv("BENCHMARK_UTILS_PATH", str(root / "utils"))
 
     kubeconfig = tmp_path / "kubeconfig"
     kubeconfig.write_text("fake", encoding="utf-8")
@@ -101,3 +105,9 @@ def platform(tmp_path, monkeypatch):
 
     p.write_scenario, p.read_calls = write_scenario, read_calls
     return p
+
+
+@pytest.fixture(autouse=True)
+def _isolated_config(tmp_path, monkeypatch):
+    """Never read the configuration file of the installation running the tests."""
+    monkeypatch.setenv("BENCHMARK_CONFIG", str(tmp_path / "benchmark-platform.yaml"))
