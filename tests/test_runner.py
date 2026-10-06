@@ -263,3 +263,17 @@ def test_provenance_recorded(platform):
     manifest = yaml.safe_load((root / "manifest.yaml").read_text())
     assert manifest["paths"]["provenance"] == str(target)
     assert any(e.get("type") == "provenance.collect" for e in manifest.get("events", []))
+
+
+def test_provenance_failure_does_not_fail_the_run(platform, monkeypatch, capsys):
+    from benchmark_platform import provenance
+
+    def broken(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(provenance, "record_start", broken)
+    monkeypatch.setattr(provenance, "record_end", broken)
+    root = _run(platform)
+    manifest = yaml.safe_load((root / "manifest.yaml").read_text())
+    assert manifest["status"] == "completed"
+    assert "disk full" in capsys.readouterr().err

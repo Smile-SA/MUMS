@@ -27,6 +27,7 @@ from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
 from benchmark_platform.schema import resolve_args, to_cli_args
 from benchmark_platform.shell import run_command
+from benchmark_platform.warn import warn
 
 # Scenario sections, one module each. `post-processing` is optional.
 REQUIRED_COMPONENTS = ("environment", "observability", "stack", "traffic", "optimizer")
@@ -354,7 +355,10 @@ def run_scenario(
         (node.name, node.path, node.commands)
         for node in resolve(prepared.index, [c.module.name for c in prepared.all])
     ]
-    provenance.record_start(paths.provenance, config.path, units, CORE_COMMANDS)
+    try:
+        provenance.record_start(paths.provenance, config.path, units, CORE_COMMANDS)
+    except Exception as exc:  # provenance must never fail the run
+        warn(f"Provenance could not be recorded at the start of the run: {exc}")
 
     manifest = RunManifest(
         paths.manifest,
