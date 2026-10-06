@@ -1,10 +1,22 @@
-# Contributing to the core
+# Contributing
 
-The core is the `benchmark_platform` package: it runs scenarios and knows nothing
-of any specific module. Modules and utils have their own READMEs; writing one is
-covered in [the docs](docs/guides/writing-modules.md).
+Thank you for your interest in contributing!
+
+## Adding a module
+
+The fastest way to contribute is to add a module: an environment, an application
+stack, a traffic generator, an observability backend, an optimizer, a
+post-processing step. A module is a self-contained directory, independent of the
+core: see [Your first module](docs/tutorials/first-module.md),
+[Writing modules](docs/guides/writing-modules.md) and the
+[module contract](docs/reference/module-contract.md).
+
+The rest of this file is about the core: the `benchmark_platform` package, which
+runs scenarios and knows nothing of any specific module.
 
 ## Setup
+
+From the repository's directory:
 
 ```bash
 ./benchmark_platform/bootstrap.sh --dev      # also installs the test and lint tools
@@ -15,7 +27,7 @@ covered in [the docs](docs/guides/writing-modules.md).
 | Command | What it does |
 |---|---|
 | `make test` | the tests (pytest), core and modules |
-| `make lint` | lint (ruff) of the core, the tests, the modules and the utils |
+| `make lint` | lint (Ruff) of the core, the tests, the modules and the utils |
 | `make check` | syntax of every shell and Python file |
 | `make smoke-test` | a real one-minute run, end to end (needs Docker) |
 
@@ -60,7 +72,30 @@ covered in [the docs](docs/guides/writing-modules.md).
 
 See [the design](docs/explanation/design.md) for the principles behind these rules.
 
-## Workflow
+## Code style
 
-One branch per topic, from `dev`, merged back into `dev`. Commit messages say what
-changed and why.
+- **Python**: linted with [Ruff](https://docs.astral.sh/ruff/) (`make lint`), line
+  length 100.
+- **Shell**: syntax checked with `bash -n` (`make check`); scripts start with
+  `set -euo pipefail`.
+- **Language**: English only in every shipped file.
+
+## Submitting changes
+
+1. Fork the repository, and create a branch for your change from `dev`.
+2. Make your change; run `make check`, `make lint` and `make test` before pushing.
+3. Open a pull request, and fill in its template. A maintainer reviews it within a
+   few days.
+
+Commit messages say what changed and why.
+
+## Reporting bugs
+
+Use the issue tracker, and fill in the bug report template: steps to reproduce,
+expected and actual behaviour, your environment (OS, Docker, kubectl and kind
+versions). `benchmark-platform doctor` gives most of it.
+
+## License
+
+By contributing, you agree that your contributions are licensed under the
+[Apache-2.0 license](LICENSE).
