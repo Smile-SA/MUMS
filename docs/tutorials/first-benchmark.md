@@ -52,8 +52,8 @@ The first run downloads images and charts, and takes a few minutes. You should s
 Run: /…/output/runs/smoke-test-20261006T120330Z-seed42
 [environment]     create     ✓
 [observability]   start      ✓
-[stack]           deploy     ✓
 [optimizer]       start      ✓
+[stack]           deploy     ✓
 [traffic]         start      ✓
 [run]             wait       ✓
 [provenance]      collect    ✓

@@ -59,21 +59,23 @@ in, set for each installation of the platform.
 ```text
 [environment]     create     the cluster
 [observability]   start      measurement starts
-[stack]           deploy     the application
 [optimizer]       start      the tool under test
+[stack]           deploy     the application
 [traffic]         start      the load starts
 [run]             wait       the run's duration: the measured period
 [provenance]      collect    the cluster as it was measured
 [traffic]         stop       then everything stops, in reverse order
+[stack]           delete
+[optimizer]       stop
 [observability]   stop
 [environment]     destroy
 [post-processing] run        each post-processing module, in the scenario's order
 ```
 
-- **The order is fixed.** The optimizer starts after the application: it acts on
-  pods already placed by Kubernetes' default scheduler. The traffic starts last,
-  right before the wait, so that the load starts with the measured period, the same
-  for every optimizer, however long it takes to start.
+- **The order is fixed.** The optimizer starts before the application, as a
+  scheduler is deployed: it is in place when the application's pods are created.
+  The traffic starts last, right before the wait, so that the load starts with the
+  measured period, the same for every optimizer, however long it takes to start.
 - **The run window** is the wait, from its start to its end. It is written as
   standard data (`run-window`), so that evaluations can count only what happened
   during it.

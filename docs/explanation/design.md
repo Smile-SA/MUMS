@@ -115,6 +115,11 @@ missing value does.
 the contract gives modules a kubeconfig, not `kubectl`; and a dependency check sees
 the same environment as the actions, so anything missing shows before a run.
 
+**The optimizer starts before the application.** *Why*: that is how a scheduler is
+deployed: it decides where a pod goes when the pod is created, so it must be in
+place before the application creates its pods. Moving pods already placed is an
+extra capability of some tools, which they then exercise during the run.
+
 **The traffic starts last, right before the wait.** *Why*: the load shape starts
 with the measured period, the same for every optimizer, however long it takes to
 start.
