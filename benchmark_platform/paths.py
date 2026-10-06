@@ -14,16 +14,15 @@ class RunPaths:
       formats it produces, and reads those it needs.
     - Per-module directories, private to each module: `logs/<module>/` and
       `extras/<module>/`.
-    - Runner-owned: `config.yaml`, `manifest.yaml`, `runtime/`, `kubernetes/`.
+    - Runner-owned: `manifest.yaml`, `runtime/`, `provenance/` (see provenance.py).
     """
 
     root: Path
-    config: Path
     manifest: Path
     runtime: Path
     environment_result: Path
     kubeconfig: Path
-    kubernetes: Path
+    provenance: Path
     logs: Path
     extras: Path
     data: Path
@@ -34,12 +33,11 @@ class RunPaths:
         runtime = root / "runtime"
         return cls(
             root=root,
-            config=root / "config.yaml",
             manifest=root / "manifest.yaml",
             runtime=runtime,
             environment_result=runtime / "environment-result",
             kubeconfig=runtime / "kubeconfig",
-            kubernetes=root / "kubernetes",
+            provenance=root / "provenance",
             logs=root / "logs",
             extras=root / "extras",
             data=root / "data",
@@ -51,7 +49,7 @@ class RunPaths:
 
         for path in (
             paths.runtime,
-            paths.kubernetes,
+            paths.provenance,
             paths.logs,
             paths.extras,
             paths.data,

@@ -1,184 +1,176 @@
-"""Best-effort provenance capture: container image digests, Helm chart
-versions, local tool versions, and any module-contributed caveats, recorded
-into the run manifest so comparison numbers can be trusted and reproduced
-later.
+"""Provenance of a run: what produced its results, to interpret, compare and
+reproduce them. Written to <run>/provenance/, in two times, by the two functions
+the runner calls. Everything is recorded as it comes (the scenario as given, the
+raw output of standard commands, the files the system exposes), in its natural
+format, without selecting or interpreting anything: nothing here knows a
+specific module or tool, and modules have nothing to do for it.
 
-This module has no hardcoded knowledge of any specific module. A module that
-wants to surface a provenance caveat (e.g. "I mutate cluster state that
-won't be undone on a crash") writes `artifacts/<module-name>/provenance-
-notes.json` (a JSON list of strings) any time before teardown; this file
-generically aggregates whatever any module chose to report -- see "Optional
-artifact conventions" in docs/output-format.md.
+- `record_start`, at the start of the run (what does not change during it, and
+  stays available if the run fails):
+    scenario.yaml          the scenario, as given;
+    platform/commit.txt    `git rev-parse HEAD` in the platform's repository;
+    platform/status.txt    `git status --porcelain` (uncommitted changes);
+    platform/diff.patch    `git diff HEAD` (their content);
+    modules.sha256         a digest of each module and util used (its directory),
+                           in `sha256sum` format: `<digest>  <name>`;
+    commands.sha256        a digest of the executable of each command they declare
+                           (and the core's own), same format;
+    commands/<name>.txt    the output of `<name> --version`;
+    host/uname.txt         `uname -a`;
+    host/os-release, host/cpuinfo, host/meminfo
+                           copies of /etc/os-release, /proc/cpuinfo, /proc/meminfo.
+- `record_end`, at the end of the run's wait, before anything stops (the system is
+  still in the state that was measured):
+    kubernetes/<kind>.yaml every listable kind of object (`kubectl get <kind> -A -o
+                           yaml`), except those that only churn; events apart.
+                           It holds the images that ran, with their digests, and
+                           the nodes' versions.
 
-Every collector here is best-effort and must never raise -- a provenance
-capture failure must never fail a benchmark run (see how it's called from
-runner.py, wrapped again there for the same reason).
+Best effort: what cannot be recorded leaves its file with the error instead of
+the output; provenance never fails a run.
 """
 
 from __future__ import annotations
 
-import json
+import hashlib
+import os
+import shutil
 import subprocess
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
 
-import yaml
+REPOSITORY = Path(__file__).resolve().parent.parent
+# Kinds left out of the Kubernetes snapshot: they only churn, saying nothing of
+# the run. Events are recorded apart.
+EXCLUDED_KINDS = frozenset(
+    {"leases.coordination.k8s.io", "endpointslices.discovery.k8s.io", "events",
+     "events.events.k8s.io"}
+)
+# Not part of a module's content: local installs (hidden directories: .venv,
+# .bin...) and caches, which differ from one machine to another.
+SKIPPED_DIRECTORIES = frozenset({"__pycache__"})
 
 
-def _run(command: list[str]) -> str | None:
+def _output(command: list[str], *, timeout: float = 30, cwd: Path | None = None) -> str:
+    """The command's output (stdout, then stderr), or why there is none."""
     try:
-        result = subprocess.run(
-            command, capture_output=True, text=True, timeout=30, check=False
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout,
+                                cwd=cwd, check=False)
+    except FileNotFoundError:
+        return f"{command[0]}: command not found\n"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"{command[0]}: {exc}\n"
+    output = result.stdout + result.stderr
     if result.returncode != 0:
-        return None
-    return result.stdout
+        output += f"(exit code {result.returncode})\n"
+    return output
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def _copy(source: Path, target: Path) -> None:
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError:
-        return {}
-    return data if isinstance(data, dict) else {}
+        _write(target, source.read_text(encoding="utf-8", errors="replace"))
+    except OSError as exc:
+        _write(target, f"{source}: {exc}\n")
 
 
-def collect_image_digests(pods_yaml_path: Path) -> list[dict[str, str]]:
-    """Container image digests observed in the cluster, from the already-
-    collected kubernetes/pods.yaml (no extra kubectl call needed)."""
-    pods = _load_yaml(pods_yaml_path)
-    items = pods.get("items", [])
-    if not isinstance(items, list):
-        return []
-
-    seen: dict[tuple[str, str, str], str] = {}
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        metadata = item.get("metadata", {})
-        status = item.get("status", {})
-        namespace = str(metadata.get("namespace", ""))
-        pod = str(metadata.get("name", ""))
-
-        for status_field in (
-            "initContainerStatuses",
-            "containerStatuses",
-            "ephemeralContainerStatuses",
-        ):
-            statuses = status.get(status_field, [])
-            if not isinstance(statuses, list):
-                continue
-            for container_status in statuses:
-                if not isinstance(container_status, dict):
-                    continue
-                name = str(container_status.get("name", ""))
-                image_id = str(container_status.get("imageID", ""))
-                if name and image_id:
-                    seen[(namespace, pod, name)] = image_id
-
-    return [
-        {"namespace": ns, "pod": pod, "container": container, "image_id": image_id}
-        for (ns, pod, container), image_id in sorted(seen.items())
-    ]
+# ----------------------------------------------------------------------- start
 
 
-def collect_chart_versions(kubeconfig: str) -> list[dict[str, str]] | None:
-    """Helm release name/chart/version, best-effort. None if `helm` isn't
-    usable (no releases installed via Helm, or the call otherwise fails)."""
-    output = _run(["helm", "list", "-A", "-o", "json", "--kubeconfig", kubeconfig])
-    if output is None:
+def directory_digest(directory: Path) -> str:
+    """sha256 over the relative paths and contents of a directory's files, hidden
+    directories and caches excepted."""
+    digest = hashlib.sha256()
+    for root, dirs, files in os.walk(directory):
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in SKIPPED_DIRECTORIES)
+        for name in sorted(files):
+            path = Path(root) / name
+            digest.update(path.relative_to(directory).as_posix().encode() + b"\0")
+            try:
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+            except OSError:
+                digest.update(b"\0unreadable")
+    return digest.hexdigest()
+
+
+def _sha256_lines(digests: dict[str, str | None]) -> str:
+    """`sha256sum` format; an entry without digest is written as a comment."""
+    return "".join(
+        f"{digest}  {name}\n" if digest else f"# {name}: not found\n"
+        for name, digest in sorted(digests.items())
+    )
+
+
+def _executable_digest(command: str) -> str | None:
+    found = shutil.which(command)
+    if found is None:
         return None
     try:
-        releases = json.loads(output)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(releases, list):
+        return hashlib.sha256(Path(found).resolve().read_bytes()).hexdigest()
+    except OSError:
         return None
 
-    return [
-        {
-            "name": str(r.get("name", "")),
-            "namespace": str(r.get("namespace", "")),
-            "chart": str(r.get("chart", "")),
-            "app_version": str(r.get("app_version", "")),
-        }
-        for r in releases
-        if isinstance(r, dict)
-    ]
+
+def record_start(
+    directory: Path,
+    scenario: Path,
+    units: Iterable[tuple[str, Path, Iterable[str]]],
+    core_commands: Iterable[str],
+) -> None:
+    """At the start of the run. `units`: (name, directory, declared commands) of
+    every module and util the run uses."""
+    directory.mkdir(parents=True, exist_ok=True)
+    units = list(units)
+    _copy(scenario, directory / "scenario.yaml")
+
+    platform = directory / "platform"
+    _write(platform / "commit.txt", _output(["git", "rev-parse", "HEAD"], cwd=REPOSITORY))
+    _write(platform / "status.txt", _output(["git", "status", "--porcelain"], cwd=REPOSITORY))
+    _write(platform / "diff.patch", _output(["git", "diff", "HEAD"], cwd=REPOSITORY))
+
+    _write(directory / "modules.sha256",
+           _sha256_lines({name: directory_digest(path) for name, path, _ in units}))
+
+    commands = sorted({*core_commands, *(c for _, _, declared in units for c in declared)})
+    _write(directory / "commands.sha256",
+           _sha256_lines({c: _executable_digest(c) for c in commands}))
+    for command in commands:
+        version = _output([command, "--version"], timeout=5)
+        _write(directory / "commands" / f"{command}.txt", version)
+
+    host = directory / "host"
+    _write(host / "uname.txt", _output(["uname", "-a"]))
+    for source in ("/etc/os-release", "/proc/cpuinfo", "/proc/meminfo"):
+        _copy(Path(source), host / Path(source).name)
 
 
-def collect_tool_versions() -> dict[str, str | None]:
-    """Best-effort local tool versions."""
-    versions: dict[str, str | None] = {}
-
-    kubectl_output = _run(["kubectl", "version", "-o", "json"])
-    versions["kubectl"] = None
-    if kubectl_output:
-        try:
-            data = json.loads(kubectl_output)
-            versions["kubectl"] = data.get("clientVersion", {}).get("gitVersion")
-        except json.JSONDecodeError:
-            pass
-
-    helm_output = _run(["helm", "version", "--short"])
-    versions["helm"] = helm_output.strip() if helm_output else None
-
-    kind_output = _run(["kind", "version"])
-    versions["kind"] = kind_output.strip() if kind_output else None
-
-    docker_output = _run(["docker", "version", "--format", "{{.Client.Version}}"])
-    versions["docker"] = docker_output.strip() if docker_output else None
-
-    return versions
+# ------------------------------------------------------------------------- end
 
 
-def collect_module_notes(artifacts_dir: Path) -> list[str]:
-    """Aggregate `provenance-notes.json` (a JSON list of strings) from every
-    module's own `artifacts/<module-name>/` directory. Generic by
-    construction -- this has no idea which modules exist or what they
-    wrote; it just collects whatever any of them chose to report."""
-    notes: list[str] = []
-    if not artifacts_dir.is_dir():
-        return notes
+def record_end(directory: Path, kubeconfig: str) -> None:
+    """At the end of the run's wait: a snapshot of every listable kind of object."""
+    target = directory / "kubernetes"
+    target.mkdir(parents=True, exist_ok=True)
+    kubectl = ["kubectl", "--kubeconfig", kubeconfig]
+    try:
+        listed = subprocess.run([*kubectl, "api-resources", "--verbs=list", "-o", "name"],
+                                capture_output=True, text=True, timeout=60, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        _write(target / "api-resources.txt", f"kubectl: {exc}\n")
+        return
+    if listed.returncode != 0:
+        _write(target / "api-resources.txt", listed.stdout + listed.stderr)
+        return
+    kinds = sorted({k.strip() for k in listed.stdout.splitlines() if k.strip()} - EXCLUDED_KINDS)
 
-    for module_dir in sorted(artifacts_dir.iterdir()):
-        notes_path = module_dir / "provenance-notes.json"
-        if not notes_path.exists():
-            continue
-        try:
-            data = json.loads(notes_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, list):
-            notes.extend(str(note) for note in data)
+    def snapshot(kind: str) -> None:
+        objects = _output([*kubectl, "get", kind, "-A", "-o", "yaml"], timeout=60)
+        _write(target / f"{kind}.yaml", objects)
 
-    return notes
-
-
-def build_provenance(
-    *,
-    pods_yaml_path: Path,
-    kubeconfig: str,
-    artifacts_dir: Path,
-    cleanup_environment: bool,
-) -> dict[str, Any]:
-    notes: list[str] = []
-    if not cleanup_environment:
-        notes.append(
-            "output.cleanup_environment is false -- this environment persists "
-            "after the run. If any module mutates cluster state in place "
-            "(e.g. a scheduler patching Deployment nodeSelectors), that "
-            "state carries into whatever run reuses this cluster next."
-        )
-    notes.extend(collect_module_notes(artifacts_dir))
-
-    return {
-        "image_digests": collect_image_digests(pods_yaml_path),
-        "chart_versions": collect_chart_versions(kubeconfig),
-        "tool_versions": collect_tool_versions(),
-        "notes": notes,
-    }
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(snapshot, [*kinds, "events"]))

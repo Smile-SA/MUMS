@@ -251,3 +251,15 @@ def test_post_processing_must_be_module_or_list(platform):
     platform.scenario["post-processing"] = "post-processing"
     with pytest.raises(ConfigError, match="must be a module or a list"):
         _run(platform)
+
+
+def test_provenance_recorded(platform):
+    root = _run(platform)
+    target = root / "provenance"
+    for name in ("scenario.yaml", "modules.sha256", "commands.sha256", "host/uname.txt",
+                 "platform/commit.txt"):
+        assert (target / name).is_file(), name
+    assert (target / "kubernetes").is_dir()
+    manifest = yaml.safe_load((root / "manifest.yaml").read_text())
+    assert manifest["paths"]["provenance"] == str(target)
+    assert any(e.get("type") == "provenance.collect" for e in manifest.get("events", []))

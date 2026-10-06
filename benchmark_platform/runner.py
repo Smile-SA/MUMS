@@ -12,14 +12,19 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from benchmark_platform import provenance
 from benchmark_platform.cleanup import EnvironmentRegistry
 from benchmark_platform.config import ScenarioConfig, post_processing_sections
-from benchmark_platform.dependencies import UTILS_PATH_ENV, DependencyError, check_dependencies
+from benchmark_platform.dependencies import (
+    UTILS_PATH_ENV,
+    DependencyError,
+    check_dependencies,
+    resolve,
+)
 from benchmark_platform.discovery import ModuleIndex, discover, utils_path
 from benchmark_platform.manifest import RunManifest, utc_now_iso
 from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
 from benchmark_platform.paths import RunPaths
-from benchmark_platform.provenance import build_provenance
 from benchmark_platform.schema import resolve_args, to_cli_args
 from benchmark_platform.shell import run_command
 
@@ -103,70 +108,6 @@ def load_section(index: ModuleIndex, section: dict[str, Any], role: str) -> Comp
     module = load_module(index, str(section["module"]), expected_type=role)
     values = resolve_args(section, module.arg_schema, role, envelope_keys=ENVELOPE_KEYS)
     return Component(role=role, module=module, options=tuple(to_cli_args(values)))
-
-
-def _collect_kubernetes_state(kubeconfig: str, paths: RunPaths) -> None:
-    commands = {
-        "nodes.yaml": [
-            "kubectl",
-            "--kubeconfig",
-            kubeconfig,
-            "get",
-            "nodes",
-            "-o",
-            "yaml",
-        ],
-        "pods.yaml": [
-            "kubectl",
-            "--kubeconfig",
-            kubeconfig,
-            "get",
-            "pods",
-            "-A",
-            "-o",
-            "yaml",
-        ],
-        "services.yaml": [
-            "kubectl",
-            "--kubeconfig",
-            kubeconfig,
-            "get",
-            "svc",
-            "-A",
-            "-o",
-            "yaml",
-        ],
-        "deployments.yaml": [
-            "kubectl",
-            "--kubeconfig",
-            kubeconfig,
-            "get",
-            "deployments",
-            "-A",
-            "-o",
-            "yaml",
-        ],
-        "events.txt": [
-            "kubectl",
-            "--kubeconfig",
-            kubeconfig,
-            "get",
-            "events",
-            "-A",
-            "--sort-by=.lastTimestamp",
-        ],
-    }
-
-    for filename, command in commands.items():
-        output_path = paths.kubernetes / filename
-        with output_path.open("w", encoding="utf-8") as stream:
-            subprocess.run(
-                command,
-                text=True,
-                stdout=stream,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
 
 
 def _print_step(
@@ -310,6 +251,20 @@ class _Steps:
                 _print_step("run", "wait", "✓", verbose=self.verbose)
                 print()
 
+    def collect_provenance(self, kubeconfig: str) -> None:
+        """Provenance, end: the cluster as measured, before anything stops."""
+        with self._event("provenance.collect"):
+            if not self.quiet:
+                _print_step("provenance", "collect", "...", verbose=self.verbose)
+            try:
+                provenance.record_end(self.paths.provenance, kubeconfig)
+                status = "✓"
+            except Exception:  # provenance must never fail the run
+                status = "✗"
+            if not self.quiet:
+                _print_step("provenance", "collect", status, verbose=self.verbose)
+                print()
+
     def _event(self, event_type: str, **fields: Any) -> _Event:
         return _Event(self.manifest, event_type, fields)
 
@@ -348,6 +303,7 @@ def _sleep_with_interrupt(duration_seconds: int) -> None:
 class PreparedScenario:
     components: dict[str, Component]
     post_processing: tuple[Component, ...]  # in execution order
+    index: ModuleIndex
 
     @property
     def all(self) -> list[Component]:
@@ -370,7 +326,9 @@ def prepare_scenario(config: ScenarioConfig) -> PreparedScenario:
         load_section(index, section, "post-processing")
         for section in post_processing_sections(raw)
     )
-    prepared = PreparedScenario(components=components, post_processing=post_processing)
+    prepared = PreparedScenario(
+        components=components, post_processing=post_processing, index=index
+    )
     check_dependencies(index, [c.module.name for c in prepared.all], utils_path())
     return prepared
 
@@ -392,7 +350,11 @@ def run_scenario(
     # Absolute paths: modules run from their own directory, so a path relative
     # to the caller's working directory would point elsewhere for them.
     paths = RunPaths.create((config.output_root / run_id).resolve())
-    shutil.copy2(config.path, paths.config)
+    units = [
+        (node.name, node.path, node.commands)
+        for node in resolve(prepared.index, [c.module.name for c in prepared.all])
+    ]
+    provenance.record_start(paths.provenance, config.path, units, CORE_COMMANDS)
 
     manifest = RunManifest(
         paths.manifest,
@@ -403,14 +365,14 @@ def run_scenario(
             "environment_id": environment_id,
             "status": "running",
             "started_at": utc_now_iso(),
-            "config": str(paths.config),
+            "config": str(paths.provenance / "scenario.yaml"),
             "modules": {c.role: c.module.as_manifest_record() for c in prepared.all},
             "paths": {
                 "data": str(paths.data),
                 "extras": str(paths.extras),
                 "logs": str(paths.logs),
                 "runtime": str(paths.runtime),
-                "kubernetes": str(paths.kubernetes),
+                "provenance": str(paths.provenance),
             },
         },
     )
@@ -422,6 +384,7 @@ def run_scenario(
     steps = _Steps(paths, manifest, utils_path=utils_path(), verbose=verbose, quiet=quiet)
     environment = components["environment"]
     kubeconfig: str | None = None
+    provenance_collected = False
     launched: list[Component] = []
     interrupted = False
 
@@ -472,6 +435,8 @@ def run_scenario(
         steps.call(components["traffic"], "start", kubeconfig, config.seed, paths.data)
 
         steps.wait(config.duration_seconds)
+        provenance_collected = True
+        steps.collect_provenance(kubeconfig)
 
         manifest.update(status="completed")
         return paths.root
@@ -489,27 +454,12 @@ def run_scenario(
         try:
             try:
                 if kubeconfig:
+                    # Safety net: a run that stopped before the end of its wait
+                    # still gets the cluster's state, before anything stops.
+                    if not provenance_collected:
+                        steps.collect_provenance(kubeconfig)
                     for component in reversed(launched):
                         steps.call(component, STOP_ACTIONS[component.role], kubeconfig, check=False)
-
-                    # Kubernetes state collection is internal runner bookkeeping,
-                    # so it is deliberately not displayed in the progress dashboard.
-                    manifest.append_event(
-                        {"time": utc_now_iso(), "type": "kubernetes.collect-state"}
-                    )
-                    _collect_kubernetes_state(kubeconfig, paths)
-
-                    manifest.append_event({"time": utc_now_iso(), "type": "provenance.collect"})
-                    try:
-                        provenance = build_provenance(
-                            pods_yaml_path=paths.kubernetes / "pods.yaml",
-                            kubeconfig=kubeconfig,
-                            artifacts_dir=paths.extras,
-                            cleanup_environment=config.cleanup_environment,
-                        )
-                        manifest.set("provenance", provenance)
-                    except Exception as exc:  # provenance capture must never fail the run
-                        manifest.set("provenance", {"error": str(exc)})
             finally:
                 # Always destroy the environment, even if `create` failed or was
                 # interrupted: `destroy <id>` must handle dirty states.
