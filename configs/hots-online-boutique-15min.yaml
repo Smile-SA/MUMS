@@ -41,5 +41,5 @@ post-processing:
   - module: pod-based-node-evaluation
 
 output:
-  root_directory: output/runs
+  root_directory: output
   cleanup_environment: true

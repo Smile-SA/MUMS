@@ -35,7 +35,8 @@ its directory. The steps are shown as they go; see
 benchmark-platform validate <scenario.yaml>
 ```
 
-Checks a scenario without running anything: its format, that each module exists
+Checks a scenario without running anything: the platform's own prerequisites
+(`kubectl`), the scenario's format, that each module exists
 and has the expected type, the arguments given to each module (against its
 descriptor), and the dependencies of all modules and their utils. Unknown fields
 are reported as warnings.
@@ -109,6 +110,8 @@ benchmark-platform config [show]
 benchmark-platform config path
 benchmark-platform config get <setting>
 benchmark-platform config set <setting> <value>...
+benchmark-platform config add module_paths <path>...
+benchmark-platform config remove module_paths <path>...
 benchmark-platform config unset <setting>
 ```
 
@@ -121,6 +124,8 @@ Shows or changes the settings `module_paths`, `utils_path` and `env`; see
 | `path` | the installation's configuration file |
 | `get` | one setting's value |
 | `set` | writes a setting to the file (`module_paths` takes one or more values) |
+| `add` | adds paths to `module_paths` in the file, keeping the others |
+| `remove` | removes paths from `module_paths` in the file |
 | `unset` | removes a setting from the file |
 
 ## `exec`

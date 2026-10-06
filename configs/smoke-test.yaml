@@ -33,5 +33,5 @@ post-processing:
   - module: essential-tables
 
 output:
-  root_directory: output/runs
+  root_directory: output
   cleanup_environment: true

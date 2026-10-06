@@ -149,12 +149,15 @@ given argument to every action, as `--<name> <value>`: a `bool` as `true` or
 passed: **the module applies its own default**, which its description states.
 
 Two arguments are given by the platform, not by the scenario, and only to a
-module that declares them (`type: string`, not required):
+module that declares them (`type: string`, not required): a module asks for one,
+both or neither.
 
 | Argument | Content |
 |---|---|
-| `log_dir` | a directory for the module's own logs (`logs/<module>/` in the run) |
-| `extras_dir` | a directory for anything else the module keeps: internal state (e.g. PID files), files for debugging (`extras/<module>/` in the run) |
+| `log_dir` | a directory for what is a log (`logs/<module>/` in the run) |
+| `extras_dir` | a directory for everything else that has no other place, notably what is produced to explain or debug a run (internal state, PID files...) (`extras/<module>/` in the run) |
+
+Whatever an action prints goes, in any case, to `logs/<module>/<action>.log`.
 
 ## Standard data
 

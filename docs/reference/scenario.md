@@ -36,7 +36,7 @@ post-processing:
   - module: basic-evaluation
 
 output:
-  root_directory: output/runs
+  root_directory: output
   cleanup_environment: true
 ```
 
@@ -77,6 +77,21 @@ traffic:
   (type, required arguments). An argument not given is left to the module, which
   applies its own default. Each module's README lists its arguments.
 - `log_dir` and `extras_dir` are given by the platform, never by the scenario.
+
+### `post-processing`
+
+A list of module sections, run one after the other, in that order, once the
+environment is gone. Each entry takes its own arguments; a module may appear more
+than once, with different arguments.
+
+```yaml
+post-processing:
+  - module: essential-tables
+  - module: request-count
+    errors_only: true
+```
+
+A single module may also be given as a section rather than a list.
 
 ### `output`
 

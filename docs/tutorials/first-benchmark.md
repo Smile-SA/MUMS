@@ -26,7 +26,10 @@ From the repository's directory:
 ```
 
 This creates a virtual environment in `.venv`, installs the platform in it, and
-writes its settings. Open **a new terminal**, then check:
+writes its settings. To use another virtual environment, to install into your
+current Python environment instead, or to get the development tools: see
+`./benchmark_platform/bootstrap.sh --help` and
+[settings and installation](../reference/settings.md). Open **a new terminal**, then check:
 
 ```bash
 benchmark-platform config      # where modules and utils are, the environment used
@@ -49,7 +52,7 @@ benchmark-platform run configs/smoke-test.yaml
 The first run downloads images and charts, and takes a few minutes. You should see:
 
 ```text
-Run: /…/output/runs/smoke-test-20261006T120330Z-seed42
+Run: /…/output/smoke-test-20261006T120330Z-seed42
 [environment]     create     ✓
 [observability]   start      ✓
 [optimizer]       start      ✓
@@ -61,13 +64,13 @@ Run: /…/output/runs/smoke-test-20261006T120330Z-seed42
 [observability]   stop       ✓
 [environment]     destroy    ✓
 [post-processing] run        ✓
-Run completed: /…/output/runs/smoke-test-20261006T120330Z-seed42
+Run completed: /…/output/smoke-test-20261006T120330Z-seed42
 ```
 
 Look at what the run produced:
 
 ```bash
-RUN=$(ls -td output/runs/smoke-test-* | head -1)
+RUN=$(ls -td output/smoke-test-* | head -1)
 ls $RUN/data                              # openmetrics, http-requests, run-window, essential-tables
 head -3 $RUN/data/http-requests/000001.csv
 ls $RUN/data/essential-tables             # the eight tables
@@ -94,7 +97,7 @@ measures.
 ## 5. Compare them
 
 ```bash
-benchmark-platform compare output/runs/baseline-online-boutique-15min-* output/runs/koordinator-online-boutique-15min-*
+benchmark-platform compare output/baseline-online-boutique-15min-* output/koordinator-online-boutique-15min-*
 ```
 
 The first run is the reference. For each indicator (requests, latencies, errors,

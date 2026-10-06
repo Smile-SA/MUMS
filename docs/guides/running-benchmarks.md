@@ -43,16 +43,16 @@ generator, and skews the measures.
 
 Two runs of the same scenario differ by a few percent (more on small values): one
 run is not enough to conclude. Run each scenario several times, and compare groups
-of runs rather than single runs. With the same seed, the runs differ only by what
-the platform does not control; with different seeds, they also cover different
-random choices of the modules.
+of runs rather than single runs. Repeating with the same seed measures the
+variability due to the environment; changing the seed also covers other random
+choices of the modules.
 
 ## Compare runs
 
 From their summaries (written by evaluation modules such as `basic-evaluation`):
 
 ```bash
-benchmark-platform compare output/runs/baseline-* output/runs/koordinator-* -v
+benchmark-platform compare output/baseline-* output/koordinator-* -v
 ```
 
 The first run is the reference. For each indicator, the report gives each run's
@@ -87,5 +87,5 @@ digests, commands and images match ran the same code. See
 
 ## Share results
 
-A run's provenance holds the cluster's Secrets in clear: remove
-`provenance/kubernetes/secrets.yaml`, or check it, before sharing a run.
+A run holds credentials of its cluster in clear: see
+[Security](../explanation/concepts.md#security) before sharing one.

@@ -18,6 +18,10 @@ one (see [New formats](#new-formats)).
 | [`summary`](summary.md) | a run's indicators | post-processing | comparison |
 | [`comparison`](comparison.md) | a run's indicators against a reference run | post-processing | people |
 
+Modules designate a format by its name (`openmetrics`, `summary`...): a module may
+live outside this repository, and its README names the formats it reads and
+writes without linking here.
+
 ## Common rules
 
 - **Times** are Unix seconds (decimals allowed), **durations** seconds.

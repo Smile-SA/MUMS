@@ -9,7 +9,7 @@ a first module is written step by step in [the tutorial](../tutorials/first-modu
 Anywhere: add its directory to the installation's module directories.
 
 ```bash
-benchmark-platform config set module_paths ~/benchmark-platform/modules ~/my-modules
+benchmark-platform config add module_paths ~/my-modules
 ```
 
 Or, for one command only, `BENCHMARK_MODULE_PATHS=~/my-modules:` (the trailing `:`
@@ -25,8 +25,11 @@ parses them.
 ## Parse the arguments
 
 An action is called as `<entrypoint> <action> <positional arguments> [--<name>
-<value>]...`. Set every argument's default first, then read the options, and
-refuse unknown ones: they reveal a mismatch with `module.yaml`.
+<value>]...`. The positional arguments are fixed by the contract, according to the
+module's type ([table](../reference/module-contract.md#actions)); the named
+arguments are those the module declares in `args`. Set every named argument's
+default first, then read the options, and refuse unknown ones: they reveal a
+mismatch with `module.yaml`.
 
 ```bash
 SHAPE="day_profile"                  # default, stated in module.yaml's description
@@ -94,13 +97,22 @@ ran, but only pinned versions run the same next time. A Python module is best ke
 in its own virtual environment: its packages then never conflict with other
 modules'.
 
-## Call a util
+## Use a util
 
-```bash
-"$BENCHMARK_UTILS_PATH/helm/install.sh" "$KUBECONFIG" my-release my-chart 1.2.3
-```
+A util is a shared building block: scripts that several modules call (installing a
+Helm chart, starting a Kafka broker...). To use one:
 
-Declare it in `dependencies.utils`. Its README documents its scripts.
+1. declare it in `dependencies.utils`: its own dependencies are then checked and
+   installed with the module's;
+2. call its scripts through `BENCHMARK_UTILS_PATH`, the utils directory every
+   action receives:
+
+   ```bash
+   "$BENCHMARK_UTILS_PATH/helm/install.sh" "$KUBECONFIG" my-release my-chart 1.2.3
+   ```
+
+3. read its README for its scripts and their arguments. The [catalogue](../modules.md)
+   lists the available utils.
 
 ## Test it
 
@@ -116,9 +128,8 @@ in the log, to debug it.
 
 ## Write a util
 
-A util is a directory with a `util.yaml` (`name`, `dependencies`) and the scripts
-modules call, in the installation's utils directory. It follows the same rules as
-a module: it knows nothing of the modules that use it.
+When several modules need the same thing, make it a util: see
+[Writing utils](writing-utils.md).
 
 ## Document it
 

@@ -78,8 +78,8 @@ Recorded at the end of the run's wait, before anything stops (step
 Provenance is best effort: what cannot be recorded leaves its file with the error
 instead of the output, and never fails the run.
 
-**The provenance holds the cluster's Secrets in clear** (`kubernetes/secrets.yaml`):
-check a run before sharing it.
+**A run holds credentials in clear**: `runtime/kubeconfig` and
+`provenance/kubernetes/secrets.yaml`. See [Security](../explanation/concepts.md#security).
 
 ## Environments left behind
 

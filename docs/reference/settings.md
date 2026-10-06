@@ -37,7 +37,8 @@ env: /home/me/benchmark-platform/.venv/bin/activate
 
 The settings are applied once, at the start of every command: the variables are
 exported, then `env` is sourced. Everything the platform runs (modules, dependency
-scripts, `exec`) sees the result. See `benchmark-platform config` and `exec` in
+scripts, `exec`) sees the result. `benchmark-platform config` shows and changes
+the settings (`config add module_paths <path>` adds a directory of modules); see
 [cli.md](cli.md).
 
 ## `bootstrap.sh`

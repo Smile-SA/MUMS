@@ -1,27 +1,36 @@
 # Your first module
 
-Write a small post-processing module that counts the requests of a run, test it on
-an existing run, then use it in a scenario. It shows everything a module needs:
-a descriptor, an action, an argument, standard data in and out, a README.
+This tutorial writes a module from scratch, on an example: **`request-count`**, a
+small post-processing module that counts the requests sent during a run (or only
+those that failed), and writes the result as a run indicator. Once written, its
+count appears in every comparison of runs, like any other indicator.
+
+The example is deliberately simple, but it shows everything a module needs: a
+descriptor, an action, an argument with its default, standard data in and out,
+and a README. You will test it on an existing run, then use it in a scenario.
 
 You need a run from [the first tutorial](first-benchmark.md) (the smoke test is
 enough).
 
 ## 1. Create the module
 
-Modules can live anywhere. Create a directory for yours:
+A module can live anywhere: in the platform's own `modules/` directory, or in a
+directory of your own, kept apart from the platform. This tutorial uses a
+directory of your own, `~/my-modules`:
 
 ```bash
 mkdir -p ~/my-modules/post-processing/request-count
 cd ~/my-modules/post-processing/request-count
 ```
 
-Then tell the platform to look there too, keeping its own modules:
+Then tell the platform to look there too, besides its own modules:
 
 ```bash
-benchmark-platform config get module_paths            # the current directories
-benchmark-platform config set module_paths <current directories> ~/my-modules
+benchmark-platform config add module_paths ~/my-modules
+benchmark-platform config get module_paths            # its directories, and yours
 ```
+
+(`benchmark-platform config remove module_paths ~/my-modules` undoes it.)
 
 ## 2. The descriptor
 
@@ -134,7 +143,7 @@ A post-processing module only reads and writes data: test it directly on the dat
 of the smoke test, without a new run.
 
 ```bash
-RUN=$(ls -td ~/benchmark-platform/output/runs/smoke-test-* | head -1)
+RUN=$(ls -td ~/benchmark-platform/output/smoke-test-* | head -1)
 ./run.sh run $RUN/data
 cat $RUN/data/summary/request-count.csv
 ./run.sh run $RUN/data --errors_only true
