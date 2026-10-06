@@ -1,52 +1,66 @@
-# Contributing to benchmark-platform
+# Contributing to the core
 
-Thank you for your interest in contributing!
+The core is the `benchmark_platform` package: it runs scenarios and knows nothing
+of any specific module. Modules and utils have their own READMEs; writing one is
+covered in [the docs](docs/guides/writing-modules.md).
 
-## Getting started
+## Setup
 
 ```bash
-git clone <repo-url>
-cd benchmark-platform
-make setup-dev
-make check
-make lint
-make test
+./benchmark_platform/bootstrap.sh --dev      # also installs the test and lint tools
 ```
 
-## Adding a module
+## Checks
 
-The fastest way to contribute is to add a new environment, stack, traffic
-generator, observability backend, or optimizer module. Each module is a
-self-contained directory with two required files:
+| Command | What it does |
+|---|---|
+| `make test` | the tests (pytest), core and modules |
+| `make lint` | lint (ruff) of the core, the tests, the modules and the utils |
+| `make check` | syntax of every shell and Python file |
+| `make smoke-test` | a real one-minute run, end to end (needs Docker) |
 
-- `run.sh` — lifecycle entry point
-- `module.yaml` — module descriptor
+`make help` lists the other targets (installation, cleanup). `make lint` and
+`make test` run in the platform's environment, through `benchmark-platform exec`.
 
-See [`docs/writing-a-module.md`](docs/writing-a-module.md) for the full contract
-and a worked example.
+## Organization of the core
 
-## Submitting changes
+| File | Role |
+|---|---|
+| `cli.py` | the `benchmark-platform` command |
+| `settings.py` | the settings: configuration file, variables, applied at the start of every command |
+| `discovery.py` | finds modules and utils, by name |
+| `config.py`, `schema.py` | the scenario format, and modules' arguments |
+| `modules.py` | the module contract: types, actions, descriptor validation |
+| `dependencies.py` | dependency checks and installs, recursively |
+| `runner.py` | runs a scenario, step by step |
+| `paths.py`, `manifest.py` | a run's directory, its manifest |
+| `provenance.py` | what produced a run's results |
+| `cleanup.py` | the registry of environments, `env clean` |
+| `doctor.py` | `benchmark-platform doctor` |
+| `shell.py`, `warn.py` | running commands, warnings |
+| `bootstrap.sh` | installation |
 
-1. Fork the repository and create a branch from `main`.
-2. Make your changes. Run `make check && make lint && make test` before pushing.
-3. Open a pull request. Fill in the PR template.
-4. A maintainer will review within a few days.
+## Tests
 
-## Code style
+- Core tests (`tests/`) use fake modules, created by the fixtures of
+  `tests/conftest.py`: they never need a cluster, and never read the
+  installation's configuration file.
+- A module's own tests live in its directory (`<module>/tests/`).
+- Every change to the core comes with its tests.
 
-- **Python**: formatted and linted with [Ruff](https://docs.astral.sh/ruff/)
-  (`make lint`). Line length 100.
-- **Shell**: `bash -n` syntax check via `make check`. Use `set -e` (and
-  `set -euo pipefail` in new scripts).
-- **Language**: English only in all shipped files.
+## Rules
 
-## Reporting bugs
+- **The core knows no specific module.** No tool or module name in
+  `benchmark_platform/`: `grep -rniE "kind|helm|prometheus|online-boutique|locust|hots|baseline|koordinator" benchmark_platform/`
+  must only find justified occurrences.
+- **Side tasks never fail a run** (provenance, state collection): they record
+  their errors and go on.
+- **The module contract** ([reference](docs/reference/module-contract.md)) is
+  frozen once published: any change to it is a new contract version.
 
-Use the GitHub issue tracker. Fill in the bug report template with reproduction
-steps, expected vs. actual behaviour, and your environment (OS, kind version,
-kubectl version).
+See [the design](docs/explanation/design.md) for the principles behind these rules.
 
-## License
+## Workflow
 
-By contributing you agree that your contributions will be licensed under the
-[Apache-2.0 license](LICENSE).
+One branch per topic, from `dev`, merged back into `dev`. Commit messages say what
+changed and why.
