@@ -134,6 +134,37 @@ def set_value(key: str, values: list[str]) -> Path:
     return write_file(data)
 
 
+def _list_value(key: str) -> list[str]:
+    if key != "module_paths":
+        raise SettingsError(f"'{key}' is not a list: use 'config set'.")
+    current = read_file().get(key) or []
+    return [str(v) for v in (current if isinstance(current, list) else [current])]
+
+
+def add_values(key: str, values: list[str]) -> Path:
+    """Append paths to a list setting of the file (those already there are kept once)."""
+    paths = _list_value(key)
+    for value in values:
+        path = str(Path(value).expanduser().resolve())
+        if path not in paths:
+            paths.append(path)
+    data = read_file()
+    data[key] = paths
+    return write_file(data)
+
+
+def remove_values(key: str, values: list[str]) -> Path:
+    """Remove paths from a list setting of the file."""
+    paths = _list_value(key)
+    removed = {str(Path(v).expanduser().resolve()) for v in values}
+    missing = sorted(removed - set(paths))
+    if missing:
+        raise SettingsError(f"Not in {key}: {', '.join(missing)}.")
+    data = read_file()
+    data[key] = [p for p in paths if p not in removed]
+    return write_file(data)
+
+
 def unset(key: str) -> Path:
     if key not in VARIABLES:
         raise SettingsError(f"Unknown setting '{key}' (known: {', '.join(VARIABLES)}).")

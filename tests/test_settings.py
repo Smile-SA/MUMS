@@ -72,3 +72,25 @@ def test_default_file_is_in_the_installation(monkeypatch):
 
     monkeypatch.delenv("BENCHMARK_CONFIG")
     assert settings.config_file() == Path(sys.prefix) / "benchmark-platform.yaml"
+
+
+def test_add_and_remove_module_paths(tmp_path):
+    a, b = str(tmp_path / "a"), str(tmp_path / "b")
+    settings.set_value("module_paths", [a])
+    settings.add_values("module_paths", [b, a])  # a already there: kept once
+    assert settings.get("module_paths").value == [a, b]
+    settings.remove_values("module_paths", [a])
+    assert settings.get("module_paths").value == [b]
+    with pytest.raises(settings.SettingsError, match="Not in module_paths"):
+        settings.remove_values("module_paths", [a])
+    with pytest.raises(settings.SettingsError, match="not a list"):
+        settings.add_values("utils_path", [a])
+
+
+def test_cli_config_add_remove(tmp_path, capsys):
+    assert main(["config", "set", "module_paths", str(tmp_path / "a")]) == 0
+    assert main(["config", "add", "module_paths", str(tmp_path / "b")]) == 0
+    assert main(["config", "get", "module_paths"]) == 0
+    assert capsys.readouterr().out.strip().endswith(f"{tmp_path / 'a'}:{tmp_path / 'b'}")
+    assert main(["config", "remove", "module_paths", str(tmp_path / "a")]) == 0
+    assert main(["config", "remove", "module_paths", str(tmp_path / "a")]) == 1
