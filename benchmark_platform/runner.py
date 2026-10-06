@@ -426,13 +426,15 @@ def run_scenario(
         launched.append(components["observability"])
         steps.call(components["observability"], "start", kubeconfig, paths.data)
 
-        launched.append(components["stack"])
-        steps.call(components["stack"], "deploy", kubeconfig, config.seed)
-
+        # The optimizer starts before the application, as a scheduler is deployed:
+        # it is in place when the application's pods are created.
         launched.append(components["optimizer"])
         steps.call(components["optimizer"], "start", kubeconfig)
 
-        # Traffic starts right before the wait, once the optimizer is installed:
+        launched.append(components["stack"])
+        steps.call(components["stack"], "deploy", kubeconfig, config.seed)
+
+        # Traffic starts right before the wait, once the application is deployed:
         # the load shape then starts with the run window, the same for every
         # optimizer, however long it takes to start.
         launched.append(components["traffic"])
