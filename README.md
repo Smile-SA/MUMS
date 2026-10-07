@@ -1,115 +1,47 @@
-# Benchmark Platform
+# Benchmark platform
 
-This repository contains a modular architecture to deploy distributed Kubernetes stacks, generate traffic, collect metrics, and benchmark scheduling optimization algorithms.
+> **A test platform, not secured: its runs hold credentials of the cluster in clear.**
+> Read [Security](docs/explanation/concepts.md#security) before using it on a real
+> cloud account or sharing results.
 
-## Dependencies
+Checks whether a Kubernetes optimizer (a scheduler, a descheduler, an
+autoscaler...) works **in a real cluster**: a real application, real traffic, real
+metrics, observed while the system runs. It runs experiments in the same conditions,
+records what produced their results, and compares optimizers on operational measures:
+latency, errors, node usage, disruptions.
 
-**System:**
+A small core runs scenarios; interchangeable modules do the rest: create the
+cluster, deploy the application, send traffic, run the optimizer, measure, evaluate.
+Adding an optimizer, an application or a cluster provider means writing a module.
 
-- `kind`
-- `kubectl`
-- `helm`
-- `docker`
-- `git`
+## Quick start
 
-**Python (host):**
-
-- `locust`
-- `faker`
-- `requests`
-
-**Optional:**
-
-- Grafana (local, to visualize metrics)
-
-## Local development setup
-
-Prepare a local Python environment and validate required host tools:
+On Linux, with Python 3.10+, `kubectl`, `git` and a running Docker:
 
 ```bash
-make setup
-make doctor
+./benchmark_platform/bootstrap.sh       # from the repository; own venv by default, options: --help
+                                        # then open a new terminal
+benchmark-platform deps install --scenario configs/smoke-test.yaml
+benchmark-platform run configs/smoke-test.yaml                       # one minute, end to end
 ```
 
-For development checks and test tooling:
+Then measure and compare two optimizers:
 
 ```bash
-make setup-dev
-make check
+benchmark-platform deps install --scenario configs/koordinator-online-boutique-15min.yaml
+benchmark-platform run configs/baseline-online-boutique-15min.yaml
+benchmark-platform run configs/koordinator-online-boutique-15min.yaml
+benchmark-platform compare output/baseline-online-boutique-15min-* output/koordinator-online-boutique-15min-*
 ```
 
-Activate the virtual environment when executing Python tooling manually:
+## Documentation
 
-```bash
-source .venv/bin/activate
-```
+| | |
+|---|---|
+| **Learn** | [Your first benchmark](docs/tutorials/first-benchmark.md) · [Your first module](docs/tutorials/first-module.md) |
+| **Do** | [Running benchmarks](docs/guides/running-benchmarks.md) · [Writing modules](docs/guides/writing-modules.md) · [Writing utils](docs/guides/writing-utils.md) · [Troubleshooting](docs/guides/troubleshooting.md) |
+| **Look up** | [Commands](docs/reference/cli.md) · [Scenarios](docs/reference/scenario.md) · [Module contract](docs/reference/module-contract.md) · [Data formats](docs/formats/README.md) · [Run directory](docs/reference/run-directory.md) · [Settings and installation](docs/reference/settings.md) |
+| **Understand** | [Concepts](docs/explanation/concepts.md) · [Design](docs/explanation/design.md) |
+| **Modules** | [Catalogue](docs/modules.md) |
 
-Detailed installation and prerequisite information is available in [`docs/setup.md`](docs/setup.md).
-
-## Architecture
-
-The platform is organized around interchangeable benchmark components:
-
-- environment
-- application stack
-- traffic generator
-- observability backend
-- optimizer
-- dataset/export pipeline
-
-See:
-
-- [`docs/architecture.md`](docs/architecture.md)
-- [`docs/components.md`](docs/components.md)
-
-## Script types and conventions
-
-| Script type       | Description                                            | Parameters                                                                   |
-| ----------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| **env**           | Create/destroy a cluster                               | `create <seed>` → returns KUBECONFIG on stdout <br> `destroy <seed>`         |
-| **observability** | Start/stop metrics collection (port-forward + scraper) | `start <kubeconfig> <output_dir> [--frequency=<s>]` <br> `stop <kubeconfig>` |
-| **stack**         | Deploy a distributed application on the cluster        | `<kubeconfig> <seed>`                                                        |
-| **traffic**       | Generate realistic traffic from the host machine       | `start <kubeconfig> <seed>` <br> `stop <kubeconfig>`                         |
-| **optimizer**     | Deploy and run a scheduling/optimization algorithm     | `<kubeconfig> <seed>`                                                        |
-
-> All scripts accept additional options via `$@` and ignore those that don't concern them.
-
-## Running a test
-
-```bash
-./run_basic_test.sh <env> <observability> <stack> <traffic> <optimizer> <output_dir> [seed] [--duration=<seconds>] [options...]
-```
-
-Example:
-
-```bash
-./run_basic_test.sh \
-  envs/kind.sh \
-  observability/prometheus/run.sh \
-  stacks/online-boutique/deploy.sh \
-  traffic/online-boutique/run.sh \
-  optimizers/baseline.sh \
-  ./output/test-1 \
-  42 \
-  --duration=300 \
-  --workers "count=4,cpu=1,memory=1Gi;count=2,cpu=1,memory=4Gi"
-```
-
-The orchestrator runs the following sequence:
-
-1. `env create` → KUBECONFIG
-2. `observability start`
-3. `stack deploy`
-4. `traffic start`
-5. `optimizer deploy`
-6. `sleep $DURATION`
-7. `observability stop`
-8. `traffic stop`
-9. `env destroy`
-
-## Notes
-
-- Traffic is generated from the host machine (outside the cluster) to avoid skewing the resource metrics observed by the optimizer.
-- The architecture is modular: new environments, stacks, traffic scenarios, and optimizers can be added independently.
-- `grafana.sh` must be called with `http://127.0.0.1:9090` (not `localhost` — Grafana DNS cache bug).
-- The Python venv must be active before running any test (`source venv/bin/activate`).
+Contributing to the core: [CONTRIBUTING.md](CONTRIBUTING.md).

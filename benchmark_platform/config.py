@@ -6,6 +6,16 @@ from typing import Any
 
 import yaml
 
+from benchmark_platform.warn import warn_unknown
+
+# Fields the core knows; any other is ignored with a warning.
+ROOT_KEYS = frozenset(
+    {"version", "scenario", "environment", "stack", "observability", "traffic", "optimizer",
+     "post-processing", "output"}
+)
+SCENARIO_KEYS = frozenset({"name", "seed", "duration_seconds", "description"})
+OUTPUT_KEYS = frozenset({"root_directory", "cleanup_environment"})
+
 
 class ConfigError(ValueError):
     pass
@@ -49,10 +59,23 @@ def _require_section(raw: dict[str, Any], section: str) -> dict[str, Any]:
     return _require_mapping(raw[section], section)
 
 
+def _optional_section(raw: dict[str, Any], section: str) -> dict[str, Any]:
+    if section not in raw:
+        return {}
+    return _require_mapping(raw[section], section)
+
+
 def _require_field(section: dict[str, Any], section_name: str, field: str) -> Any:
     if field not in section:
         raise ConfigError(f"Missing required field: '{section_name}.{field}'.")
     return section[field]
+
+
+def _require_non_empty_string(value: Any, field: str) -> str:
+    parsed = str(value).strip()
+    if not parsed:
+        raise ConfigError(f"Field '{field}' must not be empty.")
+    return parsed
 
 
 def _require_positive_int(value: Any, field: str) -> int:
@@ -65,6 +88,32 @@ def _require_positive_int(value: Any, field: str) -> int:
     return parsed
 
 
+def post_processing_sections(raw: dict[str, Any]) -> list[dict[str, Any]]:
+    """The scenario's post-processing modules, in execution order. The section is
+    a list of modules (each one `module:` plus its arguments), or a single
+    module (a list of one)."""
+    if "post-processing" not in raw:
+        return []
+    value = raw["post-processing"]
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list):
+        return [
+            _require_mapping(item, f"post-processing[{index}]")
+            for index, item in enumerate(value)
+        ]
+    raise ConfigError("Section 'post-processing' must be a module or a list of modules.")
+
+
+def _validate_component(section: dict[str, Any], section_name: str) -> None:
+    # The section name is the module type; `module` points to the module
+    # directory, whose module.yaml must declare that type (checked on load).
+    _require_non_empty_string(
+        _require_field(section, section_name, "module"),
+        f"{section_name}.module",
+    )
+
+
 def load_config(path: str | Path) -> ScenarioConfig:
     config_path = Path(path).expanduser().resolve()
 
@@ -75,6 +124,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
         raw = yaml.safe_load(stream)
 
     raw = _require_mapping(raw, "root")
+    warn_unknown(raw, ROOT_KEYS, f"scenario {config_path.name}")
 
     version = _require_field(raw, "root", "version")
     if int(version) != 1:
@@ -87,55 +137,37 @@ def load_config(path: str | Path) -> ScenarioConfig:
     traffic = _require_section(raw, "traffic")
     optimizer = _require_section(raw, "optimizer")
     output = _require_section(raw, "output")
+    post_processing = post_processing_sections(raw)
 
-    name = _require_field(scenario, "scenario", "name")
-    if not str(name).strip():
-        raise ConfigError("Field 'scenario.name' must not be empty.")
-
+    warn_unknown(scenario, SCENARIO_KEYS, f"'scenario' of {config_path.name}")
+    warn_unknown(output, OUTPUT_KEYS, f"'output' of {config_path.name}")
+    _require_non_empty_string(
+        _require_field(scenario, "scenario", "name"),
+        "scenario.name",
+    )
     _require_positive_int(_require_field(scenario, "scenario", "seed"), "scenario.seed")
     _require_positive_int(
         _require_field(scenario, "scenario", "duration_seconds"),
         "scenario.duration_seconds",
     )
 
-    if _require_field(environment, "environment", "type") != "kind":
-        raise ConfigError("Only environment.type='kind' is currently supported.")
+    # Component sections are validated at the framework envelope level only
+    # (`module`). Module-specific fields (e.g.
+    # environment.workers, observability.frequency_seconds, traffic.shape) are
+    # opaque to the core and validated by each module's own `args:` schema in
+    # module.yaml — see benchmark_platform.schema.resolve_args.
+    _validate_component(environment, "environment")
+    _validate_component(stack, "stack")
+    _validate_component(observability, "observability")
+    _validate_component(traffic, "traffic")
+    _validate_component(optimizer, "optimizer")
 
-    workers = _require_mapping(
-        _require_field(environment, "environment", "workers"),
-        "environment.workers",
+    for index, section in enumerate(post_processing):
+        _validate_component(section, f"post-processing[{index}]")
+
+    _require_non_empty_string(
+        _require_field(output, "output", "root_directory"),
+        "output.root_directory",
     )
-    _require_positive_int(
-        _require_field(workers, "environment.workers", "count"),
-        "environment.workers.count",
-    )
-    _require_field(workers, "environment.workers", "cpu")
-    _require_field(workers, "environment.workers", "memory")
-
-    if _require_field(stack, "stack", "type") != "online-boutique":
-        raise ConfigError("Only stack.type='online-boutique' is currently supported.")
-
-    if _require_field(observability, "observability", "type") != "prometheus":
-        raise ConfigError("Only observability.type='prometheus' is currently supported.")
-    _require_positive_int(
-        _require_field(observability, "observability", "frequency_seconds"),
-        "observability.frequency_seconds",
-    )
-
-    if _require_field(traffic, "traffic", "type") != "locust":
-        raise ConfigError("Only traffic.type='locust' is currently supported.")
-    _require_field(traffic, "traffic", "shape")
-    _require_positive_int(
-        _require_field(traffic, "traffic", "cycle_minutes"),
-        "traffic.cycle_minutes",
-    )
-
-    optimizer_type = _require_field(optimizer, "optimizer", "type")
-    if optimizer_type not in {"baseline", "none", "kubernetes-default"}:
-        raise ConfigError(
-            "Only optimizer.type='baseline', 'none', or 'kubernetes-default' is currently supported."
-        )
-
-    _require_field(output, "output", "root_directory")
 
     return ScenarioConfig(path=config_path, raw=raw)

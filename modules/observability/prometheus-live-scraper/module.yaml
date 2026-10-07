@@ -1,0 +1,46 @@
+name: prometheus-live-scraper
+type: observability
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  start: "<kubeconfig> <data_dir>"
+  stop: "<kubeconfig>"
+
+args:
+  log_dir:
+    type: string
+    description: "Directory where the module writes its logs."
+  extras_dir:
+    type: string
+    description: "Directory where the module writes its other files: internal state (PID files...), files for debugging."
+  install_prometheus:
+    required: false
+    type: bool
+    description: "Install Prometheus in the cluster at start; false to use one already there (default: true)."
+  chart_version:
+    required: false
+    type: string
+    description: "Version of the prometheus Helm chart, fetched at start if missing (default: 28.13.0)."
+  placement:
+    required: false
+    type: string
+    description: "Where the installed Prometheus runs: control-plane (away from the measured workload) or any (let Kubernetes choose, e.g. when the control-plane is not schedulable) (default: control-plane)."
+  frequency_seconds:
+    required: false
+    type: positive_int
+    description: "Scrape period, of Prometheus and of the module's scraper (default: 60)."
+  local_port:
+    required: false
+    type: positive_int
+    description: "Local port of the port-forward to Prometheus (default: 9090)."
+
+dependencies:
+  entrypoint: dependencies.sh
+  commands:
+    - kubectl
+    - curl
+    - python3
+    - pkill
+  utils:
+    - helm

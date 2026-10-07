@@ -1,0 +1,45 @@
+version: 1
+
+scenario:
+  name: hots-online-boutique-15min
+  seed: 42
+  duration_seconds: 900
+
+environment:
+  module: kind
+  node_image: kindest/node:v1.34.0
+  workers:
+    count: 2
+    cpu: "2"
+    memory: "4Gi"
+
+stack:
+  module: online-boutique-v0.10.1
+
+observability:
+  module: prometheus-live-scraper
+  frequency_seconds: 15
+  local_port: 9090         # <-- if you change this, update optimizer.prometheus_url below
+
+traffic:
+  module: online-boutique-locust
+  shape: day_profile
+  cycle_minutes: 60
+
+optimizer:
+  module: hots
+  prometheus_url: http://127.0.0.1:9090   # <-- must match observability.local_port above
+  kafka_port: 9092
+  namespace: online-boutique
+  metric: cpu
+  nb_clusters: 3
+  tick_seconds: 10
+
+post-processing:
+  - module: essential-tables
+  - module: basic-evaluation
+  - module: pod-based-node-evaluation
+
+output:
+  root_directory: output
+  cleanup_environment: true

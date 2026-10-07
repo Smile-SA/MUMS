@@ -6,41 +6,64 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class RunPaths:
+    """Layout of a run directory.
+
+    - `data/<format>/`: standard data, one directory per data format (e.g.
+      `data/openmetrics/`). Modules that produce or consume standard data get
+      the whole `data/` directory; each one writes only the directories of the
+      formats it produces, and reads those it needs.
+    - Per-module directories, private to each module: `logs/<module>/` and
+      `extras/<module>/`.
+    - Runner-owned: `manifest.yaml`, `runtime/`, `provenance/` (see provenance.py).
+    """
+
     root: Path
-    config: Path
     manifest: Path
-    logs: Path
     runtime: Path
-    pids: Path
-    traffic: Path
-    metrics: Path
-    kubernetes: Path
-    datasets: Path
+    environment_result: Path
+    kubeconfig: Path
+    provenance: Path
+    logs: Path
+    extras: Path
+    data: Path
 
     @classmethod
-    def create(cls, root: Path) -> "RunPaths":
-        paths = cls(
+    def of(cls, root: Path) -> RunPaths:
+        """The paths of the run at `root`, without creating anything."""
+        runtime = root / "runtime"
+        return cls(
             root=root,
-            config=root / "config.yaml",
             manifest=root / "manifest.yaml",
+            runtime=runtime,
+            environment_result=runtime / "environment-result",
+            kubeconfig=runtime / "kubeconfig",
+            provenance=root / "provenance",
             logs=root / "logs",
-            runtime=root / "runtime",
-            pids=root / "runtime" / "pids",
-            traffic=root / "traffic",
-            metrics=root / "metrics",
-            kubernetes=root / "kubernetes",
-            datasets=root / "datasets",
+            extras=root / "extras",
+            data=root / "data",
         )
 
+    @classmethod
+    def create(cls, root: Path) -> RunPaths:
+        paths = cls.of(root)
+
         for path in (
-            paths.logs,
             paths.runtime,
-            paths.pids,
-            paths.traffic,
-            paths.metrics,
-            paths.kubernetes,
-            paths.datasets,
+            paths.provenance,
+            paths.logs,
+            paths.extras,
+            paths.data,
         ):
             path.mkdir(parents=True, exist_ok=True)
 
         return paths
+
+    def module_logs(self, module_name: str) -> Path:
+        path = self.logs / module_name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def module_extras(self, module_name: str) -> Path:
+        path = self.extras / module_name
+        path.mkdir(parents=True, exist_ok=True)
+        return path

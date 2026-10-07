@@ -1,0 +1,37 @@
+version: 1
+
+scenario:
+  name: smoke-test
+  seed: 42
+  duration_seconds: 60
+
+environment:
+  module: kind
+  node_image: kindest/node:v1.34.0
+  workers:
+    count: 2
+    cpu: "2"
+    memory: "4Gi"
+
+stack:
+  module: online-boutique-v0.10.1
+
+observability:
+  module: prometheus-live-scraper
+  frequency_seconds: 15
+  local_port: 9090
+
+traffic:
+  module: online-boutique-locust
+  shape: day_profile
+  cycle_minutes: 60
+
+optimizer:
+  module: baseline
+
+post-processing:
+  - module: essential-tables
+
+output:
+  root_directory: output
+  cleanup_environment: true

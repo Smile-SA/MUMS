@@ -7,6 +7,8 @@ output/
 
 # Local Python development environment
 .venv/
+.vscode/
+.claude/
 __pycache__/
 *.py[cod]
 .pytest_cache/

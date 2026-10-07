@@ -1,83 +1,129 @@
 SHELL := /bin/bash
 
-PYTHON ?= python3
-VENV_DIR ?= .venv
-VENV_PYTHON := $(VENV_DIR)/bin/python
+# Agnostic of any virtual environment: the platform's CLI applies its settings
+# itself; tools that need its environment run through `benchmark-platform exec`.
+PYTHON    ?= python3
+BENCHMARK ?= benchmark-platform
+VENV_DIR  ?= .venv
+CONFIG    ?= configs/smoke-test.yaml
 
-.PHONY: help setup setup-dev install install-dev install-system-deps-ubuntu check-prereqs doctor check check-shell check-python lint test clean clean-venv
+.PHONY: help \
+        setup-core setup-dev setup-module setup-smoke-test \
+        check-module install-system-deps-debian \
+        check check-shell check-python lint validate-config \
+        smoke-test test \
+        doctor clean clean-venv clean-env clean-all require-cli
 
 help:
 	@echo "Benchmark platform developer commands"
+	@echo "(lint and test run in the platform's environment: benchmark-platform exec)"
 	@echo
-	@echo "  make setup          Create .venv and install runtime dependencies"
-	@echo "  make setup-dev      Create .venv and install runtime + development dependencies"
-	@echo "  make check-prereqs  Validate required system tools and Python runtime imports"
-	@echo "  make doctor         Display platform-relevant local diagnostics"
-	@echo "  make install-system-deps-ubuntu  Install Docker, kubectl, kind, Helm and jq on Ubuntu/Debian"
-	@echo "  make check          Run non-destructive shell and Python syntax checks"
-	@echo "  make lint           Run Ruff lint checks (requires make setup-dev)"
-	@echo "  make validate-config  Check configuration file format"
-	@echo "  make run-basic      Run basic test scenario"
-	@echo "  make test           Run Python tests when present (requires make setup-dev)"
-	@echo "  make clean          Remove caches only; preserves virtual env and benchmark outputs"
-	@echo "  make clean-venv     Remove the local Python virtual environment"
+	@echo "  SETUP"
+	@echo "    make setup-core                    Create .venv and install core runtime dependencies"
+	@echo "                                       (options: ./benchmark_platform/bootstrap.sh --help)"
+	@echo "    make setup-dev                     Core runtime + development dependencies (lint, tests)"
+	@echo "    make setup-module MODULE=<name>    Install a module's dependencies, then check them (e.g. kind)"
+	@echo "    make setup-smoke-test            Install all modules needed for the smoke test"
+	@echo "    make install-system-deps-debian    Install the core system tools (Python, kubectl) on Debian-like systems"
+	@echo
+	@echo "  QUALITY"
+	@echo "    make check-module  MODULE=<name>   Check a module's dependencies"
+	@echo "    make check                         Shell and Python syntax checks (non-destructive)"
+	@echo "    make lint                          Ruff lint checks (requires make setup-dev)"
+	@echo
+	@echo "  RUN"
+	@echo "    make validate-config [CONFIG=...]  Validate a scenario: config, modules, dependencies"
+	@echo "                                       (default: $(CONFIG))"
+	@echo "    make smoke-test [ARGS=...]         Short end-to-end run on a real cluster, to check everything works"
+	@echo "                                       (ARGS=-v verbose, ARGS=-q quiet)"
+	@echo "    make test                          Run Python tests (requires make setup-dev)"
+	@echo
+	@echo "  MAINTENANCE"
+	@echo "    make doctor                        Overview of the machine and of the platform (informative)"
+	@echo "    make clean                         Remove Python caches (preserves venv and outputs)"
+	@echo "    make clean-venv                    Remove the local Python virtual environment"
+	@echo "    make clean-env [ID=...]            Destroy environments left behind by previous runs (all, or one id;"
+	@echo "                                       see 'benchmark-platform env list')"
+	@echo "    make clean-all                     Remove everything: environments, caches, venv"
 
-setup:
-	./scripts/bootstrap.sh
+# The platform's CLI must be on PATH (installed, and its venv activated if any).
+require-cli:
+	@command -v $(BENCHMARK) >/dev/null || { echo "$(BENCHMARK) not found: install the" \
+		"platform (make setup-core), then open a new terminal." >&2; exit 1; }
+
+# --- Setup ---
+
+setup-core:
+	./benchmark_platform/bootstrap.sh
 
 setup-dev:
-	INSTALL_DEV=true ./scripts/bootstrap.sh
+	./benchmark_platform/bootstrap.sh --dev
 
-check-prereqs:
-	./scripts/check_prereqs.sh --mode all
+setup-module: require-cli
+	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=online-boutique-locust" >&2; exit 2)
+	$(BENCHMARK) deps install $(MODULE)
 
-doctor:
-	./scripts/doctor.sh
+# Installs the dependencies of the modules of the smoke test.
+setup-smoke-test: setup-core require-cli
+	$(BENCHMARK) deps install --scenario configs/smoke-test.yaml
 
-install-system-deps-ubuntu:
-	./scripts/install_system_deps_ubuntu.sh
+check-module: require-cli
+	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=online-boutique-locust" >&2; exit 2)
+	$(BENCHMARK) deps check $(MODULE)
+
+install-system-deps-debian:
+	./benchmark_platform/install_system_deps_debian.sh
+
+# --- Quality ---
 
 check: check-shell check-python
 
 check-shell:
-	@echo "=== Checking maintained shell script syntax ==="
+	@echo "=== Checking shell script syntax ==="
 	@find . -type f -name '*.sh' \
-		-not -path './.venv/*' \
+		-not -path '*/.venv/*' \
 		-not -path './utils/helm/chart-repository/*' \
 		-print0 | xargs -0 -r -n1 bash -n
-	@echo "Shell syntax checks succeeded."
+	@echo "Shell syntax OK."
 
 check-python:
 	@echo "=== Checking Python syntax ==="
-	@$(VENV_PYTHON) -m compileall -q \
-		traffic \
-		observability \
-		utils
-	@echo "Python syntax checks succeeded."
+	@$(PYTHON) -m compileall -q -x '/\.venv/|chart-repository' \
+		benchmark_platform tests modules utils
+	@echo "Python syntax OK."
 
-lint:
-	@$(VENV_PYTHON) -m ruff check \
+lint: require-cli
+	$(BENCHMARK) exec -- $(PYTHON) -m ruff check \
 		--exclude utils/helm/chart-repository \
-		traffic observability utils
+		benchmark_platform tests modules utils
 
-validate-config:
-	$(VENV_PYTHON) -m benchmark_platform.cli validate configs/basic-online-boutique.yaml
+# --- Run ---
 
-run-basic:
-	$(VENV_PYTHON) -m benchmark_platform.cli run configs/basic-online-boutique.yaml
+validate-config: require-cli
+	$(BENCHMARK) validate $(CONFIG)
 
-test:
-	@if find tests -type f -name 'test_*.py' -print -quit 2>/dev/null | grep -q .; then \
-		$(VENV_PYTHON) -m pytest; \
-	else \
-		echo "No Python tests are committed yet. Dataset and runner tests are added in the testing issue."; \
-	fi
+smoke-test: require-cli
+	$(BENCHMARK) run configs/smoke-test.yaml $(ARGS)
+
+test: require-cli
+	$(BENCHMARK) exec -- $(PYTHON) -m pytest
+
+# --- Maintenance ---
+
+doctor: require-cli
+	$(BENCHMARK) doctor
 
 clean:
-	@find . -type d -name '__pycache__' -prune -exec rm -rf {} +
+	@find . -type d -name '__pycache__' -not -path '*/.venv/*' -prune -exec rm -rf {} +
 	@rm -rf .pytest_cache .ruff_cache .coverage htmlcov
-	@echo "Removed Python caches and local check artifacts. Benchmark outputs were preserved."
+	@echo "Removed Python caches. Benchmark outputs and venv preserved."
 
 clean-venv:
 	@rm -rf "$(VENV_DIR)"
 	@echo "Removed virtual environment: $(VENV_DIR)"
+
+clean-env: require-cli
+	$(BENCHMARK) env $(if $(ID),clean $(ID),clean-all)
+
+# clean-env first: it needs the platform CLI, which clean-venv removes.
+clean-all: clean-env clean clean-venv

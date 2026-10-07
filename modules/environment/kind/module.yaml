@@ -1,0 +1,36 @@
+name: kind
+type: environment
+contract: 1
+entrypoint: kind.sh
+
+lifecycle:
+  create: "<seed> <id> <output_file>"
+  destroy: "<id>"
+
+args:
+  extras_dir:
+    type: string
+    description: "Directory where the module writes its other files, the kubeconfig of the created cluster included."
+  node_image:
+    required: false
+    type: string
+    description: "Kind node image, i.e. the Kubernetes version of the nodes. With cgroups v1, the image must be older than v1.35 (default: kindest/node:v1.34.0)."
+  workers:
+    required: false
+    type: mapping
+    description: "Worker nodes: {count: N, cpu: X, memory: \"YGi\"}, cpu and memory optional (default: one worker, without cpu or memory limit)."
+  cgroups:
+    required: false
+    type: string
+    description: "How workers get their cpu and memory: v1 (kubelet reservations: Allocatable is right, Capacity is the host's; any host) or v2 (Docker limits: Capacity is right too; cgroup v2 hosts only) (default: v1)."
+
+dependencies:
+  entrypoint: dependencies.sh
+  commands:        # kind itself is checked by dependencies.sh (see kind-version)
+    - docker
+    - kubectl
+    - jq
+    - curl
+  utils:
+    - helm
+    - metallb

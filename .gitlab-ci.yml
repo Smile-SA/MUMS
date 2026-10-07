@@ -1,0 +1,25 @@
+stages:
+  - lint
+  - test
+
+default:
+  image: python:3.12-slim
+  before_script:
+    - apt-get update
+    - apt-get install -y bash curl git jq
+    - python -m venv .venv
+    - .venv/bin/python -m pip install --upgrade pip
+    - .venv/bin/python -m pip install -r requirements-dev.txt
+    - .venv/bin/python -m pip install -e .
+
+lint:
+  stage: lint
+  script:
+    - .venv/bin/python -m compileall -q benchmark_platform traffic observability utils tests
+    - .venv/bin/python -m ruff check --exclude utils/helm/chart-repository benchmark_platform tests
+    - find . -type f -name '*.sh' -not -path './.venv/*' -not -path './utils/helm/chart-repository/*' -print0 | xargs -0 -r -n1 bash -n
+
+unit-tests:
+  stage: test
+  script:
+    - .venv/bin/python -m pytest

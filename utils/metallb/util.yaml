@@ -1,0 +1,8 @@
+name: metallb
+
+dependencies:
+  entrypoint: dependencies.sh
+  commands:
+    - kubectl
+  utils:
+    - helm
