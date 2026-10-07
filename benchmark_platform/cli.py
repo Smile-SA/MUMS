@@ -100,6 +100,16 @@ def build_parser() -> argparse.ArgumentParser:
     config_set = config_commands.add_parser("set", help="Write a setting to the file.")
     config_set.add_argument("key", choices=list(settings.VARIABLES))
     config_set.add_argument("values", nargs="+", help="Value (module_paths: one or more).")
+    config_add = config_commands.add_parser(
+        "add", help="Add paths to a list setting of the file (module_paths)."
+    )
+    config_add.add_argument("key", choices=["module_paths"])
+    config_add.add_argument("values", nargs="+", help="Paths to add.")
+    config_remove = config_commands.add_parser(
+        "remove", help="Remove paths from a list setting of the file (module_paths)."
+    )
+    config_remove.add_argument("key", choices=["module_paths"])
+    config_remove.add_argument("values", nargs="+", help="Paths to remove.")
     config_unset = config_commands.add_parser("unset", help="Remove a setting from the file.")
     config_unset.add_argument("key", choices=list(settings.VARIABLES))
 
@@ -137,6 +147,12 @@ def _config_command(args: argparse.Namespace) -> int:
     elif command == "set":
         path = settings.set_value(args.key, args.values)
         print(f"{args.key} written to {path}")
+    elif command == "add":
+        path = settings.add_values(args.key, args.values)
+        print(f"{args.key} updated in {path}")
+    elif command == "remove":
+        path = settings.remove_values(args.key, args.values)
+        print(f"{args.key} updated in {path}")
     elif command == "unset":
         path = settings.unset(args.key)
         print(f"{args.key} removed from {path}")

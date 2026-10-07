@@ -26,11 +26,10 @@ None.
 
 ## What it evaluates
 
-The optimizer starts after the stack: the application's pods are already placed
-by the default scheduler. `koord-scheduler` only places pods that ask for it
-(`schedulerName: koord-scheduler`), which a stack's pods usually do not. In the
-current step order, Koordinator therefore acts through its descheduler
-(rescheduling), not through its scheduler.
+`koord-scheduler` only places pods that ask for it
+(`schedulerName: koord-scheduler`), which a stack's pods usually do not: they
+are placed by the default scheduler. As it stands, Koordinator therefore acts
+through its descheduler (rescheduling), not through its scheduler.
 
 ## Dependencies
 
