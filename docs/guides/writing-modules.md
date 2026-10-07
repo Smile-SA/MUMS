@@ -27,9 +27,11 @@ parses them.
 An action is called as `<entrypoint> <action> <positional arguments> [--<name>
 <value>]...`. The positional arguments are fixed by the contract, according to the
 module's type ([table](../reference/module-contract.md#actions)); the named
-arguments are those the module declares in `args`. Set every named argument's
-default first, then read the options, and refuse unknown ones: they reveal a
-mismatch with `module.yaml`.
+arguments are those the module declares in `args`, given by the scenario, or by
+the platform for `log_dir` and `extras_dir`: a module receives these two only if
+it declares them ([contract](../reference/module-contract.md#arguments)). Set
+every named argument's default first, then read the options, and refuse unknown
+ones: they reveal a mismatch with `module.yaml`.
 
 ```bash
 SHAPE="day_profile"                  # default, stated in module.yaml's description
