@@ -94,6 +94,7 @@ check-python:
 
 lint: require-cli
 	$(BENCHMARK) exec -- $(PYTHON) -m ruff check \
+		--config benchmark_platform/pyproject.toml \
 		--exclude utils/helm/chart-repository \
 		benchmark_platform tests modules utils
 

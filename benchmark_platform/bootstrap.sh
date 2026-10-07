@@ -7,7 +7,7 @@
 #   --no-venv           install into the active Python environment, without a venv
 #                       (at your own risk: the venv avoids interfering with the rest)
 #   --venv-dir DIR      the venv to use, created if missing (default: <repository>/.venv)
-#   --dev               also install the development dependencies (requirements-dev.txt)
+#   --dev               also install the development tools (pytest, ruff)
 #   --no-shell-profile  do not touch the shell's profile (only print what to add)
 #
 # Environment: PYTHON, the interpreter used to create the venv (or, with
@@ -67,10 +67,12 @@ fi
 echo
 echo "=== Installing the platform ==="
 "${PY}" -m pip install --upgrade pip
-"${PY}" -m pip install -e .
-
+# The core is declared in benchmark_platform/pyproject.toml; [dev] adds the
+# development tools.
 if [[ "${INSTALL_DEV}" == "true" ]]; then
-  "${PY}" -m pip install -r requirements-dev.txt
+  "${PY}" -m pip install -e "benchmark_platform[dev]"
+else
+  "${PY}" -m pip install -e benchmark_platform
 fi
 
 # Settings (where modules and utils are, the environment everything runs in),

@@ -9,7 +9,7 @@ runs.
 
 A Linux machine (`amd64` or `arm64`) with:
 
-- **Python 3.10** or later, with `venv`;
+- **Python 3.11** or later, with `venv`;
 - **kubectl**;
 - **git**;
 - **Docker**, running: the scenarios used here create their cluster with kind, in

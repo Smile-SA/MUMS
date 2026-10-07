@@ -75,7 +75,8 @@ Open a new terminal afterwards. Running it again is safe.
 
 ## Uninstalling
 
-Delete the venv (it holds the configuration file), the link
+Delete the venv (it holds the configuration file, and what the modules'
+dependency scripts installed into it: Python packages, commands), the link
 `~/.local/bin/benchmark-platform`, and the marked block in the shell's profile
 (`# >>> benchmark-platform >>>`). The environments of interrupted runs are listed
 by `benchmark-platform env list`: destroy them first.

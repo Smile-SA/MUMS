@@ -1,5 +1,0 @@
--r requirements.txt
-
-# Developer-only validation and test tools.
-pytest>=8,<10
-ruff>=0.11,<1.0

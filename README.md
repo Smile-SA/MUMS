@@ -16,7 +16,7 @@ Adding an optimizer, an application or a cluster provider means writing a module
 
 ## Quick start
 
-On Linux, with Python 3.10+, `kubectl`, `git` and a running Docker:
+On Linux, with Python 3.11+, `kubectl`, `git` and a running Docker:
 
 ```bash
 ./benchmark_platform/bootstrap.sh       # from the repository; own venv by default, options: --help

@@ -1,2 +1,0 @@
-# Scenario configuration and runner support.
-PyYAML>=6.0,<7.0
