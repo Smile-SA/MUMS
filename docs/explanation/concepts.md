@@ -27,6 +27,7 @@ the work. Each module has a **type**, which fixes the actions it implements:
 | `observability` | measures the cluster while the run lasts |
 | `stack` | deploys the application under test |
 | `optimizer` | the tool being evaluated |
+| `disruption` | disrupts the cluster during the run (nodes, pods, network...) |
 | `traffic` | sends load to the application |
 | `post-processing` | turns data into tables, indicators, comparisons |
 
@@ -61,10 +62,12 @@ in, set for each installation of the platform.
 [observability]   start      measurement starts
 [optimizer]       start      the tool under test
 [stack]           deploy     the application
+[disruption]      start      the disruptions are set up
 [traffic]         start      the load starts
 [run]             wait       the run's duration: the measured period
 [provenance]      collect    the cluster as it was measured
 [traffic]         stop       then everything stops, in reverse order
+[disruption]      stop
 [stack]           delete
 [optimizer]       stop
 [observability]   stop
@@ -76,6 +79,8 @@ in, set for each installation of the platform.
   scheduler is deployed: it is in place when the application's pods are created.
   The traffic starts last, right before the wait, so that the load starts with the
   measured period, the same for every optimizer, however long it takes to start.
+  Disruptions are set up just before it, and act in the background at times their
+  module chooses.
 - **The run window** is the wait, from its start to its end. It is written as
   standard data (`run-window`), so that evaluations can count only what happened
   during it.

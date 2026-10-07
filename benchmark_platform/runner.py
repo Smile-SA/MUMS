@@ -30,7 +30,14 @@ from benchmark_platform.shell import run_command
 from benchmark_platform.warn import warn
 
 # Scenario sections, one module each. `post-processing` is optional.
-REQUIRED_COMPONENTS = ("environment", "observability", "stack", "traffic", "optimizer")
+REQUIRED_COMPONENTS = (
+    "environment",
+    "observability",
+    "stack",
+    "traffic",
+    "optimizer",
+    "disruption",
+)
 OPTIONAL_COMPONENTS = ("post-processing",)
 
 # External commands the core itself needs (Kubernetes state collection), checked
@@ -433,6 +440,11 @@ def run_scenario(
 
         launched.append(components["stack"])
         steps.call(components["stack"], "deploy", kubeconfig, config.seed)
+
+        # Disruptions start right before the traffic, which stays last: the run
+        # window still opens with the load. When to disrupt is up to the module.
+        launched.append(components["disruption"])
+        steps.call(components["disruption"], "start", kubeconfig, config.seed)
 
         # Traffic starts right before the wait, once the application is deployed:
         # the load shape then starts with the run window, the same for every

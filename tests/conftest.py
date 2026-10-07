@@ -17,6 +17,7 @@ SIGNATURES = {
     "observability": {"start": "<kubeconfig> <data_dir>", "stop": "<kubeconfig>"},
     "traffic": {"start": "<kubeconfig> <seed> <data_dir>", "stop": "<kubeconfig>"},
     "optimizer": {"start": "<kubeconfig>", "stop": "<kubeconfig>"},
+    "disruption": {"start": "<kubeconfig> <seed>", "stop": "<kubeconfig>"},
     "post-processing": {"run": "<data_dir>"},
 }
 

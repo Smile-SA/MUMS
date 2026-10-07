@@ -63,7 +63,7 @@ From the repository's directory:
 ## Rules
 
 - **The core knows no specific module.** No tool or module name in
-  `benchmark_platform/`: `grep -rniE "kind|helm|prometheus|online-boutique|locust|hots|baseline|koordinator" benchmark_platform/`
+  `benchmark_platform/`: `grep -rniE "kind|helm|prometheus|online-boutique|locust|hots|no-optimization|no-disruption|koordinator" benchmark_platform/`
   must only find justified occurrences.
 - **Side tasks never fail a run** (provenance, state collection): they record
   their errors and go on.

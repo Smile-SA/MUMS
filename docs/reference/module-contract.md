@@ -51,7 +51,7 @@ dependencies:
 | Field | Required | Content |
 |---|---|---|
 | `name` | yes | unique among all modules and utils found |
-| `type` | yes | `environment`, `stack`, `observability`, `traffic`, `optimizer` or `post-processing` |
+| `type` | yes | `environment`, `stack`, `observability`, `traffic`, `optimizer`, `disruption` or `post-processing` |
 | `contract` | no | the contract version the module follows: `1` (the default) |
 | `entrypoint` | yes | the executable called for every action, relative to the module's directory |
 | `lifecycle` | yes | the actions the module implements, each with its positional arguments, exactly as in the [table below](#actions) |
@@ -79,6 +79,8 @@ positional arguments, exactly as below.
 | | `stop` | `<kubeconfig>` | no |
 | `optimizer` | `start` | `<kubeconfig>` | yes |
 | | `stop` | `<kubeconfig>` | no |
+| `disruption` | `start` | `<kubeconfig> <seed>` | yes |
+| | `stop` | `<kubeconfig>` | no |
 | `post-processing` | `run` | `<data_dir>` | yes |
 
 | Argument | Content |
@@ -100,6 +102,10 @@ What each action must do:
 - **`start` / `deploy`** launch the module and return once it is running. Anything
   the module leaves running afterwards (a process on the machine) runs in the
   background.
+- **`disruption start`** sets the disruptions up and returns: they act in the
+  background during the run, at times the module chooses (its arguments). It is
+  called right before the traffic starts, so a delay counted from it also includes
+  the traffic's start-up.
 - **`stop` / `delete`** stop it. They are called for every module that was started,
   even if its start failed half-way, or if a later step failed: they must succeed
   whatever is running (or not).

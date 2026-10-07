@@ -11,7 +11,7 @@ from benchmark_platform.warn import warn_unknown
 # Fields the core knows; any other is ignored with a warning.
 ROOT_KEYS = frozenset(
     {"version", "scenario", "environment", "stack", "observability", "traffic", "optimizer",
-     "post-processing", "output"}
+     "disruption", "post-processing", "output"}
 )
 SCENARIO_KEYS = frozenset({"name", "seed", "duration_seconds", "description"})
 OUTPUT_KEYS = frozenset({"root_directory", "cleanup_environment"})
@@ -136,6 +136,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
     observability = _require_section(raw, "observability")
     traffic = _require_section(raw, "traffic")
     optimizer = _require_section(raw, "optimizer")
+    disruption = _require_section(raw, "disruption")
     output = _require_section(raw, "output")
     post_processing = post_processing_sections(raw)
 
@@ -161,6 +162,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
     _validate_component(observability, "observability")
     _validate_component(traffic, "traffic")
     _validate_component(optimizer, "optimizer")
+    _validate_component(disruption, "disruption")
 
     for index, section in enumerate(post_processing):
         _validate_component(section, f"post-processing[{index}]")

@@ -56,6 +56,10 @@ TYPE_CONTRACTS: dict[str, dict[str, ActionContract]] = {
         "start": ActionContract(("kubeconfig",), required=True),
         "stop": ActionContract(("kubeconfig",), required=False),
     },
+    "disruption": {
+        "start": ActionContract(("kubeconfig", "seed"), required=True),
+        "stop": ActionContract(("kubeconfig",), required=False),
+    },
     "post-processing": {
         "run": ActionContract(("data_dir",), required=True),
     },
@@ -68,6 +72,7 @@ LAUNCH_ACTIONS = {
     "observability": "start",
     "traffic": "start",
     "optimizer": "start",
+    "disruption": "start",
     "post-processing": "run",
 }
 STOP_ACTIONS = {
@@ -76,6 +81,7 @@ STOP_ACTIONS = {
     "observability": "stop",
     "traffic": "stop",
     "optimizer": "stop",
+    "disruption": "stop",
 }
 
 

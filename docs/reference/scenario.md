@@ -25,7 +25,10 @@ stack:
   module: online-boutique-v0.10.1
 
 optimizer:
-  module: baseline
+  module: no-optimization
+
+disruption:
+  module: no-disruption
 
 traffic:
   module: online-boutique-locust
@@ -48,7 +51,7 @@ output:
 |---|---|---|
 | `version` | yes | `1` |
 | `scenario` | yes | the experiment: see below |
-| `environment`, `observability`, `stack`, `optimizer`, `traffic` | yes | one module each: see [Module sections](#module-sections) |
+| `environment`, `observability`, `stack`, `optimizer`, `disruption`, `traffic` | yes | one module each: see [Module sections](#module-sections) |
 | `post-processing` | no | a module section, or a list of them, run in that order |
 | `output` | yes | where the run goes: see below |
 
@@ -57,7 +60,7 @@ output:
 | Field | Required | Content |
 |---|---|---|
 | `name` | yes | the scenario's name, used to name its runs |
-| `seed` | yes | positive integer, given to the modules that take one (`environment`, `stack`, `traffic`) |
+| `seed` | yes | positive integer, given to the modules that take one (`environment`, `stack`, `disruption`, `traffic`) |
 | `duration_seconds` | yes | positive integer: the duration of the run's wait, i.e. of the measured period |
 | `description` | no | free text |
 

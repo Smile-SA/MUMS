@@ -1,4 +1,4 @@
-# baseline
+# no-optimization
 
 Optimizer module that does nothing: the reference point. Pods are placed by the
 default Kubernetes scheduler and never moved. Running the same scenario with
@@ -23,4 +23,4 @@ None.
 
 ## Files
 
-`baseline.sh` (the entrypoint), `module.yaml`.
+`run.sh` (the entrypoint), `module.yaml`.

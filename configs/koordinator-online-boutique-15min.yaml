@@ -29,6 +29,9 @@ traffic:
 optimizer:
   module: koordinator
 
+disruption:
+  module: no-disruption
+
 post-processing:
   - module: essential-tables
   - module: basic-evaluation

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Baseline optimizer module (contract 1): applies no optimization.
+# no-optimization optimizer module (contract 1): applies no optimization.
 # Kubernetes default scheduling and controller behavior remain active.
 #
 # Usage:
-#   baseline.sh start <kubeconfig>
+#   run.sh start <kubeconfig>
 
 set -euo pipefail
 
@@ -20,5 +20,5 @@ fi
 shift
 [ "$#" -eq 1 ] || usage   # <kubeconfig>: unused
 
-echo "=== Baseline optimizer: no additional optimization is applied ==="
+echo "=== no-optimization: no additional optimization is applied ==="
 echo "Kubernetes default scheduling and controller behavior remain active."

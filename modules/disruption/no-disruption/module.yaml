@@ -1,0 +1,7 @@
+name: no-disruption
+type: disruption
+contract: 1
+entrypoint: run.sh
+
+lifecycle:
+  start: "<kubeconfig> <seed>"

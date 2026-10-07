@@ -27,7 +27,10 @@ traffic:
   cycle_minutes: 60
 
 optimizer:
-  module: baseline
+  module: no-optimization
+
+disruption:
+  module: no-disruption
 
 post-processing:
   - module: essential-tables

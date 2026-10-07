@@ -81,7 +81,7 @@ The [run directory reference](../reference/run-directory.md) describes it all.
 ## 4. Measure two optimizers
 
 Two scenarios run the same 15-minute experiment, with a different optimizer:
-`baseline` (Kubernetes' default scheduler, the reference point) and `koordinator`.
+`no-optimization` (Kubernetes' default scheduler, the reference point) and `koordinator`.
 Both end with an evaluation, `basic-evaluation`, which summarizes each run in a few
 indicators.
 

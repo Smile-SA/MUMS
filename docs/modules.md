@@ -11,9 +11,10 @@ actions, arguments, data and known limitations.
 | observability | [`prometheus-live-scraper`](../modules/observability/prometheus-live-scraper/README.md) | installs Prometheus in the cluster and collects its metrics for the whole run (`openmetrics`) |
 | stack | [`online-boutique-v0.10.1`](../modules/stack/online-boutique-v0.10.1/README.md) | deploys Online Boutique, Google's microservices demo, in version 0.10.1 |
 | traffic | [`online-boutique-locust`](../modules/traffic/online-boutique-locust/README.md) | load on Online Boutique with Locust, following a load shape (`http-requests`) |
-| optimizer | [`baseline`](../modules/optimizer/baseline/README.md) | does nothing: Kubernetes' default scheduler, the reference point |
+| optimizer | [`no-optimization`](../modules/optimizer/no-optimization/README.md) | does nothing: Kubernetes' default scheduler, the reference point |
 | optimizer | [`koordinator`](../modules/optimizer/koordinator/README.md) | installs Koordinator (QoS-based scheduling and rescheduling) in the cluster |
 | optimizer | [`hots`](../modules/optimizer/hots/README.md) | runs HOTS against the live cluster, through hots-connector and a Kafka broker |
+| disruption | [`no-disruption`](../modules/disruption/no-disruption/README.md) | does nothing: the cluster runs undisturbed |
 | post-processing | [`essential-tables`](../modules/post-processing/essential-tables/README.md) | turns the raw metrics into eight tables on containers, pods, nodes and controllers (`essential-tables`) |
 | post-processing | [`basic-evaluation`](../modules/post-processing/basic-evaluation/README.md) | summarizes a run in comparable indicators: requests, latencies, errors, node usage, availability (`summary`) |
 | post-processing | [`pod-based-node-evaluation`](../modules/post-processing/pod-based-node-evaluation/README.md) | node usage computed from their pods, against allocatable, for nodes sharing a machine (`summary`) |

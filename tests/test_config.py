@@ -27,6 +27,12 @@ def test_module_required(platform):
         load_config(platform.write_scenario())
 
 
+def test_disruption_required(platform):
+    del platform.scenario["disruption"]
+    with pytest.raises(ConfigError, match="'disruption'"):
+        load_config(platform.write_scenario())
+
+
 def test_post_processing_optional(platform):
     del platform.scenario["post-processing"]
     load_config(platform.write_scenario())

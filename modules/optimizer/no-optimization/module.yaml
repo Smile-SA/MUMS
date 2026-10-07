@@ -1,7 +1,7 @@
-name: baseline
+name: no-optimization
 type: optimizer
 contract: 1
-entrypoint: baseline.sh
+entrypoint: run.sh
 
 lifecycle:
   start: "<kubeconfig>"

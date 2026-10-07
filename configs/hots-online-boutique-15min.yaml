@@ -35,6 +35,9 @@ optimizer:
   nb_clusters: 3
   tick_seconds: 10
 
+disruption:
+  module: no-disruption
+
 post-processing:
   - module: essential-tables
   - module: basic-evaluation

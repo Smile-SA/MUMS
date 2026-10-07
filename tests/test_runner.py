@@ -18,8 +18,10 @@ FULL_RUN = [
     "observability start",
     "optimizer start",
     "stack deploy",
+    "disruption start",
     "traffic start",
     "traffic stop",
+    "disruption stop",
     "stack delete",
     "optimizer stop",
     "observability stop",
@@ -75,6 +77,33 @@ def test_failure_stops_launched_and_destroys(platform):
         "observability start",
         "optimizer start",
         "stack deploy",
+        "stack delete",
+        "optimizer stop",
+        "observability stop",
+        "environment destroy",
+        "post-processing run",
+    ]
+
+
+def test_disruption_gets_kubeconfig_and_seed(platform, tmp_path):
+    _run(platform)
+    line = next(
+        ln for ln in platform.calls.read_text().splitlines() if ln.startswith("disruption start")
+    )
+    assert line.split()[2:] == [str(tmp_path / "kubeconfig"), "42"]
+
+
+def test_disruption_failure_stops_before_traffic(platform):
+    (platform.modules / "disruption" / "FAIL_start").touch()
+    with pytest.raises(CommandError):
+        _run(platform)
+    assert platform.read_calls() == [
+        "environment create",
+        "observability start",
+        "optimizer start",
+        "stack deploy",
+        "disruption start",
+        "disruption stop",
         "stack delete",
         "optimizer stop",
         "observability stop",
