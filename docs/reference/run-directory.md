@@ -64,6 +64,7 @@ Recorded at the start of the run:
 | `modules.sha256` | a digest of each module and util used (its files, hidden directories and caches excepted), in `sha256sum` format: `<digest>  <name>` |
 | `commands.sha256` | a digest of the executable of each command they declare, and of `kubectl`, same format; a command not found appears as a comment |
 | `commands/<command>.txt` | the output of `<command> --version` |
+| `python-packages.txt` | `python3 -m pip freeze --all`: the Python packages the modules run with, and their versions (for an editable install from a git checkout: its commit) |
 | `host/uname.txt` | `uname -a` |
 | `host/os-release`, `host/cpuinfo`, `host/meminfo` | copies of `/etc/os-release`, `/proc/cpuinfo`, `/proc/meminfo` |
 
@@ -72,14 +73,15 @@ Recorded at the end of the run's wait, before anything stops (step
 
 | File | Content |
 |---|---|
-| `kubernetes/<kind>.yaml` | every kind of object the cluster can list (`kubectl get <kind> -A -o yaml`), except leases and endpoint slices: the images that ran and their digests, the nodes and their versions, the placement of pods... |
+| `kubernetes/<kind>.yaml` | every kind of object the cluster can list (`kubectl get <kind> -A -o yaml`), except leases, endpoint slices and secrets: the images that ran and their digests, the nodes and their versions, the placement of pods... |
 | `kubernetes/events.yaml` | the cluster's events |
+| `kubernetes/secrets.txt` | the cluster's Secrets: namespace, name and type only, never their content |
 
 Provenance is best effort: what cannot be recorded leaves its file with the error
 instead of the output, and never fails the run.
 
-**A run holds credentials in clear**: `runtime/kubeconfig` and
-`provenance/kubernetes/secrets.yaml`. See [Security](../explanation/concepts.md#security).
+**A run holds credentials in clear**: `runtime/kubeconfig`. See
+[Security](../explanation/concepts.md#security).
 
 ## Environments left behind
 

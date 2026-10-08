@@ -41,6 +41,7 @@ def test_record_start(tmp_path):
         assert (target / "host" / name).is_file()
     for name in ("commit.txt", "status.txt", "diff.patch"):
         assert (target / "platform" / name).is_file()
+    assert (target / "python-packages.txt").is_file()
 
 
 def test_record_end_snapshots_every_listable_kind(tmp_path, monkeypatch):
@@ -50,12 +51,16 @@ def test_record_end_snapshots_every_listable_kind(tmp_path, monkeypatch):
     kubectl.write_text(
         "#!/bin/sh\n"
         'case "$3" in\n'
-        '  api-resources) printf "pods\\nnodes\\nleases.coordination.k8s.io\\nevents\\n" ;;\n'
-        '  get) echo "kind: $4" ;;\n'
+        '  api-resources)\n'
+        '    printf "pods\\nnodes\\nsecrets\\nleases.coordination.k8s.io\\nevents\\n" ;;\n'
+        '  get) echo "kind: $4 $7" ;;\n'
         "esac\n"
     )
     kubectl.chmod(0o755)
     monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     provenance.record_end(tmp_path / "provenance", "kubeconfig")
     files = sorted(p.name for p in (tmp_path / "provenance" / "kubernetes").iterdir())
-    assert files == ["events.yaml", "nodes.yaml", "pods.yaml"]  # leases left out
+    # Leases left out; secrets: names and types only, never their content.
+    assert files == ["events.yaml", "nodes.yaml", "pods.yaml", "secrets.txt"]
+    secrets = (tmp_path / "provenance" / "kubernetes" / "secrets.txt").read_text()
+    assert "custom-columns=NAMESPACE:.metadata.namespace" in secrets

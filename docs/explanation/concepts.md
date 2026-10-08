@@ -183,11 +183,11 @@ access to its cluster.
 - **Never put real secrets in it**, nor run it against a cluster or account that
   holds any.
 - **A run contains credentials in clear**: the cluster's kubeconfig
-  (`runtime/kubeconfig`) and the cluster's Secrets (`provenance/kubernetes/secrets.yaml`).
-  On a real cloud provider, that is full access to the cluster, sometimes to the
-  account.
+  (`runtime/kubeconfig`). On a real cloud provider, that is full access to the
+  cluster, sometimes to the account. The cluster's Secrets are not recorded: only
+  their names and types (`provenance/kubernetes/secrets.txt`).
 - **Use credentials dedicated to the experiments, and revoke them before sharing
-  results.** Otherwise, remove those two files from a run before sharing it.
+  results.** Otherwise, remove `runtime/kubeconfig` from a run before sharing it.
 
 ## Known limitations
 

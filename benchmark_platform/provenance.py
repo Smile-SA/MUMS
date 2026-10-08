@@ -16,6 +16,8 @@ specific module or tool, and modules have nothing to do for it.
     commands.sha256        a digest of the executable of each command they declare
                            (and the core's own), same format;
     commands/<name>.txt    the output of `<name> --version`;
+    python-packages.txt    `python3 -m pip freeze`: every Python package the modules
+                           see, with its version (an editable checkout: its commit);
     host/uname.txt         `uname -a`;
     host/os-release, host/cpuinfo, host/meminfo
                            copies of /etc/os-release, /proc/cpuinfo, /proc/meminfo.
@@ -24,7 +26,9 @@ specific module or tool, and modules have nothing to do for it.
     kubernetes/<kind>.yaml every listable kind of object (`kubectl get <kind> -A -o
                            yaml`), except those that only churn; events apart.
                            It holds the images that ran, with their digests, and
-                           the nodes' versions.
+                           the nodes' versions. Secrets are the exception: only
+                           their namespace, name and type (secrets.txt), never
+                           their content, so that a run can be shared.
 
 Best effort: what cannot be recorded leaves its file with the error instead of
 the output; provenance never fails a run.
@@ -45,8 +49,11 @@ REPOSITORY = Path(__file__).resolve().parent.parent
 # the run. Events are recorded apart.
 EXCLUDED_KINDS = frozenset(
     {"leases.coordination.k8s.io", "endpointslices.discovery.k8s.io", "events",
-     "events.events.k8s.io"}
+     "events.events.k8s.io", "secrets"}
 )
+# Secrets: what exists, never the content (a run is meant to be shared).
+SECRETS_COLUMNS = "NAMESPACE:.metadata.namespace,NAME:.metadata.name,TYPE:.type"
+
 # Not part of a module's content: local installs (hidden directories: .venv,
 # .bin...) and caches, which differ from one machine to another.
 SKIPPED_DIRECTORIES = frozenset({"__pycache__"})
@@ -142,6 +149,9 @@ def record_start(
     for command in commands:
         version = _output([command, "--version"], timeout=5)
         _write(directory / "commands" / f"{command}.txt", version)
+    # The interpreter the modules run with (first on PATH, the platform's env applied).
+    _write(directory / "python-packages.txt",
+           _output(["python3", "-m", "pip", "freeze", "--all"], timeout=60))
 
     host = directory / "host"
     _write(host / "uname.txt", _output(["uname", "-a"]))
@@ -174,3 +184,6 @@ def record_end(directory: Path, kubeconfig: str) -> None:
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(snapshot, [*kinds, "events"]))
+    _write(target / "secrets.txt",
+           _output([*kubectl, "get", "secrets", "-A", "-o", f"custom-columns={SECRETS_COLUMNS}"],
+                   timeout=60))
