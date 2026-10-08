@@ -53,8 +53,7 @@ ALLOC_CPU:.status.allocatable.cpu,ALLOC_MEM:.status.allocatable.memory
         lim="$(docker inspect -f '{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}' "$node")"
         seen_cpu="$(docker exec "$node" grep -c ^processor /proc/cpuinfo)"
         seen_mem="$(docker exec "$node" awk '/MemTotal/ {printf "%.1fGiB", $2/1048576}' /proc/meminfo)"
-        cg="$(docker exec "$node" sh -c 'cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max 2>/dev/null | tr "\n" " "
-              || true')"
+        cg="$(docker exec "$node" sh -c 'cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max 2>/dev/null | tr "\n" " "' || true)"
         echo "${node}: docker limits [nanocpus memory]=[${lim}]; node sees ${seen_cpu} CPUs, ${seen_mem}; cgroup v2 cpu.max/memory.max: ${cg:-n/a}"
     done
 
