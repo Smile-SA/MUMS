@@ -7,6 +7,7 @@ scenario:
 
 environment:
   module: kind
+  node_sizing: lxcfs
   node_image: kindest/node:v1.34.0
   workers:
     count: 2
