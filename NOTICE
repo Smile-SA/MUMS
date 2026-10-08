@@ -1,0 +1,16 @@
+Benchmark platform
+Copyright 2026 Smile
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes third-party material:
+
+- modules/traffic/online-boutique-locust/locustfile.py
+  Derived from the load generator of Online Boutique (microservices-demo),
+  Copyright 2018 Google LLC, Apache License 2.0
+  (https://github.com/GoogleCloudPlatform/microservices-demo).
+  Modifications are listed at the top of the file.
+
+Helm charts (Prometheus, MetalLB, Koordinator, Online Boutique) and container
+images are not distributed with this repository: modules fetch them at the
+versions they pin, under their own licenses.

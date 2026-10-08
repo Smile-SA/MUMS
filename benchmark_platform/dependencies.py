@@ -106,10 +106,7 @@ def resolve(index: ModuleIndex, names: list[str]) -> list[Node]:
             raise DependencyError(f"{exc}{origin}") from exc
         in_progress.add(name)
         dependencies = _read_dependencies(path)
-        for dependency in [
-            *(dependencies.get("utils") or []),
-            *(dependencies.get("modules") or []),
-        ]:
+        for dependency in dependencies.get("utils") or []:
             visit(dependency, name)
         script = dependencies.get("entrypoint")
         ordered.append(

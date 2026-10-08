@@ -59,6 +59,7 @@ Run: /…/output/smoke-test-20261006T120330Z-seed42
 [observability]   start      ✓
 [optimizer]       start      ✓
 [stack]           deploy     ✓
+[disruption]      start      ✓
 [traffic]         start      ✓
 [run]             wait       ✓
 [provenance]      collect    ✓
