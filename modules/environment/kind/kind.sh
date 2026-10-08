@@ -20,7 +20,8 @@
 #   lxcfs: Docker limits, plus lxcfs files mounted over the node's /proc and
 #       /sys/devices/system/cpu/online, then kubelet restarted: Capacity,
 #       Allocatable and enforcement all match the requested size, as on a VM.
-#       Needs lxcfs running on the host (mounted at /var/lib/lxcfs), whole CPUs.
+#       Needs lxcfs running on the host (mounted at /var/lib/lxcfs, started
+#       with --enable-cfs), whole CPUs.
 
 set -euo pipefail
 
@@ -271,13 +272,23 @@ restart_kubelets() {
 check_lxcfs() {
     if ! grep -qs " ${LXCFS_DIR} fuse.lxcfs " /proc/mounts; then
         echo "ERROR: --node_sizing lxcfs needs lxcfs running on the host, mounted at ${LXCFS_DIR}" >&2
-        echo "       (e.g. sudo apt-get install lxcfs; sudo systemctl enable --now lxcfs)." >&2
+        echo "       (see \"lxcfs on the host\" in this module's README)." >&2
         exit 1
     fi
-    local cpu
+    local cpu seen
     cpu="$(jq -r '.cpu // empty' <<< "$WORKERS_JSON")"
-    if [ -n "$cpu" ] && (( $(cpu_to_milli "$cpu") % 1000 != 0 )); then
+    [ -n "$cpu" ] || return 0
+    if (( $(cpu_to_milli "$cpu") % 1000 != 0 )); then
         echo "ERROR: --node_sizing lxcfs needs whole CPUs (got cpu=$cpu): lxcfs shows whole CPUs only." >&2
+        exit 1
+    fi
+    # lxcfs shows a CPU limit only when started with --enable-cfs: check it now,
+    # with a container limited to one CPU, rather than after creating the cluster.
+    seen="$(docker run --rm --cpus 1 -v "${LXCFS_DIR}/proc/cpuinfo:/proc/cpuinfo" \
+        --entrypoint grep "$NODE_IMAGE" -c '^processor' /proc/cpuinfo)"
+    if [ "$seen" != "1" ]; then
+        echo "ERROR: --node_sizing lxcfs needs lxcfs started with --enable-cfs: a container limited to" >&2
+        echo "       1 CPU sees ${seen} through it (see \"lxcfs on the host\" in this module's README)." >&2
         exit 1
     fi
 }

@@ -40,7 +40,28 @@ cgroup version. Hence three modes, all working on cgroup v1 and v2 hosts:
 - **`lxcfs`**: Docker limits, plus [lxcfs](https://github.com/lxc/lxcfs) files
   mounted over the node's `/proc` files and `/sys/devices/system/cpu/online`, then
   the kubelets are restarted: each node looks like a VM of the requested size.
-  Needs lxcfs running on the host (`/var/lib/lxcfs`), and whole CPUs.
+  Needs lxcfs running on the host (`/var/lib/lxcfs`), started with
+  `--enable-cfs` (see below), and whole CPUs.
+
+### lxcfs on the host
+
+By default lxcfs shows a container's memory limit but not its CPU limit:
+`--enable-cfs` turns that on. The packaged service starts lxcfs without it, hence
+a systemd drop-in:
+
+```bash
+sudo apt-get install -y lxcfs
+sudo mkdir -p /etc/systemd/system/lxcfs.service.d
+printf '[Service]\nExecStart=\nExecStart=/usr/bin/lxcfs --enable-cfs /var/lib/lxcfs\n' \
+    | sudo tee /etc/systemd/system/lxcfs.service.d/enable-cfs.conf
+sudo systemctl daemon-reload
+sudo systemctl enable lxcfs
+sudo systemctl restart lxcfs
+ps -o args= -C lxcfs        # expect: /usr/bin/lxcfs --enable-cfs /var/lib/lxcfs
+```
+
+Restart lxcfs only while no cluster uses it: the files mounted in running nodes
+stop working. `create` checks lxcfs before creating anything.
 
 ## kind version
 

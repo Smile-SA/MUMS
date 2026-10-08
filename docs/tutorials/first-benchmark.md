@@ -14,7 +14,8 @@ A Linux machine (`amd64` or `arm64`) with:
 - **git**;
 - **Docker**, running: the scenarios used here create their cluster with kind, in
   Docker.
-- **lxcfs**, running, for the 15-min scenarios (sudo apt-get install lxcfs)
+- **lxcfs**, running with `--enable-cfs`, for the 15-min scenarios (see "lxcfs on
+  the host" in the [kind module](../../modules/environment/kind/README.md)).
 
 Other tools are installed by the platform when needed.
 
