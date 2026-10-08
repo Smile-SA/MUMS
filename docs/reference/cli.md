@@ -62,11 +62,19 @@ module's utils first, each one once. `install` runs every dependency script's
 
 ```text
 benchmark-platform compare <run>... [-v] [-m [FILE]] [-c [FILE]]
+benchmark-platform compare -g <name> <run>... -g <name> <run>... [--alpha A] [-v] [-m [FILE]] [-c [FILE]]
 ```
 
-Compares runs from their summaries; the first run is the reference. Takes run
-directories (glob patterns accepted) and hands their data directories to the util
-`compare`; see its README for the report.
+Compares runs from their summaries. Takes run directories (glob patterns accepted)
+and hands their data directories to the util `compare`; see its README for the
+report.
+
+- **Single runs**: the first run is the reference; each indicator's change and
+  better / worse verdict, without significance test.
+- **Groups** (`-g`, repeated): repetitions of each configuration; the first group
+  is the reference. Each indicator's median and interquartile range per group, and
+  a verdict only when the difference is significant (Mann-Whitney U, p < `--alpha`,
+  default 0.05).
 
 | Option | Output |
 |---|---|

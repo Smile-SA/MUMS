@@ -47,18 +47,38 @@ of runs rather than single runs. Repeating with the same seed measures the
 variability due to the environment; changing the seed also covers other random
 choices of the modules.
 
-## Compare runs
-
-From their summaries (written by evaluation modules such as `basic-evaluation`):
+`scripts/campaign.py` does it: it runs every scenario once per round, in an order
+shuffled in each round, with the round's seed (the scenario's seed + the round's
+index), and puts all the runs in one directory:
 
 ```bash
-benchmark-platform compare output/baseline-* output/koordinator-* -v
+benchmark-platform exec -- python3 scripts/campaign.py -n 5 \
+    configs/baseline-online-boutique-15min.yaml \
+    configs/koordinator-online-boutique-15min.yaml
 ```
 
-The first run is the reference. For each indicator, the report gives each run's
-value, its change against the reference, and whether it is better or worse,
-according to the indicator's goal. A verdict does not account for the variability
-between runs: a small change between two single runs means nothing.
+At the end, it prints the `compare` command for its runs. Keep the machine idle
+during a campaign.
+
+## Compare runs
+
+From their summaries (written by evaluation modules such as `basic-evaluation`).
+Groups of repetitions, the first one being the reference:
+
+```bash
+benchmark-platform compare -m report.md \
+    -g baseline 'output/campaign-…/baseline-online-boutique-15min-*' \
+    -g koordinator 'output/campaign-…/koordinator-online-boutique-15min-*'
+```
+
+For each indicator, the report gives each group's median and interquartile range,
+the change of medians against the reference, and ✓ / ✗ only when the difference is
+significant (two-sided Mann-Whitney U test, p < 0.05, `--alpha` to change it); `~`
+otherwise. With 3 runs per group, nothing can be significant: run at least 5.
+
+Single runs can be compared too (`benchmark-platform compare <run> <run>...`, the
+first one being the reference), without any significance test: a small change
+between two single runs means nothing.
 
 To compare within a run, add the module `reference-comparison` at the end of its
 post-processing, with the data directory of a reference run:

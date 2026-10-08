@@ -91,14 +91,14 @@ check-shell:
 check-python:
 	@echo "=== Checking Python syntax ==="
 	@$(PYTHON) -m compileall -q -x '/\.venv/|chart-repository' \
-		benchmark_platform tests modules utils
+		benchmark_platform tests modules utils scripts
 	@echo "Python syntax OK."
 
 lint: require-cli
 	$(BENCHMARK) exec -- $(PYTHON) -m ruff check \
 		--config benchmark_platform/pyproject.toml \
 		--exclude utils/helm/chart-repository \
-		benchmark_platform tests modules utils
+		benchmark_platform tests modules utils scripts
 
 # --- Run ---
 

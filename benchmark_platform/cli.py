@@ -124,7 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Compare runs from their summaries (first run: reference), with the util "
         "`compare`; run directories, glob patterns accepted.",
     )
-    compare.add_argument("runs", nargs="+", help="Run directories (the first one: reference).")
+    compare.add_argument("runs", nargs="*", help="Run directories (the first one: reference).")
+    compare.add_argument("-g", "--group", nargs="+", action="append", metavar=("NAME", "RUN"),
+                         help="A group of runs (e.g. repetitions of one scenario): its name, then "
+                         "run directories or glob patterns. Repeat; the first group is the "
+                         "reference. Medians, spread and a significance test per indicator.")
+    compare.add_argument("--alpha", type=float, help="Significance level of the group test.")
     compare.add_argument("-v", "--verbose", action="store_true", help="Aligned console report.")
     compare.add_argument("-m", "--markdown", nargs="?", const="comparison.md", metavar="FILE",
                          help="Markdown report (default: comparison.md).")
@@ -172,25 +177,45 @@ def _config_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _data_dirs(patterns: list[str]) -> list[str] | None:
+    """Run directories (glob patterns accepted) -> their data directories."""
+    data_dirs = []
+    for pattern in patterns:
+        for match in sorted(glob.glob(pattern)) or [pattern]:
+            data = RunPaths.of(Path(match)).data
+            if not data.is_dir():
+                print(f"[ERROR] not a run directory (no {data.name}/ inside): {match}",
+                      file=sys.stderr)
+                return None
+            data_dirs.append(str(data))
+    return data_dirs
+
+
 def _compare_command(args: argparse.Namespace) -> int:
     """Runs → their data directories (the core knows how a run is organized), then
-    the util `compare`, which only knows data directories."""
-    runs: list[Path] = []
-    for pattern in args.runs:
-        for match in sorted(glob.glob(pattern)) or [pattern]:
-            runs.append(Path(match))
-    data_dirs = []
-    for run in runs:
-        data = RunPaths.of(run).data
-        if not data.is_dir():
-            print(f"[ERROR] not a run directory (no {data.name}/ inside): {run}", file=sys.stderr)
+    the util `compare` (found by name), which only knows data directories."""
+    if bool(args.runs) == bool(args.group):
+        print("[ERROR] compare: give run directories, or groups (-g NAME RUN...)",
+              file=sys.stderr)
+        return 2
+    arguments: list[str] = []
+    if args.runs:
+        data_dirs = _data_dirs(args.runs)
+        if data_dirs is None:
             return 1
-        data_dirs.append(str(data))
-    tool = utils_path() / "compare" / "compare.py"
-    if not tool.is_file():
-        print(f"[ERROR] util compare not found: {tool}", file=sys.stderr)
+        arguments += data_dirs
+    for name, *patterns in args.group or []:
+        data_dirs = _data_dirs(patterns)
+        if data_dirs is None:
+            return 1
+        arguments += ["-g", name, *data_dirs]
+    utils = discover().utils
+    if "compare" not in utils or not (utils["compare"] / "compare.py").is_file():
+        print("[ERROR] util compare not found (see 'benchmark-platform config')",
+              file=sys.stderr)
         return 1
-    options = []
+    tool = utils["compare"] / "compare.py"
+    options = [] if args.alpha is None else ["--alpha", str(args.alpha)]
     if args.verbose:
         options.append("-v")
     for flag, value in (("-m", args.markdown), ("-c", args.csv)):
@@ -198,7 +223,8 @@ def _compare_command(args: argparse.Namespace) -> int:
             options += [flag, value]
     if not options:
         options.append("-v")
-    return subprocess.run([sys.executable, str(tool), *data_dirs, *options], check=False).returncode
+    return subprocess.run([sys.executable, str(tool), *arguments, *options],
+                          check=False).returncode
 
 
 def main(argv: list[str] | None = None) -> int:
