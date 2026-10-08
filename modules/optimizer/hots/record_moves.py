@@ -5,8 +5,8 @@ Neither HOTS (Kafka connector) nor hots-connector persists a moves log when
 wired together over a live Kafka broker -- HOTS publishes moves to Kafka and
 hots-connector consumes+applies them, but nothing writes them to disk. This
 runs as an independent consumer group on the same moves topic (does not
-interfere with hots-connector's own consumption) purely to give the
-benchmark platform's `compare` command something to read.
+interfere with hots-connector's own consumption), to keep HOTS's decisions in
+the module's extras, for understanding a run (they are never evaluated).
 
 Usage:
   record_moves.py --bootstrap-servers HOST:PORT --topic NAME --output FILE

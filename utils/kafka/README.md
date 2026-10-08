@@ -13,6 +13,9 @@ Called by modules as `$BENCHMARK_UTILS_PATH/kafka/broker.sh`.
   a stale one with that name first), waits until the broker answers (30 s at
   most; its logs are printed otherwise), and creates the internal topic
   `__consumer_offsets` (see "Known limitations").
+- `broker.sh create-topic <name> <topic> [partitions]` (default: 1 partition):
+  creates a topic if it does not exist yet. Create the topics a consumer subscribes
+  to before it starts: subscribing to a missing topic is an error, not a wait.
 - `broker.sh stop <name>`: removes the container. Succeeds if it is not there.
 
 Give each broker its own name and port to run several at once.

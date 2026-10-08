@@ -7,7 +7,7 @@
 #   run.sh start <kubeconfig> --log_dir <dir> --extras_dir <dir> [module args...]
 #   run.sh stop  <kubeconfig> --log_dir <dir> --extras_dir <dir> [module args...]
 #
-# Module args (see module.yaml): --kafka_port, --prometheus_url,
+# Module args (see module.yaml): --kafka_port, --connector_port, --prometheus_url,
 # --k8s_workload_identity, --k8s_node_label_key, --namespace, --metric,
 # --nb_clusters, --tick_seconds. See README.md for what each one means.
 #
@@ -19,9 +19,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
 
-# Fixed, not user-configurable: runs are serial on a host, so a single
-# well-known port for the connector's own HTTP control API is enough.
-CONNECTOR_API_PORT=8189
 TOPIC_DATA="hots_data"
 TOPIC_MOVES="hots_moves"
 
@@ -46,6 +43,7 @@ shift
 LOG_DIR=""
 EXTRAS_DIR=""
 KAFKA_PORT=9092
+CONNECTOR_API_PORT=8189
 PROMETHEUS_URL="http://127.0.0.1:9090"
 K8S_WORKLOAD_IDENTITY="pod"
 K8S_NODE_LABEL_KEY="kubernetes.io/hostname"
@@ -59,6 +57,7 @@ while [ "$#" -gt 0 ]; do
         --log_dir)               LOG_DIR="$2";               shift 2 ;;
         --extras_dir)            EXTRAS_DIR="$2";            shift 2 ;;
         --kafka_port)            KAFKA_PORT="$2";            shift 2 ;;
+        --connector_port)        CONNECTOR_API_PORT="$2";    shift 2 ;;
         --prometheus_url)        PROMETHEUS_URL="$2";        shift 2 ;;
         --k8s_workload_identity) K8S_WORKLOAD_IDENTITY="$2"; shift 2 ;;
         --k8s_node_label_key)    K8S_NODE_LABEL_KEY="$2";    shift 2 ;;
@@ -131,10 +130,7 @@ case "$ACTION" in
         # waiting -- hots-connector's tick loop (subscribed to topic_moves)
         # would crash on its very first tick, silently.
         for topic in "$TOPIC_DATA" "$TOPIC_MOVES"; do
-            docker exec "benchmark-kafka-${BROKER_NAME}" /opt/kafka/bin/kafka-topics.sh \
-                --bootstrap-server localhost:9092 \
-                --create --if-not-exists --topic "$topic" \
-                --partitions 1 --replication-factor 1
+            "${UTILS_DIR}/kafka/broker.sh" create-topic "$BROKER_NAME" "$topic"
         done
 
         echo "=== Rendering HOTS config ==="
@@ -248,7 +244,16 @@ case "$ACTION" in
             --topic "$TOPIC_MOVES" \
             --output "${EXTRAS_DIR}/moves.jsonl" \
             > "${LOG_DIR}/hots-moves-recorder.log" 2>&1 &
-        echo $! > "$RECORDER_PID_FILE"
+        RECORDER_PID=$!
+        echo "$RECORDER_PID" > "$RECORDER_PID_FILE"
+        # Fail loudly if it dies right away (e.g. confluent_kafka missing), as the
+        # other modules do for their background processes.
+        sleep 2
+        if ! kill -0 "$RECORDER_PID" 2>/dev/null; then
+            echo "ERROR: moves recorder exited right after start. Log: ${LOG_DIR}/hots-moves-recorder.log" >&2
+            cat "${LOG_DIR}/hots-moves-recorder.log" >&2 || true
+            exit 1
+        fi
 
         echo "=== HOTS optimizer started (connector PID $(cat "$CONNECTOR_PID_FILE"), hots PID $(cat "$HOTS_PID_FILE"), recorder PID $(cat "$RECORDER_PID_FILE")) ==="
         ;;

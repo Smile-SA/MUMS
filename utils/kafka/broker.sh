@@ -4,6 +4,7 @@
 #
 # Usage:
 #   ./broker.sh start <name> [port] [image]   # defaults: 9092 (Kafka's), apache/kafka:3.7.1
+#   ./broker.sh create-topic <name> <topic> [partitions]   # default: 1 partition
 #   ./broker.sh stop  <name>
 #
 # The container is named benchmark-kafka-<name>: give each broker its own name
@@ -12,7 +13,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: $0 start <name> [port] [image] | $0 stop <name>" >&2
+    echo "Usage: $0 start <name> [port] [image] | $0 create-topic <name> <topic> [partitions] | $0 stop <name>" >&2
 }
 
 ACTION="${1:-}"
@@ -83,6 +84,21 @@ case "$ACTION" in
         echo "ERROR: Kafka broker failed to become ready within 30s" >&2
         docker logs "$CONTAINER" >&2 || true
         exit 1
+        ;;
+
+    create-topic)
+        # Topics are created explicitly: a consumer subscribing to a topic that
+        # does not exist yet gets an error instead of waiting.
+        TOPIC="${3:-}"
+        PARTITIONS="${4:-1}"
+        if [ -z "$TOPIC" ]; then
+            usage
+            exit 2
+        fi
+        docker exec "$CONTAINER" /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server localhost:9092 \
+            --create --if-not-exists --topic "$TOPIC" \
+            --partitions "$PARTITIONS" --replication-factor 1 >&2
         ;;
 
     stop)
