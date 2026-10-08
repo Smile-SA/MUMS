@@ -111,7 +111,7 @@ def build_config(
                 # single publish tick slower than poll_timeout (a slow
                 # Prometheus/K8s API call, a GC pause) ends the run early.
                 # This narrows but does not eliminate that window -- see the
-                # "known limitation" note in optimizers/hots/README.md.
+                # "known limitation" note in this module's README.md.
                 "poll_timeout": float(tick_seconds) * 3 + 5.0,
                 "bootstrap_timeout_seconds": 120,
                 "node_capacities": capacities,

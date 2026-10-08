@@ -36,3 +36,10 @@ def test_disruption_required(platform):
 def test_post_processing_optional(platform):
     del platform.scenario["post-processing"]
     load_config(platform.write_scenario())
+
+
+@pytest.mark.parametrize("version", ["one", 2, None])
+def test_bad_version_is_a_config_error(platform, version):
+    platform.scenario["version"] = version
+    with pytest.raises(ConfigError, match="version"):
+        load_config(platform.write_scenario())

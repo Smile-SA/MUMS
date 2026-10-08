@@ -127,7 +127,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
     warn_unknown(raw, ROOT_KEYS, f"scenario {config_path.name}")
 
     version = _require_field(raw, "root", "version")
-    if int(version) != 1:
+    if str(version).strip() != "1":
         raise ConfigError(f"Unsupported config version: {version}. Expected version 1.")
 
     scenario = _require_section(raw, "scenario")

@@ -19,7 +19,13 @@ from benchmark_platform.discovery import DiscoveryError, discover
 from benchmark_platform.doctor import run_doctor
 from benchmark_platform.modules import ModuleError
 from benchmark_platform.paths import RunPaths
-from benchmark_platform.runner import prepare_scenario, run_scenario, scenario_modules, utils_path
+from benchmark_platform.runner import (
+    RunnerInterrupted,
+    prepare_scenario,
+    run_scenario,
+    scenario_modules,
+    utils_path,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -313,7 +319,7 @@ def main(argv: list[str] | None = None) -> int:
     except DependencyError as exc:
         print(f"[DEPENDENCY ERROR] {exc}", file=sys.stderr)
         return 2
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, RunnerInterrupted):
         print("[INTERRUPTED] Benchmark run interrupted by user.", file=sys.stderr)
         return 130
     except Exception as exc:

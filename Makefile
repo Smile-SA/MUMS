@@ -3,7 +3,9 @@ SHELL := /bin/bash
 # Agnostic of any virtual environment: the platform's CLI applies its settings
 # itself; tools that need its environment run through `benchmark-platform exec`.
 PYTHON    ?= python3
-BENCHMARK ?= benchmark-platform
+# The platform's CLI: on PATH, or else the link bootstrap.sh creates in ~/.local/bin
+# (so that `make setup-smoke-test` works before a new terminal is opened).
+BENCHMARK ?= $(or $(shell command -v benchmark-platform 2>/dev/null),$(wildcard $(HOME)/.local/bin/benchmark-platform),benchmark-platform)
 VENV_DIR  ?= .venv
 CONFIG    ?= configs/smoke-test.yaml
 
@@ -23,7 +25,7 @@ help:
 	@echo "                                       (options: ./benchmark_platform/bootstrap.sh --help)"
 	@echo "    make setup-dev                     Core runtime + development dependencies (lint, tests)"
 	@echo "    make setup-module MODULE=<name>    Install a module's dependencies, then check them (e.g. kind)"
-	@echo "    make setup-smoke-test            Install all modules needed for the smoke test"
+	@echo "    make setup-smoke-test              Install all modules needed for the smoke test"
 	@echo "    make install-system-deps-debian    Install the core system tools (Python, kubectl) on Debian-like systems"
 	@echo
 	@echo "  QUALITY"

@@ -6,7 +6,7 @@
 #
 # No `delete` action: the application goes away with the environment.
 # The Helm chart is fetched at install time by dependencies.sh
-# (`make setup-module MODULE=stacks/online-boutique`).
+# (`benchmark-platform deps install online-boutique-v0.10.1`).
 
 set -euo pipefail
 

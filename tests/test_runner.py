@@ -135,6 +135,17 @@ def test_interrupt_runs_stops_but_not_post_processing(platform, monkeypatch):
     assert platform.read_calls() == FULL_RUN[:-1]
 
 
+def test_interrupt_exit_code_is_130(platform, monkeypatch, capsys):
+    from benchmark_platform import cli, runner
+
+    def interrupt(_):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "_sleep_with_interrupt", interrupt)
+    assert cli.main(["run", str(platform.write_scenario()), "-q"]) == 130
+    assert "[INTERRUPTED]" in capsys.readouterr().err
+
+
 def test_no_cleanup_keeps_environment(platform):
     platform.scenario["output"]["cleanup_environment"] = False
     _run(platform)

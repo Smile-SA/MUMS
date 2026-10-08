@@ -65,6 +65,6 @@ echo
 echo "Next steps:"
 echo "  1. Install the platform: make setup-core (or make setup-dev)"
 echo "  2. Install the dependencies of the modules you use, e.g.:"
-echo "       benchmark-platform deps install envs.kind"
+echo "       benchmark-platform deps install kind"
 echo "     (kind, Helm and the charts are installed by the modules that need them;"
-echo "      Docker, required by some modules such as envs.kind, is installed separately.)"
+echo "      Docker, required by some modules such as kind, is installed separately.)"
