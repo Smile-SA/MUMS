@@ -10,7 +10,8 @@ Inputs (each optional: missing data gives no metric):
   <data_dir>/essential-tables/...    node usage and taints, controllers
   <data_dir>/run-window/run-window.csv
 
-Usage: evaluate.py <data_dir> [--run-window true|false]
+Usage: evaluate.py <data_dir> [--run-window true|false] [--node-metrics true|false]
+                   [--namespaces ns1,ns2]
 """
 
 import argparse
@@ -199,8 +200,10 @@ def node_metrics(summary, data_dir, window):
                     "CPU or memory")
 
 
-def availability_metrics(summary, data_dir, window):
+def availability_metrics(summary, data_dir, window, namespaces=None):
     rows = read_table(data_dir / "essential-tables" / "controller_timeseries")
+    if namespaces:
+        rows = [r for r in rows if r["namespace"] in namespaces]
     if window:
         rows = [r for r in rows if window[0] <= (num(r["timestamp"]) or 0) <= window[1]]
     ratios = []
@@ -219,13 +222,18 @@ def main():
     parser = argparse.ArgumentParser(description="Summarize a run from standard data.")
     parser.add_argument("data_dir", type=Path)
     parser.add_argument("--run-window", choices=("true", "false"), default="true")
+    parser.add_argument("--node-metrics", choices=("true", "false"), default="true")
+    parser.add_argument("--namespaces", default="",
+                        help="Comma-separated namespaces counted in availability (default: all).")
     args = parser.parse_args()
 
     window = run_window(args.data_dir) if args.run_window == "true" else None
     summary = Summary()
     traffic_metrics(summary, args.data_dir, window)
-    node_metrics(summary, args.data_dir, window)
-    availability_metrics(summary, args.data_dir, window)
+    if args.node_metrics == "true":
+        node_metrics(summary, args.data_dir, window)
+    namespaces = {n.strip() for n in args.namespaces.split(",") if n.strip()}
+    availability_metrics(summary, args.data_dir, window, namespaces)
     summary.write(args.data_dir / "summary" / SUMMARY_NAME)
     print(f"=== {len(summary.rows)} metric(s) written to summary/{SUMMARY_NAME} ===")
     return 0

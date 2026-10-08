@@ -4,14 +4,15 @@
 # (see README.md).
 #
 # Usage:
-#   run.sh run <data_dir> [--run_window true|false]
+#   run.sh run <data_dir> [--run_window true|false] [--node_metrics true|false]
+#              [--namespaces ns1,ns2]
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 usage() {
-    echo "Usage: $0 run <data_dir> [--run_window true|false]" >&2
+    echo "Usage: $0 run <data_dir> [--run_window true|false] [--node_metrics true|false] [--namespaces ns1,ns2]" >&2
     exit 1
 }
 
@@ -26,11 +27,16 @@ DATA_DIR="$1"
 shift
 
 RUN_WINDOW=true
+NODE_METRICS=true
+NAMESPACES=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --run_window) RUN_WINDOW="$2"; shift 2 ;;
+        --run_window)   RUN_WINDOW="$2";   shift 2 ;;
+        --node_metrics) NODE_METRICS="$2"; shift 2 ;;
+        --namespaces)   NAMESPACES="$2";   shift 2 ;;
         *) echo "ERROR: unknown option '$1'" >&2; usage ;;
     esac
 done
 
-python3 "${SCRIPT_DIR}/evaluate.py" "$DATA_DIR" --run-window "$RUN_WINDOW"
+python3 "${SCRIPT_DIR}/evaluate.py" "$DATA_DIR" --run-window "$RUN_WINDOW" \
+    --node-metrics "$NODE_METRICS" --namespaces "$NAMESPACES"

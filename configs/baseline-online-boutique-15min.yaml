@@ -25,7 +25,7 @@ observability:
 traffic:
   module: online-boutique-locust
   shape: day_profile
-  cycle_minutes: 60
+  cycle_minutes: 15          # one simulated day per run (60 would replay only 00:00-06:00)
 
 optimizer:
   module: no-optimization
@@ -36,6 +36,8 @@ disruption:
 post-processing:
   - module: essential-tables
   - module: basic-evaluation
+    node_metrics: false        # kind: nodes share the host, node-exporter sees the host
+    namespaces: online-boutique
   - module: pod-based-node-evaluation
 
 output:
