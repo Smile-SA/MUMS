@@ -1,4 +1,7 @@
-# Benchmark platform
+# mums
+
+**M**icroservices **U**nified **M**easurement **S**imulation: a benchmark platform
+for Kubernetes optimizers.
 
 > **A test platform, not secured: its runs hold credentials of the cluster in clear.**
 > Read [Security](docs/explanation/concepts.md#security) before using it on a real
@@ -19,19 +22,23 @@ Adding an optimizer, an application or a cluster provider means writing a module
 On Linux, with Python 3.11+, `kubectl`, `git` and a running Docker:
 
 ```bash
-./benchmark_platform/bootstrap.sh       # from the repository; own venv by default, options: --help
-                                        # then open a new terminal
-benchmark-platform deps install --scenario configs/smoke-test.yaml
-benchmark-platform run configs/smoke-test.yaml                       # one minute, end to end
+./mums/bootstrap.sh       # from the repository; own venv by default, options: --help
+                          # then open a new terminal
+mums deps install --scenario configs/smoke-test.yaml
+mums run configs/smoke-test.yaml       # one minute, end to end
 ```
 
 Then measure and compare two optimizers:
 
+> The `koordinator` and `hots` optimizer modules are **experimental**: installing
+> and using them is not stable yet (see [the catalogue](docs/modules.md)). The
+> Koordinator run below may fail at `[optimizer] start`.
+
 ```bash
-benchmark-platform deps install --scenario configs/koordinator-online-boutique-15min.yaml
-benchmark-platform run configs/baseline-online-boutique-15min.yaml
-benchmark-platform run configs/koordinator-online-boutique-15min.yaml
-benchmark-platform compare output/baseline-online-boutique-15min-* output/koordinator-online-boutique-15min-*
+mums deps install --scenario configs/koordinator-online-boutique-15min.yaml
+mums run configs/baseline-online-boutique-15min.yaml
+mums run configs/koordinator-online-boutique-15min.yaml
+mums compare output/baseline-online-boutique-15min-* output/koordinator-online-boutique-15min-*
 ```
 
 ## Documentation

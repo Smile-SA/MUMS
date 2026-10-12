@@ -6,7 +6,7 @@ clusters).
 
 ## Scripts
 
-Called by modules as `$BENCHMARK_UTILS_PATH/metallb/<script>`.
+Called by modules as `$MUMS_UTILS_PATH/metallb/<script>`.
 
 - `deploy.sh <kubeconfig> <ip_range> [<ip_range> ...]`: installs the MetalLB chart
   (version in `chart-version`, through the util `helm`; release `metallb`,

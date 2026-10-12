@@ -21,7 +21,7 @@ utils/<name>/
 ```
 
 Utils are searched only in the installation's utils directory (the `utils_path`
-setting): a module calls them through `BENCHMARK_UTILS_PATH`, so a util elsewhere
+setting): a module calls them through `MUMS_UTILS_PATH`, so a util elsewhere
 could not be reached.
 
 ## `util.yaml`
@@ -38,7 +38,7 @@ commands, other utils, a dependency script. See
 
 ## Its scripts
 
-- Each script is called directly by path: `$BENCHMARK_UTILS_PATH/<name>/<script>`,
+- Each script is called directly by path: `$MUMS_UTILS_PATH/<name>/<script>`,
   with the arguments it documents. Choose them freely, and keep them stable: modules
   depend on them.
 - A util knows nothing of the modules that use it: it takes what it needs as

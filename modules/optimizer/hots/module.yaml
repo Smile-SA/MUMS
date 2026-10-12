@@ -18,6 +18,10 @@ args:
     required: false
     type: positive_int
     description: "Host port of the per-run Kafka broker linking HOTS and hots-connector (default: 9092)."
+  connector_port:
+    required: false
+    type: positive_int
+    description: "Host port of hots-connector's control API (default: 8189)."
   prometheus_url:
     required: false
     type: string
@@ -57,5 +61,6 @@ dependencies:
     - kubectl
     - curl
     - sha1sum
+    - glpsol
   utils:
     - kafka

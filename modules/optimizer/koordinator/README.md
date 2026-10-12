@@ -4,6 +4,15 @@ Optimizer module: installs [Koordinator](https://koordinator.sh) (QoS-based
 scheduling and rescheduling for Kubernetes) in the cluster, with its manager,
 scheduler, descheduler and node agents (`koordlet`).
 
+> **Status: experimental.** Installing and using this module is not stable yet:
+> - on some machines the installation does not complete (`koord-manager` and
+>   `koordlet` keep restarting), and `start` fails;
+> - the application's pods are not placed by Koordinator's scheduler, and its
+>   descheduler may not act during a short run (see "What it evaluates" and
+>   "Known limitations").
+>
+> Making it stable is planned for a later release.
+
 ## Actions
 
 - `start <kubeconfig>`: fetches the Helm chart of version `chart_version` if not

@@ -19,7 +19,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SCRAPER="${SCRIPT_DIR}/scraper.py"
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 CHART_REPO_URL="https://prometheus-community.github.io/helm-charts"
 
 usage() {

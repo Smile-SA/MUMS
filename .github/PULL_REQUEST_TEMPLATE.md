@@ -15,7 +15,7 @@
 - [ ] `make check` passes
 - [ ] `make lint` passes
 - [ ] `make test` passes
-- [ ] Smoke test on a real cluster (`make smoke`) — if applicable
+- [ ] Smoke test on a real cluster (`make smoke-test`) — if applicable
 
 ## Notes
 

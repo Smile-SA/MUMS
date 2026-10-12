@@ -49,8 +49,8 @@ written as responses arrive, so they are not strictly sorted by `timestamp`.
 
 ## Dependencies
 
-curl, python3, kubectl (to find the frontend). The dependency script installs the
-Python packages (`requirements.txt`: Locust, Faker) and checks them.
+curl, python3, kubectl (to find the frontend), and `locust`. The dependency script
+installs the Python packages (`requirements.txt`: Locust, Faker) and checks them.
 
 ## Files
 

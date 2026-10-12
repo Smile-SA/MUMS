@@ -19,10 +19,10 @@ args:
     required: false
     type: mapping
     description: "Worker nodes: {count: N, cpu: X, memory: \"YGi\"}, cpu and memory optional (default: one worker, without cpu or memory limit)."
-  cgroups:
+  node_sizing:
     required: false
     type: string
-    description: "How workers get their cpu and memory: v1 (kubelet reservations: Allocatable is right, Capacity is the host's; any host) or v2 (Docker limits: Capacity is right too; cgroup v2 hosts only) (default: v1)."
+    description: "How workers get the requested cpu/memory, on cgroup v1 or v2 hosts: reserved (kubelet reservations: Allocatable is right, Capacity is the host's, CPU not capped), limits (Docker limits: capped, but Capacity and Allocatable are the host's), or lxcfs (Docker limits + lxcfs: Capacity, Allocatable and caps all right; needs lxcfs on the host, whole CPUs) (default: reserved)."
 
 dependencies:
   entrypoint: dependencies.sh

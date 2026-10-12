@@ -3,15 +3,15 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from benchmark_platform.config import ConfigError, ScenarioConfig, load_config
-from benchmark_platform.dependencies import DependencyError
-from benchmark_platform.runner import (
+from mums.config import ConfigError, ScenarioConfig, load_config
+from mums.dependencies import DependencyError
+from mums.runner import (
     ENVIRONMENT_ID_PATTERN,
     RunnerInterrupted,
     build_environment_id,
     run_scenario,
 )
-from benchmark_platform.shell import CommandError
+from mums.shell import CommandError
 
 FULL_RUN = [
     "environment create",
@@ -85,6 +85,17 @@ def test_failure_stops_launched_and_destroys(platform):
     ]
 
 
+def test_failed_stop_is_shown_and_recorded(platform, capsys):
+    (platform.modules / "optimizer" / "FAIL_stop").touch()
+    run_dir = run_scenario(load_config(platform.write_scenario()), verbose=True)
+    lines = [line.split() for line in capsys.readouterr().out.splitlines()]
+    assert ["[optimizer]", "stop", "ERROR"] in lines
+    assert ["[optimizer]", "stop", "✓"] not in lines
+    manifest = yaml.safe_load((run_dir / "manifest.yaml").read_text())
+    event = next(e for e in manifest["events"] if e["type"] == "optimizer.stop")
+    assert event["status"] == "failed"
+
+
 def test_disruption_gets_kubeconfig_and_seed(platform, tmp_path):
     _run(platform)
     line = next(
@@ -124,7 +135,7 @@ def test_create_failure_still_destroys(platform):
 
 
 def test_interrupt_runs_stops_but_not_post_processing(platform, monkeypatch):
-    from benchmark_platform import runner
+    from mums import runner
 
     def interrupt(_):
         raise KeyboardInterrupt
@@ -133,6 +144,17 @@ def test_interrupt_runs_stops_but_not_post_processing(platform, monkeypatch):
     with pytest.raises(RunnerInterrupted):
         _run(platform)
     assert platform.read_calls() == FULL_RUN[:-1]
+
+
+def test_interrupt_exit_code_is_130(platform, monkeypatch, capsys):
+    from mums import cli, runner
+
+    def interrupt(_):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "_sleep_with_interrupt", interrupt)
+    assert cli.main(["run", str(platform.write_scenario()), "-q"]) == 130
+    assert "[INTERRUPTED]" in capsys.readouterr().err
 
 
 def test_no_cleanup_keeps_environment(platform):
@@ -185,7 +207,7 @@ def test_relative_output_root_gives_absolute_paths(platform, tmp_path, monkeypat
 def test_registry_tracks_environments(platform, tmp_path):
     import shutil
 
-    from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
+    from mums.cleanup import EnvironmentRegistry, clean_environments
 
     registry = EnvironmentRegistry()
     _run(platform)
@@ -204,7 +226,7 @@ def test_registry_tracks_environments(platform, tmp_path):
 
 
 def test_failed_destroy_stays_registered(platform):
-    from benchmark_platform.cleanup import EnvironmentRegistry
+    from mums.cleanup import EnvironmentRegistry
 
     (platform.modules / "environment" / "FAIL_destroy").touch()
     _run(platform)
@@ -212,7 +234,7 @@ def test_failed_destroy_stays_registered(platform):
 
 
 def test_incomplete_entry_removed_without_destroy(platform, tmp_path):
-    from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
+    from mums.cleanup import EnvironmentRegistry, clean_environments
 
     registry = EnvironmentRegistry()
     broken = registry.root / "half-written"
@@ -229,7 +251,7 @@ def test_modules_get_utils_path(platform):
     script.write_text(
         script.read_text().replace(
             'echo "$(basename "$here") $*"',
-            'echo "$(basename "$here") $* utils=$BENCHMARK_UTILS_PATH"',
+            'echo "$(basename "$here") $* utils=$MUMS_UTILS_PATH"',
         )
     )
     _run(platform)
@@ -241,7 +263,7 @@ def test_modules_get_utils_path(platform):
 
 
 def test_missing_core_prerequisite(platform, monkeypatch):
-    import benchmark_platform.runner as runner_module
+    import mums.runner as runner_module
 
     monkeypatch.setattr(runner_module, "CORE_COMMANDS", ("definitely-not-installed",))
     with pytest.raises(DependencyError, match="prerequisite"):
@@ -297,7 +319,7 @@ def test_provenance_recorded(platform):
 
 
 def test_provenance_failure_does_not_fail_the_run(platform, monkeypatch, capsys):
-    from benchmark_platform import provenance
+    from mums import provenance
 
     def broken(*args, **kwargs):
         raise OSError("disk full")

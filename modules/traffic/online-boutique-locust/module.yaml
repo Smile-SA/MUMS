@@ -25,7 +25,8 @@ args:
 
 dependencies:
   entrypoint: dependencies.sh
-  commands:
+  commands:        # locust: installed by dependencies.sh, declared as the contract asks
     - curl
     - python3
     - kubectl
+    - locust

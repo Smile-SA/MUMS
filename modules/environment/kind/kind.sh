@@ -2,7 +2,7 @@
 # Kind environment module (contract 1).
 #
 # Usage:
-#   kind.sh create <seed> <id> <output_file> --extras_dir <dir> --node_image <image> [--workers <json>] [--cgroups v1|v2]
+#   kind.sh create <seed> <id> <output_file> --extras_dir <dir> --node_image <image> [--workers <json>] [--node_sizing reserved|limits|lxcfs]
 #   kind.sh destroy <id> --extras_dir <dir> [...]
 #
 # <id> names the cluster and its Docker network. `destroy <id>` removes whatever
@@ -10,18 +10,23 @@
 # because something is missing.
 #
 # --workers: JSON mapping {"count": N, "cpu": X, "memory": "YGi"}.
-# --cgroups: how cpu/memory are enforced on each worker.
-#   v1 (default, works on any host): kubelet system-reserved. Workers expose the
-#       requested cpu/memory as Allocatable, but their Capacity stays the HOST's
-#       values: tools that read Capacity (e.g. some optimizers) see wrong
-#       node sizes.
-#   v2 (cgroup v2 hosts only): Docker limits (docker update --cpus/--memory)
-#       after creation. Workers' Capacity is the requested cpu/memory.
+# --node_sizing: how each worker gets the requested cpu/memory (any cgroup version).
+#   reserved (default): kubelet system-reserved. Allocatable is the requested
+#       size; Capacity stays the HOST's; memory is enforced (kubepods cgroup),
+#       CPU is not capped (cgroup shares only).
+#   limits: Docker limits (docker update --cpus/--memory). CPU and memory are
+#       capped, but Capacity AND Allocatable stay the HOST's: the scheduler
+#       overcommits the node. Kept for experiments; not for scheduling studies.
+#   lxcfs: Docker limits, plus lxcfs files mounted over the node's /proc and
+#       /sys/devices/system/cpu/online, then kubelet restarted: Capacity,
+#       Allocatable and enforcement all match the requested size, as on a VM.
+#       Needs lxcfs running on the host (mounted at /var/lib/lxcfs, started
+#       with --enable-cfs), whole CPUs.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 
 # kind binary: the system's one (on PATH), or a module-local pinned version (see kind-version).
 KIND_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/kind-version")"
@@ -33,7 +38,7 @@ fi
 
 usage() {
     echo "Usage:" >&2
-    echo "  $0 create <seed> <id> <output_file> --extras_dir <dir> --node_image <image> [--workers <json>] [--cgroups v1|v2]" >&2
+    echo "  $0 create <seed> <id> <output_file> --extras_dir <dir> --node_image <image> [--workers <json>] [--node_sizing reserved|limits|lxcfs]" >&2
     echo "  $0 destroy <id> --extras_dir <dir>" >&2
     exit 1
 }
@@ -62,14 +67,18 @@ esac
 EXTRAS_DIR=""
 NODE_IMAGE="kindest/node:v1.34.0"
 WORKERS_JSON='{}'
-CGROUPS="v1"
+NODE_SIZING="reserved"
+LXCFS_DIR="/var/lib/lxcfs"
+# lxcfs files mounted over the worker's own (those lxcfs provides).
+LXCFS_FILES=(proc/cpuinfo proc/meminfo proc/stat proc/uptime proc/diskstats proc/swaps proc/loadavg
+             sys/devices/system/cpu/online)
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --extras_dir) EXTRAS_DIR="$2";   shift 2 ;;
         --node_image) NODE_IMAGE="$2";   shift 2 ;;
         --workers)    WORKERS_JSON="$2"; shift 2 ;;
-        --cgroups)    CGROUPS="$2";      shift 2 ;;
+        --node_sizing) NODE_SIZING="$2"; shift 2 ;;
         *)
             echo "ERROR: unknown option '$1'" >&2
             usage
@@ -143,7 +152,7 @@ nodes:
 YAML
 
     local reserved_parts=()
-    if [ "$CGROUPS" = "v2" ]; then
+    if [ "$NODE_SIZING" != "reserved" ]; then
         cpu=""; mem=""   # enforced with Docker limits after creation (apply_docker_limits)
     fi
     if [ -n "$cpu" ]; then
@@ -168,8 +177,17 @@ YAML
     fi
 
     local i reserved_str
+    local file
     for ((i = 1; i <= count; i++)); do
         echo "  - role: worker"
+        if [ "$NODE_SIZING" = "lxcfs" ]; then
+            echo "    extraMounts:"
+            for file in "${LXCFS_FILES[@]}"; do
+                [ -e "${LXCFS_DIR}/${file}" ] || continue
+                echo "    - hostPath: ${LXCFS_DIR}/${file}"
+                echo "      containerPath: /${file}"
+            done
+        fi
         if [ "${#reserved_parts[@]}" -gt 0 ]; then
             reserved_str=$(IFS=','; echo "${reserved_parts[*]}")
             echo "    kubeadmConfigPatches:"
@@ -182,7 +200,7 @@ YAML
     done
 }
 
-# ─── cgroup v2 mode: Docker limits ───────────────────────────────────────────
+# ─── limits / lxcfs modes: Docker limits ─────────────────────────────────────
 
 host_cgroup_mode() {
     case "$(stat -fc %T /sys/fs/cgroup 2>/dev/null || true)" in
@@ -204,8 +222,11 @@ cpu_to_cores() {
     fi
 }
 
-# Applies the workers' cpu/memory as Docker limits, so that their Capacity is
-# the requested value. Requires a cgroup v2 host.
+worker_containers() {
+    docker ps --format '{{.Names}}' | grep -E "^${CLUSTER_NAME}-worker[0-9]*$" | sort
+}
+
+# Applies the workers' cpu/memory as Docker limits (cgroup v1 or v2 hosts).
 apply_docker_limits() {
     local cpu mem args=() container
     cpu="$(jq -r '.cpu // empty' <<< "$WORKERS_JSON")"
@@ -219,7 +240,57 @@ apply_docker_limits() {
     while read -r container; do
         echo "    Docker limits on ${container}: ${args[*]}"
         docker update "${args[@]}" "$container" >/dev/null
-    done < <(docker ps --format '{{.Names}}' | grep -E "^${CLUSTER_NAME}-worker[0-9]*$" | sort)
+    done < <(worker_containers)
+}
+
+# lxcfs mode: the kubelet reads its node's size once, at start (from /proc and
+# sysfs, never from cgroup limits): restart it now that the limits are in
+# place, then wait until each worker reports the requested Capacity.
+restart_kubelets() {
+    local cpu want_cpu container node_cpu
+    cpu="$(jq -r '.cpu // empty' <<< "$WORKERS_JSON")"
+    want_cpu=""
+    [ -n "$cpu" ] && want_cpu=$(( $(cpu_to_milli "$cpu") / 1000 ))
+    while read -r container; do
+        docker exec "$container" systemctl restart kubelet
+    done < <(worker_containers)
+    while read -r container; do
+        for _ in $(seq 1 60); do
+            node_cpu="$(kubectl --kubeconfig "$KUBECONFIG_PATH" get node "$container" \
+                -o jsonpath='{.status.capacity.cpu}' 2>/dev/null || true)"
+            if [ -z "$want_cpu" ] || [ "$node_cpu" = "$want_cpu" ]; then break; fi
+            sleep 2
+        done
+        if [ -n "$want_cpu" ] && [ "$node_cpu" != "$want_cpu" ]; then
+            echo "ERROR: ${container} reports ${node_cpu:-?} CPUs, expected ${want_cpu} (lxcfs not effective?)" >&2
+            exit 1
+        fi
+    done < <(worker_containers)
+    kubectl --kubeconfig "$KUBECONFIG_PATH" wait --for=condition=Ready nodes --all --timeout=180s
+}
+
+check_lxcfs() {
+    if ! grep -qs " ${LXCFS_DIR} fuse.lxcfs " /proc/mounts; then
+        echo "ERROR: --node_sizing lxcfs needs lxcfs running on the host, mounted at ${LXCFS_DIR}" >&2
+        echo "       (see \"lxcfs on the host\" in this module's README)." >&2
+        exit 1
+    fi
+    local cpu seen
+    cpu="$(jq -r '.cpu // empty' <<< "$WORKERS_JSON")"
+    [ -n "$cpu" ] || return 0
+    if (( $(cpu_to_milli "$cpu") % 1000 != 0 )); then
+        echo "ERROR: --node_sizing lxcfs needs whole CPUs (got cpu=$cpu): lxcfs shows whole CPUs only." >&2
+        exit 1
+    fi
+    # lxcfs shows a CPU limit only when started with --enable-cfs: check it now,
+    # with a container limited to one CPU, rather than after creating the cluster.
+    seen="$(docker run --rm --cpus 1 -v "${LXCFS_DIR}/proc/cpuinfo:/proc/cpuinfo" \
+        --entrypoint grep "$NODE_IMAGE" -c '^processor' /proc/cpuinfo)"
+    if [ "$seen" != "1" ]; then
+        echo "ERROR: --node_sizing lxcfs needs lxcfs started with --enable-cfs: a container limited to" >&2
+        echo "       1 CPU sees ${seen} through it (see \"lxcfs on the host\" in this module's README)." >&2
+        exit 1
+    fi
 }
 
 # ─── Node image check ────────────────────────────────────────────────────────
@@ -259,15 +330,10 @@ case "$ACTION" in
             echo "ERROR: --node_image is required for create" >&2
             exit 1
         fi
-        case "$CGROUPS" in
-            v1) ;;
-            v2)
-                if [ "$(host_cgroup_mode)" != "v2" ]; then
-                    echo "ERROR: --cgroups v2 requires a cgroup v2 host (this host: $(host_cgroup_mode))." >&2
-                    exit 1
-                fi
-                ;;
-            *) echo "ERROR: --cgroups must be v1 or v2 (got '$CGROUPS')" >&2; exit 1 ;;
+        case "$NODE_SIZING" in
+            reserved|limits) ;;
+            lxcfs) check_lxcfs ;;
+            *) echo "ERROR: --node_sizing must be reserved, limits or lxcfs (got '$NODE_SIZING')" >&2; exit 1 ;;
         esac
         mkdir -p "$EXTRAS_DIR"
         KUBECONFIG_PATH="${EXTRAS_DIR}/kubeconfig"
@@ -300,10 +366,18 @@ case "$ACTION" in
             --config "$KIND_CONFIG" \
             --image "${NODE_IMAGE}"
 
-        if [ "$CGROUPS" = "v2" ]; then
-            echo "=== Applying worker Docker limits (cgroups v2) ==="
+        if [ "$NODE_SIZING" != "reserved" ]; then
+            echo "=== Applying worker Docker limits (node_sizing: ${NODE_SIZING}) ==="
             apply_docker_limits
         fi
+        if [ "$NODE_SIZING" = "lxcfs" ]; then
+            echo "=== Restarting kubelets (node_sizing: lxcfs) ==="
+            restart_kubelets
+        fi
+        # What the scheduler and the optimizers will see (kept in create.log).
+        kubectl --kubeconfig "$KUBECONFIG_PATH" get nodes -o custom-columns=\
+NODE:.metadata.name,CAPACITY_CPU:.status.capacity.cpu,CAPACITY_MEMORY:.status.capacity.memory,\
+ALLOCATABLE_CPU:.status.allocatable.cpu,ALLOCATABLE_MEMORY:.status.allocatable.memory
 
         # Dedicated Docker network for this cluster: derive the MetalLB pool
         # from the subnet assigned to this cluster network.

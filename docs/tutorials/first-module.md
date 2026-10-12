@@ -26,11 +26,11 @@ cd ~/my-modules/post-processing/request-count
 Then tell the platform to look there too, besides its own modules:
 
 ```bash
-benchmark-platform config add module_paths ~/my-modules
-benchmark-platform config get module_paths            # its directories, and yours
+mums config add module_paths ~/my-modules
+mums config get module_paths            # its directories, and yours
 ```
 
-(`benchmark-platform config remove module_paths ~/my-modules` undoes it.)
+(`mums config remove module_paths ~/my-modules` undoes it.)
 
 ## 2. The descriptor
 
@@ -134,7 +134,7 @@ chmod +x run.sh
 The platform must find it and accept its descriptor:
 
 ```bash
-benchmark-platform deps check request-count
+mums deps check request-count
 ```
 
 ## 5. Test it on an existing run
@@ -143,7 +143,7 @@ A post-processing module only reads and writes data: test it directly on the dat
 of the smoke test, without a new run.
 
 ```bash
-RUN=$(ls -td ~/benchmark-platform/output/smoke-test-* | head -1)
+RUN=$(ls -td ~/mums/output/smoke-test-* | head -1)
 ./run.sh run $RUN/data
 cat $RUN/data/summary/request-count.csv
 ./run.sh run $RUN/data --errors_only true
@@ -155,7 +155,7 @@ cat $RUN/data/summary/request-count.csv
 Copy the smoke test, and add the module after the others:
 
 ```bash
-cd ~/benchmark-platform
+cd ~/mums
 cp configs/smoke-test.yaml configs/my-test.yaml
 ```
 
@@ -167,11 +167,11 @@ post-processing:
 ```
 
 ```bash
-benchmark-platform validate configs/my-test.yaml
-benchmark-platform run configs/my-test.yaml
+mums validate configs/my-test.yaml
+mums run configs/my-test.yaml
 ```
 
-The new run has its `summary/request-count.csv`, and `benchmark-platform compare`
+The new run has its `summary/request-count.csv`, and `mums compare`
 now compares it like any other indicator.
 
 ## 7. Document it

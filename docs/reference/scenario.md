@@ -1,7 +1,7 @@
 # Scenario format
 
-A scenario is a YAML file describing one experiment. `benchmark-platform validate`
-checks it, `benchmark-platform run` runs it.
+A scenario is a YAML file describing one experiment. `mums validate`
+checks it, `mums run` runs it.
 
 ## Example
 
@@ -101,7 +101,7 @@ A single module may also be given as a section rather than a list.
 | Field | Required | Content |
 |---|---|---|
 | `root_directory` | yes | directory holding the runs, relative to where the platform is started, or absolute |
-| `cleanup_environment` | no | `false` keeps the environment after the run (default: `true`); destroy it later with `benchmark-platform env clean` |
+| `cleanup_environment` | no | `false` keeps the environment after the run (default: `true`); destroy it later with `mums env clean` |
 
 ## Validation
 

@@ -6,13 +6,15 @@ at `127.0.0.1:<port>`.
 
 ## Scripts
 
-Called by modules as `$BENCHMARK_UTILS_PATH/kafka/broker.sh`.
+Called by modules as `$MUMS_UTILS_PATH/kafka/broker.sh`.
 
 - `broker.sh start <name> [port] [image]` (defaults: port `9092`, image
   `apache/kafka:3.7.1`): starts the container `benchmark-kafka-<name>` (removing
-  a stale one with that name first), waits until the broker answers (30 s at
-  most; its logs are printed otherwise), and creates the internal topic
-  `__consumer_offsets` (see "Known limitations").
+  a stale one with that name first), and waits until the broker answers (60 s at
+  most; its logs are printed otherwise).
+- `broker.sh create-topic <name> <topic> [partitions]` (default: 1 partition):
+  creates a topic if it does not exist yet. Create the topics a consumer subscribes
+  to before it starts: subscribing to a missing topic is an error, not a wait.
 - `broker.sh stop <name>`: removes the container. Succeeds if it is not there.
 
 Give each broker its own name and port to run several at once.
@@ -30,8 +32,4 @@ docker (installed by hand; its daemon must run).
 - The broker runs on the host, outside the cluster: it is not removed with the
   environment, only by `stop`. A run interrupted before `stop` leaves it running
   (remove it with `broker.sh stop <name>`, or `docker rm -f benchmark-kafka-<name>`).
-- With this image, a single-node broker never finishes creating
-  `__consumer_offsets` on its own, so consumer groups would receive nothing:
-  `start` creates it explicitly. Right after, the group coordinator may still be
-  settling for a short while (narrowed by a short wait, not removed).
 - The Docker daemon is not checked before a run (no dependency script yet).

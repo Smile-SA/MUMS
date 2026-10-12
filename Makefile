@@ -1,9 +1,11 @@
 SHELL := /bin/bash
 
 # Agnostic of any virtual environment: the platform's CLI applies its settings
-# itself; tools that need its environment run through `benchmark-platform exec`.
+# itself; tools that need its environment run through `mums exec`.
 PYTHON    ?= python3
-BENCHMARK ?= benchmark-platform
+# The platform's CLI: on PATH, or else the link bootstrap.sh creates in ~/.local/bin
+# (so that `make setup-smoke-test` works before a new terminal is opened).
+MUMS ?= $(or $(shell command -v mums 2>/dev/null),$(wildcard $(HOME)/.local/bin/mums),mums)
 VENV_DIR  ?= .venv
 CONFIG    ?= configs/smoke-test.yaml
 
@@ -15,15 +17,15 @@ CONFIG    ?= configs/smoke-test.yaml
         doctor clean clean-venv clean-env clean-all require-cli
 
 help:
-	@echo "Benchmark platform developer commands"
-	@echo "(lint and test run in the platform's environment: benchmark-platform exec)"
+	@echo "mums developer commands"
+	@echo "(lint and test run in the platform's environment: mums exec)"
 	@echo
 	@echo "  SETUP"
 	@echo "    make setup-core                    Create .venv and install core runtime dependencies"
-	@echo "                                       (options: ./benchmark_platform/bootstrap.sh --help)"
+	@echo "                                       (options: ./mums/bootstrap.sh --help)"
 	@echo "    make setup-dev                     Core runtime + development dependencies (lint, tests)"
 	@echo "    make setup-module MODULE=<name>    Install a module's dependencies, then check them (e.g. kind)"
-	@echo "    make setup-smoke-test            Install all modules needed for the smoke test"
+	@echo "    make setup-smoke-test              Install all modules needed for the smoke test"
 	@echo "    make install-system-deps-debian    Install the core system tools (Python, kubectl) on Debian-like systems"
 	@echo
 	@echo "  QUALITY"
@@ -43,36 +45,36 @@ help:
 	@echo "    make clean                         Remove Python caches (preserves venv and outputs)"
 	@echo "    make clean-venv                    Remove the local Python virtual environment"
 	@echo "    make clean-env [ID=...]            Destroy environments left behind by previous runs (all, or one id;"
-	@echo "                                       see 'benchmark-platform env list')"
+	@echo "                                       see 'mums env list')"
 	@echo "    make clean-all                     Remove everything: environments, caches, venv"
 
 # The platform's CLI must be on PATH (installed, and its venv activated if any).
 require-cli:
-	@command -v $(BENCHMARK) >/dev/null || { echo "$(BENCHMARK) not found: install the" \
+	@command -v $(MUMS) >/dev/null || { echo "$(MUMS) not found: install the" \
 		"platform (make setup-core), then open a new terminal." >&2; exit 1; }
 
 # --- Setup ---
 
 setup-core:
-	./benchmark_platform/bootstrap.sh
+	./mums/bootstrap.sh
 
 setup-dev:
-	./benchmark_platform/bootstrap.sh --dev
+	./mums/bootstrap.sh --dev
 
 setup-module: require-cli
 	@test -n "$(MODULE)" || (echo "Usage: make setup-module MODULE=online-boutique-locust" >&2; exit 2)
-	$(BENCHMARK) deps install $(MODULE)
+	$(MUMS) deps install $(MODULE)
 
 # Installs the dependencies of the modules of the smoke test.
 setup-smoke-test: setup-core require-cli
-	$(BENCHMARK) deps install --scenario configs/smoke-test.yaml
+	$(MUMS) deps install --scenario configs/smoke-test.yaml
 
 check-module: require-cli
 	@test -n "$(MODULE)" || (echo "Usage: make check-module MODULE=online-boutique-locust" >&2; exit 2)
-	$(BENCHMARK) deps check $(MODULE)
+	$(MUMS) deps check $(MODULE)
 
 install-system-deps-debian:
-	./benchmark_platform/install_system_deps_debian.sh
+	./mums/install_system_deps_debian.sh
 
 # --- Quality ---
 
@@ -89,30 +91,30 @@ check-shell:
 check-python:
 	@echo "=== Checking Python syntax ==="
 	@$(PYTHON) -m compileall -q -x '/\.venv/|chart-repository' \
-		benchmark_platform tests modules utils
+		mums tests modules utils scripts
 	@echo "Python syntax OK."
 
 lint: require-cli
-	$(BENCHMARK) exec -- $(PYTHON) -m ruff check \
-		--config benchmark_platform/pyproject.toml \
+	$(MUMS) exec -- $(PYTHON) -m ruff check \
+		--config mums/pyproject.toml \
 		--exclude utils/helm/chart-repository \
-		benchmark_platform tests modules utils
+		mums tests modules utils scripts
 
 # --- Run ---
 
 validate-config: require-cli
-	$(BENCHMARK) validate $(CONFIG)
+	$(MUMS) validate $(CONFIG)
 
 smoke-test: require-cli
-	$(BENCHMARK) run configs/smoke-test.yaml $(ARGS)
+	$(MUMS) run configs/smoke-test.yaml $(ARGS)
 
 test: require-cli
-	$(BENCHMARK) exec -- $(PYTHON) -m pytest
+	$(MUMS) exec -- $(PYTHON) -m pytest
 
 # --- Maintenance ---
 
 doctor: require-cli
-	$(BENCHMARK) doctor
+	$(MUMS) doctor
 
 clean:
 	@find . -type d -name '__pycache__' -not -path '*/.venv/*' -prune -exec rm -rf {} +
@@ -124,7 +126,7 @@ clean-venv:
 	@echo "Removed virtual environment: $(VENV_DIR)"
 
 clean-env: require-cli
-	$(BENCHMARK) env $(if $(ID),clean $(ID),clean-all)
+	$(MUMS) env $(if $(ID),clean $(ID),clean-all)
 
 # clean-env first: it needs the platform CLI, which clean-venv removes.
 clean-all: clean-env clean clean-venv

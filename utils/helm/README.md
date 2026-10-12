@@ -6,7 +6,7 @@ fetched once, then always installed from the same local copy.
 
 ## Scripts
 
-Called by modules as `$BENCHMARK_UTILS_PATH/helm/<script>`.
+Called by modules as `$MUMS_UTILS_PATH/helm/<script>`.
 
 - `pull.sh <repo_url> <chart> <version>`: fetches the chart into
   `chart-repository/<chart>/<version>/`. Does nothing if that version is already
@@ -24,7 +24,7 @@ installer script if it is missing.
 ## Files
 
 `pull.sh`, `install.sh`, `dependencies.sh`, `util.yaml`; `chart-repository/`
-(the fetched charts, one directory per chart and version).
+(the fetched charts, one directory per chart and version; not versioned).
 
 ## Known limitations
 

@@ -1,0 +1,4 @@
+confluent-kafka>=2.3,<3.0   # record_moves.py
+# HOTS and hots-connector, pinned (a git tag or a PyPI version) once published:
+# hots[kafka] @ git+https://<host>/<org>/hots.git@vX.Y.Z
+# hots-connector[kafka,kubernetes,docker] @ git+https://<host>/<org>/hots-connector.git@vX.Y.Z

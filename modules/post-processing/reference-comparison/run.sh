@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 OUTPUT_NAME="reference-comparison.csv"
 
 usage() {

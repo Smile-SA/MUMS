@@ -9,10 +9,10 @@ a first module is written step by step in [the tutorial](../tutorials/first-modu
 Anywhere: add its directory to the installation's module directories.
 
 ```bash
-benchmark-platform config add module_paths ~/my-modules
+mums config add module_paths ~/my-modules
 ```
 
-Or, for one command only, `BENCHMARK_MODULE_PATHS=~/my-modules:` (the trailing `:`
+Or, for one command only, `MUMS_MODULE_PATHS=~/my-modules:` (the trailing `:`
 keeps the installation's directories). By convention, a module goes in
 `<directory>/<type>/<name>/`.
 
@@ -27,9 +27,11 @@ parses them.
 An action is called as `<entrypoint> <action> <positional arguments> [--<name>
 <value>]...`. The positional arguments are fixed by the contract, according to the
 module's type ([table](../reference/module-contract.md#actions)); the named
-arguments are those the module declares in `args`. Set every named argument's
-default first, then read the options, and refuse unknown ones: they reveal a
-mismatch with `module.yaml`.
+arguments are those the module declares in `args`, given by the scenario, or by
+the platform for `log_dir` and `extras_dir`: a module receives these two only if
+it declares them ([contract](../reference/module-contract.md#arguments)). Set
+every named argument's default first, then read the options, and refuse unknown
+ones: they reveal a mismatch with `module.yaml`.
 
 ```bash
 SHAPE="day_profile"                  # default, stated in module.yaml's description
@@ -56,7 +58,7 @@ these cases:
   and stop only what is recorded;
 - treat "already stopped" or "not found" as success;
 - `destroy <id>` must work from the id alone: it may be called long after the run,
-  by `benchmark-platform env clean`.
+  by `mums env clean`.
 
 ## Leave processes in the background properly
 
@@ -104,11 +106,11 @@ Helm chart, starting a Kafka broker...). To use one:
 
 1. declare it in `dependencies.utils`: its own dependencies are then checked and
    installed with the module's;
-2. call its scripts through `BENCHMARK_UTILS_PATH`, the utils directory every
+2. call its scripts through `MUMS_UTILS_PATH`, the utils directory every
    action receives:
 
    ```bash
-   "$BENCHMARK_UTILS_PATH/helm/install.sh" "$KUBECONFIG" my-release my-chart 1.2.3
+   "$MUMS_UTILS_PATH/helm/install.sh" "$KUBECONFIG" my-release my-chart 1.2.3
    ```
 
 3. read its README for its scripts and their arguments. The [catalogue](../modules.md)
@@ -117,9 +119,9 @@ Helm chart, starting a Kafka broker...). To use one:
 ## Test it
 
 ```bash
-benchmark-platform deps install my-module
-benchmark-platform validate configs/my-scenario.yaml
-benchmark-platform run configs/my-scenario.yaml -v
+mums deps install my-module
+mums validate configs/my-scenario.yaml
+mums run configs/my-scenario.yaml -v
 ```
 
 `-v` shows the module's output; it is also in `logs/<module>/<action>.log` in the
