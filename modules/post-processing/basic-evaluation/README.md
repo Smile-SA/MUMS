@@ -15,6 +15,8 @@ comparison can use them without knowing what they mean.
 | Argument | Default | Description |
 |---|---|---|
 | `run_window` | `true` | Only count data inside the run window (`run-window`), i.e. while every module was running. With `false`, or without `run-window` data, all the data is counted. |
+| `node_metrics` | `true` | Report the `node_*` indicators. Set `false` when nodes share one machine (e.g. kind): node-level metrics then describe the host, identical for every node. Use `pod-based-node-evaluation` there instead. |
+| `namespaces` | all | Comma-separated namespaces whose Deployments count in `availability_*`, e.g. the application's. Otherwise the platform's own Deployments (Prometheus, MetalLB, CoreDNS...) and the optimizer's count too, and they differ from one optimizer to another. |
 
 ## Data consumed
 

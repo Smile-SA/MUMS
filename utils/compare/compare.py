@@ -9,6 +9,7 @@ too.
 
 Usage:
   compare.py <reference_data_dir> <data_dir> [<data_dir> ...] [-v] [-m [FILE]] [-c [FILE]]
+  compare.py -g NAME <data_dir>... -g NAME <data_dir>... [--alpha A] [-v] [-m [FILE]] [-c [FILE]]
 
   <data_dir>: the data directory of a run (holding its standard data, summary/
   included). Glob patterns are accepted, expanded by the shell or, if quoted, by
@@ -16,6 +17,13 @@ Usage:
   reference; a directory given twice is compared once; one without summary is
   left out (with a warning). Each run is named after its path, without the parts
   all paths share (e.g. a common parent, or a common last directory).
+
+Groups (-g, repeated): runs of the same configuration, e.g. 5 repetitions each. The
+first group is the reference. For each indicator: each group's median and
+interquartile range, the change of medians, and a verdict only when the
+difference is significant (two-sided Mann-Whitney U test, p < --alpha, default
+0.05); "~" otherwise. With 3 runs per group, no difference can reach p < 0.05
+(the smallest possible p is 0.1); with 5 per group, it is 0.008.
 
 Outputs (at least one, any combination):
   -v, --verbose          aligned report on the console
@@ -28,6 +36,10 @@ from __future__ import annotations
 import argparse
 import csv
 import glob
+import itertools
+import math
+import random
+import statistics
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -97,8 +109,6 @@ class Comparison:
     def sources(self) -> list[str]:
         return list(dict.fromkeys(row.source for row in self.rows))
 
-    def count(self, run_index: int, verdict: str) -> int:
-        return sum(1 for row in self.rows if row.cells[run_index - 1].verdict == verdict)
 
 
 def verdict(goal: str, reference: float | None, value: float | None) -> str:
@@ -141,7 +151,8 @@ def compare(runs: list[Path], summaries: list[dict]) -> Comparison:
 
 MARKS = {"better": "✓", "worse": "✗"}
 LEGEND = ("✓ better, ✗ worse than the reference (from each indicator's goal); "
-          "changes are relative to the reference.")
+          "changes are relative to the reference. Single runs: no significance test, "
+          "compare groups of repetitions (-g) to conclude.")
 
 
 def fmt(value: float | None) -> str:
@@ -183,11 +194,9 @@ class ConsoleOutput(Output):
     """Aligned report on the console: one table per summary file."""
 
     def write(self, comparison: Comparison) -> None:
-        print(f"Reference: {comparison.runs[0]}\n")
-        width = max(len(name) for name in comparison.runs[1:])
-        for i, name in enumerate(comparison.runs[1:], start=1):
-            print(f"  {name:<{width}}  better: {comparison.count(i, 'better'):>3}"
-                  f"   worse: {comparison.count(i, 'worse'):>3}")
+        print(f"Reference: {comparison.runs[0]}")
+        for name in comparison.runs[1:]:
+            print(f"  compared: {name}")
         print(f"\n{LEGEND}")
         for source in comparison.sources():
             rows = [r for r in comparison.rows if r.source == source]
@@ -221,11 +230,8 @@ class MarkdownOutput(Output):
         self.path = path
 
     def write(self, comparison: Comparison) -> None:
-        lines = ["# Benchmark comparison", "", f"Reference: `{comparison.runs[0]}`", "",
-                 "| Run | Better | Worse |", "|---|---:|---:|"]
-        for i, name in enumerate(comparison.runs[1:], start=1):
-            lines.append(f"| `{name}` | {comparison.count(i, 'better')} "
-                         f"| {comparison.count(i, 'worse')} |")
+        lines = ["# Benchmark comparison", "", f"Reference: `{comparison.runs[0]}`", ""]
+        lines += [f"- compared: `{name}`" for name in comparison.runs[1:]]
         lines += ["", LEGEND]
         for source in comparison.sources():
             header = ["Metric", "Unit",
@@ -259,7 +265,275 @@ class CsvOutput(Output):
         print(f"CSV: {self.path}", file=sys.stderr)
 
 
+
+# ------------------------------------------------------------------------- groups
+
+
+def quantile(sorted_values: list[float], q: float) -> float:
+    """Quantile by linear interpolation (sorted, non-empty input)."""
+    pos = (len(sorted_values) - 1) * q
+    low, high = int(pos), min(int(pos) + 1, len(sorted_values) - 1)
+    return sorted_values[low] + (sorted_values[high] - sorted_values[low]) * (pos - low)
+
+
+def _ranks(values: list[float]) -> list[float]:
+    """Ranks starting at 1, ties given their average rank."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    ranks = [0.0] * len(values)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and values[order[j + 1]] == values[order[i]]:
+            j += 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = (i + j) / 2 + 1
+        i = j + 1
+    return ranks
+
+
+def mann_whitney(reference: list[float], values: list[float],
+                 max_exact: int = 20000, samples: int = 20000) -> tuple[float, float] | None:
+    """Two-sided Mann-Whitney U test, by permutation: exact when the number of ways
+    to split the runs is small, else on `samples` random splits (fixed seed).
+    Returns (p-value, U of `values` minus its mean under no difference: < 0 when
+    `values` tends to be lower), or None with fewer than 2 runs on a side."""
+    n, m = len(values), len(reference)
+    if n < 2 or m < 2:
+        return None
+    ranks = _ranks([*values, *reference])
+    mean_u = n * m / 2
+
+    def u(indices) -> float:
+        return sum(ranks[i] for i in indices) - n * (n + 1) / 2
+
+    observed = u(range(n)) - mean_u
+    total = math.comb(n + m, n)
+    if total <= max_exact:
+        splits = itertools.combinations(range(n + m), n)
+        count = sum(1 for split in splits if abs(u(split) - mean_u) >= abs(observed) - 1e-9)
+        return count / total, observed
+    rng = random.Random(0)
+    count = sum(
+        1 for _ in range(samples)
+        if abs(u(rng.sample(range(n + m), n)) - mean_u) >= abs(observed) - 1e-9
+    )
+    return (count + 1) / (samples + 1), observed
+
+
+@dataclass
+class Stats:
+    values: list[float]
+
+    @property
+    def n(self) -> int:
+        return len(self.values)
+
+    def q(self, q: float) -> float:
+        return quantile(sorted(self.values), q)
+
+    @property
+    def median(self) -> float:
+        return statistics.median(self.values)
+
+
+@dataclass
+class GroupCell:
+    stats: Stats | None
+    change: str = ""
+    p_value: float | None = None
+    verdict: str = ""  # "better", "worse", "~" (not significant) or ""
+
+
+@dataclass
+class GroupRow:
+    source: str
+    metric: str
+    unit: str
+    goal: str
+    reference: Stats | None
+    cells: list[GroupCell]  # one per compared group
+
+
+@dataclass
+class GroupComparison:
+    groups: list[tuple[str, int]]  # (name, runs with a summary), reference first
+    alpha: float
+    rows: list[GroupRow] = field(default_factory=list)
+
+    def sources(self) -> list[str]:
+        return list(dict.fromkeys(row.source for row in self.rows))
+
+
+def group_verdict(goal: str, test: tuple[float, float] | None, alpha: float) -> str:
+    if test is None or goal not in ("minimize", "maximize"):
+        return ""
+    p_value, direction = test
+    if p_value >= alpha or direction == 0:
+        return "~"
+    lower = direction < 0
+    return "better" if lower == (goal == "minimize") else "worse"
+
+
+def compare_groups(groups: list[tuple[str, list[dict]]], alpha: float) -> GroupComparison:
+    comparison = GroupComparison([(name, len(runs)) for name, runs in groups], alpha)
+    keys: list[tuple[str, str]] = []
+    for _, runs in groups:
+        for summary in runs:
+            keys.extend(k for k in summary if k not in keys)
+    for source, metric in keys:
+        info = next(s[(source, metric)] for _, runs in groups for s in runs
+                    if (source, metric) in s)
+        per_group = []
+        for _, runs in groups:
+            values = [v for v in (num(s[(source, metric)]["value"]) for s in runs
+                                  if (source, metric) in s) if v is not None]
+            per_group.append(Stats(values) if values else None)
+        reference = per_group[0]
+        cells = []
+        for stats in per_group[1:]:
+            cell = GroupCell(stats)
+            if stats is not None and reference is not None:
+                cell.change = change(reference.median, stats.median)
+                test = mann_whitney(reference.values, stats.values)
+                cell.p_value = test[0] if test else None
+                cell.verdict = group_verdict(info["goal"], test, alpha)
+            cells.append(cell)
+        comparison.rows.append(GroupRow(source, metric, info["unit"], info["goal"],
+                                        reference, cells))
+    return comparison
+
+
+GROUP_MARKS = {"better": "✓", "worse": "✗", "~": "~"}
+
+
+def group_legend(alpha: float) -> str:
+    return (f"median [Q1–Q3] (n runs); change of medians against the reference group; "
+            f"✓ better / ✗ worse: significant difference (Mann-Whitney U, p < {alpha:g}); "
+            "~ no significant difference.")
+
+
+def stats_text(stats: Stats | None) -> str:
+    if stats is None:
+        return ""
+    return f"{fmt(stats.median)} [{fmt(stats.q(0.25))}–{fmt(stats.q(0.75))}] ({stats.n})"
+
+
+def group_cell_text(cell: GroupCell) -> str:
+    text = stats_text(cell.stats)
+    if cell.change:
+        text += f" {cell.change}"
+    if cell.verdict:
+        text += f" {GROUP_MARKS[cell.verdict]}"
+    if cell.p_value is not None:
+        text += f" p={cell.p_value:.2g}"
+    return text
+
+
+def _group_table(comparison: GroupComparison, source: str) -> tuple[list[str], list[list[str]]]:
+    header = ["Metric", "Unit", f"{comparison.groups[0][0]} (reference)",
+              *(name for name, _ in comparison.groups[1:])]
+    body = [[r.metric, r.unit, stats_text(r.reference), *(group_cell_text(c) for c in r.cells)]
+            for r in comparison.rows if r.source == source]
+    return header, body
+
+
+class GroupConsoleOutput:
+    def write(self, comparison: GroupComparison) -> None:
+        for i, (name, n) in enumerate(comparison.groups):
+            print(f"{'Reference group' if i == 0 else 'Group'}: {name} ({n} runs)")
+        print(f"\n{group_legend(comparison.alpha)}")
+        for source in comparison.sources():
+            header, body = _group_table(comparison, source)
+            widths = [max(len(header[i]), *(len(line[i]) for line in body))
+                      for i in range(len(header))]
+            print(f"\n{source}")
+            for line in (header, ["-" * w for w in widths], *body):
+                print("  ".join(text.ljust(w) if i < 2 else text.rjust(w)
+                                for i, (text, w) in enumerate(zip(line, widths, strict=True)))
+                      .rstrip())
+
+
+class GroupMarkdownOutput:
+    def __init__(self, path: Path):
+        self.path = path
+
+    def write(self, comparison: GroupComparison) -> None:
+        lines = ["# Benchmark comparison (groups)", "", "| Group | Runs |", "|---|---:|"]
+        for i, (name, n) in enumerate(comparison.groups):
+            lines.append(f"| `{name}`{' (reference)' if i == 0 else ''} | {n} |")
+        lines += ["", group_legend(comparison.alpha)]
+        for source in comparison.sources():
+            header, body = _group_table(comparison, source)
+            lines += ["", f"## {source}", "", "| " + " | ".join(header) + " |",
+                      "|---|---|" + "---:|" * (len(header) - 2)]
+            lines += ["| " + " | ".join(line) + " |" for line in body]
+        self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"Markdown report: {self.path}", file=sys.stderr)
+
+
+class GroupCsvOutput:
+    def __init__(self, path: Path):
+        self.path = path
+
+    def write(self, comparison: GroupComparison) -> None:
+        with self.path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["group", "source", "metric", "unit", "goal", "runs", "median",
+                             "q1", "q3", "reference_runs", "reference_median", "change",
+                             "p_value", "verdict"])
+            for r in comparison.rows:
+                ref = r.reference
+                for (name, _), c in zip(comparison.groups[1:], r.cells, strict=True):
+                    st = c.stats
+                    writer.writerow([
+                        name, r.source, r.metric, r.unit, r.goal,
+                        st.n if st else 0, fmt(st.median) if st else "",
+                        fmt(st.q(0.25)) if st else "", fmt(st.q(0.75)) if st else "",
+                        ref.n if ref else 0, fmt(ref.median) if ref else "", c.change,
+                        f"{c.p_value:.4g}" if c.p_value is not None else "", c.verdict,
+                    ])
+        print(f"CSV: {self.path}", file=sys.stderr)
+
+
 # --------------------------------------------------------------------------- main
+
+
+def expand(patterns: list[str]) -> list[Path]:
+    """Glob patterns -> paths, in order, each once."""
+    paths: list[Path] = []
+    for pattern in patterns:
+        for match in sorted(glob.glob(pattern)) or [pattern]:
+            if Path(match).resolve() not in [p.resolve() for p in paths]:
+                paths.append(Path(match))
+    return paths
+
+
+def main_groups(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
+    groups = []
+    for name, *patterns in args.group:
+        if not patterns:
+            parser.error(f"group {name!r}: give its data directories")
+        summaries = []
+        for run in expand(patterns):
+            summary = read_summaries(run)
+            if summary:
+                summaries.append(summary)
+            else:
+                print(f"[WARN] no summary in {summary_dir(run)}: left out", file=sys.stderr)
+        if not summaries:
+            parser.error(f"group {name!r}: no run with a summary")
+        groups.append((name, summaries))
+    if len(groups) < 2:
+        parser.error("give at least two groups (-g NAME DIR... -g NAME DIR...)")
+    comparison = compare_groups(groups, args.alpha)
+    outputs = [GroupConsoleOutput()] if args.verbose else []
+    if args.markdown:
+        outputs.append(GroupMarkdownOutput(Path(args.markdown)))
+    if args.csv:
+        outputs.append(GroupCsvOutput(Path(args.csv)))
+    for output in outputs:
+        output.write(comparison)
+    return 0
 
 
 def main() -> int:
@@ -276,6 +550,11 @@ def main() -> int:
                         help="Markdown report (default: comparison.md).")
     parser.add_argument("-c", "--csv", nargs="?", const="comparison.csv", metavar="FILE",
                         help="All values in long form (default: comparison.csv).")
+    parser.add_argument("-g", "--group", nargs="+", action="append", metavar=("NAME", "DIR"),
+                        help="A group of runs: its name, then their data directories (glob "
+                        "patterns accepted). Repeat for each group; the first is the reference.")
+    parser.add_argument("--alpha", type=float, default=0.05,
+                        help="Significance level of the group test (default: 0.05).")
     args = parser.parse_args()
 
     # An optional file name right before the runs may have taken the first run:
@@ -285,6 +564,14 @@ def main() -> int:
         if value and Path(value).is_dir():
             args.runs.insert(0, value)
             setattr(args, option, default)
+
+    if not (args.verbose or args.markdown or args.csv):
+        parser.error("no output chosen: use -v (console), -m [FILE] (Markdown) "
+                     "and/or -c [FILE] (CSV)")
+    if args.group:
+        if args.runs:
+            parser.error("give either runs or groups (-g), not both")
+        return main_groups(parser, args)
 
     outputs: list[Output] = []
     if args.verbose:
@@ -297,11 +584,7 @@ def main() -> int:
         parser.error("no output chosen: use -v (console), -m [FILE] (Markdown) "
                      "and/or -c [FILE] (CSV)")
 
-    runs: list[Path] = []
-    for pattern in args.runs:
-        for match in sorted(glob.glob(pattern)) or [pattern]:
-            if Path(match).resolve() not in [r.resolve() for r in runs]:
-                runs.append(Path(match))
+    runs = expand(args.runs)
     if not runs:
         parser.error("no data directory given")
     kept = []

@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"   # git tag of microservices-demo
 REPO_URL="https://github.com/GoogleCloudPlatform/microservices-demo.git"
-CHART_REPOSITORY="${BENCHMARK_UTILS_PATH:?}/helm/chart-repository"
+CHART_REPOSITORY="${MUMS_UTILS_PATH:?}/helm/chart-repository"
 CHART_DIR="$CHART_REPOSITORY/onlineboutique/$VERSION"
 
 install() {

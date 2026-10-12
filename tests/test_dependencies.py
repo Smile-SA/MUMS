@@ -6,13 +6,13 @@ import stat
 import pytest
 import yaml
 
-from benchmark_platform.dependencies import (
+from mums.dependencies import (
     DependencyError,
     check_dependencies,
     install_dependencies,
     resolve,
 )
-from benchmark_platform.discovery import DiscoveryError, discover
+from mums.discovery import DiscoveryError, discover
 
 
 def _util(root, name, dependencies=None, script=None):
@@ -33,8 +33,8 @@ def _util(root, name, dependencies=None, script=None):
 def _paths(tmp_path, monkeypatch):
     """By default: modules in tmp_path, utils in tmp_path/utils."""
     (tmp_path / "utils").mkdir(exist_ok=True)
-    monkeypatch.setenv("BENCHMARK_MODULE_PATHS", str(tmp_path))
-    monkeypatch.setenv("BENCHMARK_UTILS_PATH", str(tmp_path / "utils"))
+    monkeypatch.setenv("MUMS_MODULE_PATHS", str(tmp_path))
+    monkeypatch.setenv("MUMS_UTILS_PATH", str(tmp_path / "utils"))
 
 
 SCRIPT = """#!/bin/sh
@@ -58,16 +58,16 @@ def test_discovery_several_roots_and_duplicates(tmp_path, monkeypatch):
     _util(tmp_path / "repo", "a")
     _util(tmp_path / "ext", "b")
     roots = [tmp_path / "repo", tmp_path / "ext"]
-    monkeypatch.setenv("BENCHMARK_MODULE_PATHS", os.pathsep.join(map(str, roots)))
+    monkeypatch.setenv("MUMS_MODULE_PATHS", os.pathsep.join(map(str, roots)))
     assert set(discover().modules) == {"a", "b"}
     _util(tmp_path / "ext2", "a")
     roots.append(tmp_path / "ext2")
-    monkeypatch.setenv("BENCHMARK_MODULE_PATHS", os.pathsep.join(map(str, roots)))
+    monkeypatch.setenv("MUMS_MODULE_PATHS", os.pathsep.join(map(str, roots)))
     with pytest.raises(DiscoveryError, match="Two are named 'a'"):
         discover()
 
 
-@pytest.mark.parametrize("variable", ["BENCHMARK_MODULE_PATHS", "BENCHMARK_UTILS_PATH"])
+@pytest.mark.parametrize("variable", ["MUMS_MODULE_PATHS", "MUMS_UTILS_PATH"])
 def test_variables_required(monkeypatch, variable):
     monkeypatch.delenv(variable)
     with pytest.raises(DiscoveryError, match="is not set"):
@@ -103,7 +103,7 @@ def test_check_reports_everything(tmp_path):
     assert "command not found: nope-cmd" in message
     assert "command not found: nope-util" in message
     assert "check failed: not installed" in message
-    assert "benchmark-platform deps install m" in message
+    assert "mums deps install m" in message
 
 
 def test_install_then_check(tmp_path):
@@ -131,13 +131,13 @@ def test_unknown_dependency(tmp_path):
 
 
 def test_script_gets_utils_path(tmp_path):
-    script = '#!/bin/sh\n[ "$BENCHMARK_UTILS_PATH" = "%s" ]\n' % (tmp_path / "u")
+    script = '#!/bin/sh\n[ "$MUMS_UTILS_PATH" = "%s" ]\n' % (tmp_path / "u")
     _util(tmp_path, "m", {"entrypoint": "deps.sh"}, script=script)
     check_dependencies(discover(), ["m"], tmp_path / "u")
 
 
 def test_doctor_reports_each_module(tmp_path, capsys, monkeypatch):
-    from benchmark_platform.doctor import run_doctor
+    from mums.doctor import run_doctor
 
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     _util(tmp_path, "good", {"commands": ["sh"]})
@@ -191,7 +191,7 @@ def test_install_keep_going_reports_all_failures(tmp_path):
 
 
 def test_cli_deps_all_and_scenario(platform, capsys):
-    from benchmark_platform.cli import main
+    from mums.cli import main
 
     assert main(["deps", "check", "--all"]) == 0
     out = capsys.readouterr().out

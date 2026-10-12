@@ -8,14 +8,14 @@
 #     module's scrape frequency, so that each of our scrapes brings new samples).
 #   placement: control-plane (Prometheus and kube-state-metrics run on the
 #     control-plane node, away from the measured workload) or any.
-set -e
+set -euo pipefail
 
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 
-KUBECONFIG=$1
-CHART_VERSION=$2
-INTERVAL=$3
-PLACEMENT=$4
+KUBECONFIG="${1:-}"
+CHART_VERSION="${2:-}"
+INTERVAL="${3:-}"
+PLACEMENT="${4:-}"
 PRIORITY_CLASS="benchmark-observability"
 
 if [ -z "$KUBECONFIG" ] || [ -z "$CHART_VERSION" ] || [ -z "$INTERVAL" ] || [ -z "$PLACEMENT" ]; then
@@ -41,7 +41,7 @@ metadata:
   name: ${PRIORITY_CLASS}
 value: 1000000
 globalDefault: false
-description: "Benchmark platform observability (Prometheus): kept running under pressure."
+description: "mums observability (Prometheus): kept running under pressure."
 EOF2
 
 PLACEMENT_ARGS=()

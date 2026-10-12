@@ -11,6 +11,14 @@ args:
     required: false
     type: bool
     description: "Only count data inside the run window; false: all the data (default: true)."
+  node_metrics:
+    required: false
+    type: bool
+    description: "Report the node_* indicators, computed from node-level metrics (node-exporter: the node's machine). false when nodes share one machine (e.g. kind), where they describe the host, the same for every node (default: true)."
+  namespaces:
+    required: false
+    type: string
+    description: "Comma-separated namespaces whose Deployments count in availability_*, e.g. the application's (default: all namespaces)."
 
 dependencies:
   commands:

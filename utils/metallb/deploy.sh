@@ -1,7 +1,7 @@
 #!/bin/bash
 # Usage: ./deploy.sh <kubeconfig> <ip_range> [<ip_range> ...]
-set -e
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+set -euo pipefail
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CHART_VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
 

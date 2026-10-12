@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from benchmark_platform.config import ConfigError
-from benchmark_platform.schema import resolve_args, to_cli_args
+from mums.config import ConfigError
+from mums.schema import resolve_args, to_cli_args
 
 ENVELOPE = frozenset({"module"})
 SCHEMA = {

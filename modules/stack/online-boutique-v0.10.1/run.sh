@@ -6,12 +6,12 @@
 #
 # No `delete` action: the application goes away with the environment.
 # The Helm chart is fetched at install time by dependencies.sh
-# (`make setup-module MODULE=stacks/online-boutique`).
+# (`mums deps install online-boutique-v0.10.1`).
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 
 RELEASE_NAME="onlineboutique"
 NAMESPACE="online-boutique"

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from benchmark_platform.modules import ModuleError, load_module_at
+from mums.modules import ModuleError, load_module_at
 from tests.conftest import make_module
 
 

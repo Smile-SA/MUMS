@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from benchmark_platform.paths import RunPaths
+from mums.paths import RunPaths
 
 
 def test_layout(tmp_path):

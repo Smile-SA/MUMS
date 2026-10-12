@@ -17,18 +17,51 @@ Environment module: a local Kubernetes cluster with [kind](https://kind.sigs.k8s
 |---|---|---|
 | `node_image` | `kindest/node:v1.34.0` | Kind node image (the Kubernetes version of the cluster). Kubernetes v1.35+ does not run on cgroup v1 hosts: the module refuses such an image there. |
 | `workers` | one worker, without cpu or memory limit | `{count: N, cpu: X, memory: "YGi"}`: number of workers and the cpu/memory each one gets (cpu and memory optional). |
-| `cgroups` | `v1` | How `cpu`/`memory` are enforced on the workers (see below). |
+| `node_sizing` | `reserved` | How workers get the requested `cpu`/`memory` (see below). |
 
-## `cgroups`: v1 or v2
+## `node_sizing`: how workers get their size
 
-- **`v1`** (default, works on any host): the kubelet reserves the rest of the host
-  (`system-reserved`). Each worker's **Allocatable** is the requested cpu/memory,
-  but its **Capacity stays the host's values**. Tools that read Capacity, such as
-  some optimizers, then see wrong node sizes.
-- **`v2`** (cgroup v2 hosts only): after creation, Docker limits
-  (`docker update --cpus/--memory`) are applied to the worker containers. Each
-  worker's **Capacity is the requested cpu/memory**. Use it for optimizers that
-  read Capacity.
+Kind nodes are containers on one host. The kubelet reads its node's size from
+`/proc/meminfo` and sysfs, at start, never from cgroup limits, whatever the
+cgroup version. Hence three modes, all working on cgroup v1 and v2 hosts:
+
+| Mode | Capacity | Allocatable | CPU / memory enforced |
+|---|---|---|---|
+| `reserved` (default) | the host's | requested | memory yes (kubepods), CPU no (shares only) |
+| `limits` | the host's | the host's | yes (Docker limits) |
+| `lxcfs` | requested | requested (minus eviction threshold) | yes (Docker limits) |
+
+- **`reserved`**: the kubelet reserves the rest of the host (`system-reserved`).
+  The default scheduler uses Allocatable, so placement is right; tools that read
+  Capacity see the host. Pods may use more CPU than requested when the host is idle.
+- **`limits`**: `docker update --cpus/--memory` on the workers. The scheduler
+  believes each node is the size of the host and overcommits it. Not for
+  scheduling studies.
+- **`lxcfs`**: Docker limits, plus [lxcfs](https://github.com/lxc/lxcfs) files
+  mounted over the node's `/proc` files and `/sys/devices/system/cpu/online`, then
+  the kubelets are restarted: each node looks like a VM of the requested size.
+  Needs lxcfs running on the host (`/var/lib/lxcfs`), started with
+  `--enable-cfs` (see below), and whole CPUs.
+
+### lxcfs on the host
+
+By default lxcfs shows a container's memory limit but not its CPU limit:
+`--enable-cfs` turns that on. The packaged service starts lxcfs without it, hence
+a systemd drop-in:
+
+```bash
+sudo apt-get install -y lxcfs
+sudo mkdir -p /etc/systemd/system/lxcfs.service.d
+printf '[Service]\nExecStart=\nExecStart=/usr/bin/lxcfs --enable-cfs /var/lib/lxcfs\n' \
+    | sudo tee /etc/systemd/system/lxcfs.service.d/enable-cfs.conf
+sudo systemctl daemon-reload
+sudo systemctl enable lxcfs
+sudo systemctl restart lxcfs
+ps -o args= -C lxcfs        # expect: /usr/bin/lxcfs --enable-cfs /var/lib/lxcfs
+```
+
+Restart lxcfs only while no cluster uses it: the files mounted in running nodes
+stop working. `create` checks lxcfs before creating anything.
 
 ## kind version
 

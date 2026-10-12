@@ -1,4 +1,4 @@
-"""Convert a benchmark-platform run's refined datasets into HOTS's
+"""Convert a mums run's refined datasets into HOTS's
 `FileConnector` input shape, for the "offline dataset -> HOTS only" scenario
 (no live cluster, no Kafka -- see run.sh in this directory for the live path).
 
