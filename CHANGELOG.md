@@ -4,7 +4,7 @@ All notable changes to this project are listed here. Versions follow
 [Semantic Versioning](https://semver.org); the module contract has its own version
 (`contract: 1`), changed only by a new contract.
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-10-12
 
 First public release.
 
