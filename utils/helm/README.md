@@ -24,7 +24,7 @@ installer script if it is missing.
 ## Files
 
 `pull.sh`, `install.sh`, `dependencies.sh`, `util.yaml`; `chart-repository/`
-(the fetched charts, one directory per chart and version).
+(the fetched charts, one directory per chart and version; not versioned).
 
 ## Known limitations
 
