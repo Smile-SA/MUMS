@@ -12,13 +12,16 @@ actions, arguments, data and known limitations.
 | stack | [`online-boutique-v0.10.1`](../modules/stack/online-boutique-v0.10.1/README.md) | deploys Online Boutique, Google's microservices demo, in version 0.10.1 |
 | traffic | [`online-boutique-locust`](../modules/traffic/online-boutique-locust/README.md) | load on Online Boutique with Locust, following a load shape (`http-requests`) |
 | optimizer | [`no-optimization`](../modules/optimizer/no-optimization/README.md) | does nothing: Kubernetes' default scheduler, the reference point |
-| optimizer | [`koordinator`](../modules/optimizer/koordinator/README.md) | installs Koordinator (QoS-based scheduling and rescheduling) in the cluster |
-| optimizer | [`hots`](../modules/optimizer/hots/README.md) | runs HOTS against the live cluster, through hots-connector and a Kafka broker |
+| optimizer | [`koordinator`](../modules/optimizer/koordinator/README.md) | **experimental**: installs Koordinator (QoS-based scheduling and rescheduling) in the cluster |
+| optimizer | [`hots`](../modules/optimizer/hots/README.md) | **experimental**: runs HOTS against the live cluster, through hots-connector and a Kafka broker |
 | disruption | [`no-disruption`](../modules/disruption/no-disruption/README.md) | does nothing: the cluster runs undisturbed |
 | post-processing | [`essential-tables`](../modules/post-processing/essential-tables/README.md) | turns the raw metrics into eight tables on containers, pods, nodes and controllers (`essential-tables`) |
 | post-processing | [`basic-evaluation`](../modules/post-processing/basic-evaluation/README.md) | summarizes a run in comparable indicators: requests, latencies, errors, node usage, availability (`summary`) |
 | post-processing | [`pod-based-node-evaluation`](../modules/post-processing/pod-based-node-evaluation/README.md) | node usage computed from their pods, against allocatable, for nodes sharing a machine (`summary`) |
 | post-processing | [`reference-comparison`](../modules/post-processing/reference-comparison/README.md) | compares a run's summaries with a reference run's (`comparison`) |
+
+Installing and using an experimental module is not stable yet: it may fail to
+install or to complete a run. Its README says where it stands.
 
 ## Utils
 
@@ -35,5 +38,5 @@ actions, arguments, data and known limitations.
 |---|---|
 | `configs/smoke-test.yaml` | the whole chain for one minute, to check that everything works |
 | `configs/baseline-online-boutique-15min.yaml` | 15 minutes with Kubernetes' default scheduler, evaluated |
-| `configs/koordinator-online-boutique-15min.yaml` | the same with Koordinator |
-| `configs/hots-online-boutique-15min.yaml` | the same with HOTS |
+| `configs/koordinator-online-boutique-15min.yaml` | the same with Koordinator (experimental module) |
+| `configs/hots-online-boutique-15min.yaml` | the same with HOTS (experimental module) |

@@ -28,7 +28,7 @@ traffic:
   cycle_minutes: 15          # one simulated day per run (60 would replay only 00:00-06:00)
 
 optimizer:
-  module: hots
+  module: hots               # experimental module: not stable yet (see its README)
   prometheus_url: http://127.0.0.1:9090   # <-- must match observability.local_port above
   kafka_port: 9092
   namespace: online-boutique

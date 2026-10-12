@@ -28,7 +28,7 @@ traffic:
   cycle_minutes: 15          # one simulated day per run (60 would replay only 00:00-06:00)
 
 optimizer:
-  module: koordinator
+  module: koordinator        # experimental module: not stable yet (see its README)
 
 disruption:
   module: no-disruption

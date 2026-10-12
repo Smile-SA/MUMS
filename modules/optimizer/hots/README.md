@@ -8,6 +8,16 @@ telemetry and emits placement decisions. Both talk over a Kafka broker that the
 module starts for the run and removes at the end. All of them run on the host,
 for the duration of the run.
 
+> **Status: experimental.** Installing and using this module is not stable yet:
+> - HOTS and `hots-connector` are not published, so only someone who already has
+>   them can install it;
+> - a run may not complete: HOTS is given every node and every pod of the
+>   cluster, and can send an application pod to the control-plane node, where it
+>   cannot be scheduled; applying a move also interrupts the telemetry HOTS
+>   depends on (see "Known limitations").
+>
+> Making it stable is planned for a later release.
+
 ## Actions
 
 - `start <kubeconfig>`:
@@ -95,18 +105,16 @@ run, and still reads the former layout of the tables (to update).
 - **Moving a workload moves all its replicas**: the `nodeSelector` is set on the
   Deployment, so all its pods are recreated (under new names). Undoing the patches
   at `stop` only covers those made by this connector process (lost after a crash).
-- **Single-node Kafka broker, occasionally slow to start**: HOTS's consumer group
-  may fail to bootstrap (`hots.log`: `Kafka bootstrap failed: no telemetry
-  received before bootstrap timeout`), even with telemetry flowing. Explicitly
-  creating `__consumer_offsets` in the broker fixed the frequent case; a rarer
-  one remains (group-coordinator timing in single-node KRaft mode). `start`
-  retries once; if it still happens, `stop` then `start` was enough in testing.
+- **A failed bootstrap shows only at `stop`**: HOTS waits two minutes for its
+  first telemetry, then exits (`hots.log`: `Kafka bootstrap failed: no telemetry
+  received before bootstrap timeout`). `start` only checks that HOTS is still
+  running after 15 seconds, so the failure is reported by `stop`.
 - **One slow tick ends HOTS's run, silently**: HOTS's Kafka connector polls once
   per tick (`poll_timeout`) and treats an empty poll as the end of the data, not
   as a slow tick. `render_config.py` sets `poll_timeout` to `tick_seconds * 3 + 5`,
   which makes it rare, but a slow Prometheus or Kubernetes API call can still end
   a long run early, with a clean-looking exit: watch `hots-metrics.csv` and
-  `hots.log` stopping mid-run.
+  `hots.log` stopping mid-run. `stop` fails when HOTS has ended before it.
 - **No move on a cold cluster at first**: clustering and optimization only start
   once `window_duration` ticks (3 by default) have accumulated, and a move also
   needs an imbalance above HOTS's thresholds (`tol`, `tol_move`).

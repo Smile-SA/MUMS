@@ -88,6 +88,12 @@ Two scenarios run the same 15-minute experiment, with a different optimizer:
 Both end with an evaluation, `basic-evaluation`, which summarizes each run in a few
 indicators.
 
+> **The `koordinator` module is experimental**: installing and using it is not
+> stable yet, and its run may fail at `[optimizer] start`. If it does, run the
+> baseline scenario a second time and compare the two baseline runs
+> (`mums compare output/baseline-online-boutique-15min-*`): the report reads the
+> same way.
+
 ```bash
 mums deps install --scenario configs/koordinator-online-boutique-15min.yaml
 mums run configs/baseline-online-boutique-15min.yaml

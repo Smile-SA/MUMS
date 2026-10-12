@@ -30,6 +30,10 @@ mums run configs/smoke-test.yaml       # one minute, end to end
 
 Then measure and compare two optimizers:
 
+> The `koordinator` and `hots` optimizer modules are **experimental**: installing
+> and using them is not stable yet (see [the catalogue](docs/modules.md)). The
+> Koordinator run below may fail at `[optimizer] start`.
+
 ```bash
 mums deps install --scenario configs/koordinator-online-boutique-15min.yaml
 mums run configs/baseline-online-boutique-15min.yaml
