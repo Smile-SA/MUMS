@@ -259,6 +259,12 @@ case "$ACTION" in
         ;;
 
     stop)
+        HOTS_DIED=0
+        if [ -f "$HOTS_PID_FILE" ] && ! kill -0 "$(cat "$HOTS_PID_FILE")" 2>/dev/null; then
+            echo "ERROR: HOTS was not running anymore at stop: it ended during the run (see hots.log)" >&2
+            HOTS_DIED=1
+        fi
+
         # Must succeed whatever is running: start may have failed half-way.
 
         # Best-effort: undo the nodeSelector patches before tearing the
@@ -276,5 +282,6 @@ case "$ACTION" in
         stop_pid_file "$RECORDER_PID_FILE" "moves recorder"
 
         "${UTILS_DIR}/kafka/broker.sh" stop "$BROKER_NAME" || true
+        [ "$HOTS_DIED" -eq 0 ] || exit 1
         ;;
 esac

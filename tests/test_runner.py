@@ -85,6 +85,17 @@ def test_failure_stops_launched_and_destroys(platform):
     ]
 
 
+def test_failed_stop_is_shown_and_recorded(platform, capsys):
+    (platform.modules / "optimizer" / "FAIL_stop").touch()
+    run_dir = run_scenario(load_config(platform.write_scenario()), verbose=True)
+    lines = [line.split() for line in capsys.readouterr().out.splitlines()]
+    assert ["[optimizer]", "stop", "ERROR"] in lines
+    assert ["[optimizer]", "stop", "✓"] not in lines
+    manifest = yaml.safe_load((run_dir / "manifest.yaml").read_text())
+    event = next(e for e in manifest["events"] if e["type"] == "optimizer.stop")
+    assert event["status"] == "failed"
+
+
 def test_disruption_gets_kubeconfig_and_seed(platform, tmp_path):
     _run(platform)
     line = next(

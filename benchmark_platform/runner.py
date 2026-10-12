@@ -165,7 +165,9 @@ def _run_step(
         )
 
         if not quiet:
-            _print_step(component, action, "✓", verbose=verbose)
+            # With check=False, a command that failed returns instead of raising.
+            status = "✓" if result.returncode == 0 else "ERROR"
+            _print_step(component, action, status, verbose=verbose)
             print()
 
         return result
