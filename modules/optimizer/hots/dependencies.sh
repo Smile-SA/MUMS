@@ -6,7 +6,7 @@
 # HOTS and hots-connector themselves: pinned in requirements.txt once published.
 # Until then (lines commented out), they must already be installed in the
 # platform's environment, e.g. from local checkouts while developing HOTS:
-#   benchmark-platform exec -- python3 -m pip install -e "<hots>[kafka]" \
+#   mums exec -- python3 -m pip install -e "<hots>[kafka]" \
 #       -e "<hots-connector>[kafka,kubernetes,docker]"
 # Usage: ./dependencies.sh install|check
 set -euo pipefail
@@ -19,7 +19,7 @@ install() {
         if ! command -v "$command" >/dev/null 2>&1; then
             echo "ERROR: ${command} is not installed, and not pinned in requirements.txt." >&2
             echo "  Pin it there, or install a checkout:" >&2
-            echo "  benchmark-platform exec -- python3 -m pip install -e \"<checkout>[...]\"" >&2
+            echo "  mums exec -- python3 -m pip install -e \"<checkout>[...]\"" >&2
             exit 1
         fi
     done

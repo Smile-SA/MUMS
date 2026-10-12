@@ -6,7 +6,7 @@ at `127.0.0.1:<port>`.
 
 ## Scripts
 
-Called by modules as `$BENCHMARK_UTILS_PATH/kafka/broker.sh`.
+Called by modules as `$MUMS_UTILS_PATH/kafka/broker.sh`.
 
 - `broker.sh start <name> [port] [image]` (defaults: port `9092`, image
   `apache/kafka:3.7.1`): starts the container `benchmark-kafka-<name>` (removing

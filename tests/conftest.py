@@ -72,8 +72,8 @@ def platform(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     # Where modules and utils are: set at installation, here for the test repo.
     (root / "utils").mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("BENCHMARK_MODULE_PATHS", str(root))
-    monkeypatch.setenv("BENCHMARK_UTILS_PATH", str(root / "utils"))
+    monkeypatch.setenv("MUMS_MODULE_PATHS", str(root))
+    monkeypatch.setenv("MUMS_UTILS_PATH", str(root / "utils"))
 
     kubeconfig = tmp_path / "kubeconfig"
     kubeconfig.write_text("fake", encoding="utf-8")
@@ -111,4 +111,4 @@ def platform(tmp_path, monkeypatch):
 @pytest.fixture(autouse=True)
 def _isolated_config(tmp_path, monkeypatch):
     """Never read the configuration file of the installation running the tests."""
-    monkeypatch.setenv("BENCHMARK_CONFIG", str(tmp_path / "benchmark-platform.yaml"))
+    monkeypatch.setenv("MUMS_CONFIG", str(tmp_path / "mums.yaml"))

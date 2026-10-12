@@ -4,8 +4,8 @@ import json
 import re
 from typing import Any
 
-from benchmark_platform.config import ConfigError
-from benchmark_platform.warn import warn, warn_unknown
+from mums.config import ConfigError
+from mums.warn import warn, warn_unknown
 
 _CHECKERS = {
     "string": lambda v: isinstance(v, str) and v.strip() != "",

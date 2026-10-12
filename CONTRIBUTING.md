@@ -11,7 +11,7 @@ core: see [Your first module](docs/tutorials/first-module.md),
 [Writing modules](docs/guides/writing-modules.md) and the
 [module contract](docs/reference/module-contract.md).
 
-The rest of this file is about the core: the `benchmark_platform` package, which
+The rest of this file is about the core: the `mums` package, which
 runs scenarios and knows nothing of any specific module.
 
 ## Setup
@@ -19,7 +19,7 @@ runs scenarios and knows nothing of any specific module.
 From the repository's directory:
 
 ```bash
-./benchmark_platform/bootstrap.sh --dev      # also installs the test and lint tools
+./mums/bootstrap.sh --dev      # also installs the test and lint tools
 ```
 
 ## Checks
@@ -32,13 +32,13 @@ From the repository's directory:
 | `make smoke-test` | a real one-minute run, end to end (needs Docker) |
 
 `make help` lists the other targets (installation, cleanup). `make lint` and
-`make test` run in the platform's environment, through `benchmark-platform exec`.
+`make test` run in the platform's environment, through `mums exec`.
 
 ## Organization of the core
 
 | File | Role |
 |---|---|
-| `cli.py` | the `benchmark-platform` command |
+| `cli.py` | the `mums` command |
 | `settings.py` | the settings: configuration file, variables, applied at the start of every command |
 | `discovery.py` | finds modules and utils, by name |
 | `config.py`, `schema.py` | the scenario format, and modules' arguments |
@@ -48,7 +48,7 @@ From the repository's directory:
 | `paths.py`, `manifest.py` | a run's directory, its manifest |
 | `provenance.py` | what produced a run's results |
 | `cleanup.py` | the registry of environments, `env clean` |
-| `doctor.py` | `benchmark-platform doctor` |
+| `doctor.py` | `mums doctor` |
 | `shell.py`, `warn.py` | running commands, warnings |
 | `bootstrap.sh` | installation |
 
@@ -63,7 +63,7 @@ From the repository's directory:
 ## Rules
 
 - **The core knows no specific module.** No tool or module name in
-  `benchmark_platform/`: `grep -rniE "kind|helm|prometheus|online-boutique|locust|hots|no-optimization|no-disruption|koordinator" benchmark_platform/`
+  `mums/`: `grep -rniE "kind|helm|prometheus|online-boutique|locust|hots|no-optimization|no-disruption|koordinator" mums/`
   must only find justified occurrences.
 - **Side tasks never fail a run** (provenance, state collection): they record
   their errors and go on.
@@ -93,7 +93,7 @@ Commit messages say what changed and why.
 
 Use the issue tracker, and fill in the bug report template: steps to reproduce,
 expected and actual behaviour, your environment (OS, Docker, kubectl and kind
-versions). `benchmark-platform doctor` gives most of it.
+versions). `mums doctor` gives most of it.
 
 ## License
 

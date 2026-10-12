@@ -1,4 +1,4 @@
-"""`benchmark-platform doctor`: an informative overview of the machine and of
+"""`mums doctor`: an informative overview of the machine and of
 the platform, for when things go wrong. It checks nothing on behalf of other
 commands (they do their own checks) and knows no module in particular."""
 
@@ -10,11 +10,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from benchmark_platform import settings
-from benchmark_platform.cleanup import EnvironmentRegistry
-from benchmark_platform.dependencies import DependencyError, node_problems, resolve
-from benchmark_platform.discovery import DiscoveryError, discover
-from benchmark_platform.runner import CORE_COMMANDS, utils_path
+from mums import settings
+from mums.cleanup import EnvironmentRegistry
+from mums.dependencies import DependencyError, node_problems, resolve
+from mums.discovery import DiscoveryError, discover
+from mums.runner import CORE_COMMANDS, utils_path
 
 OK = "[OK]  "
 KO = "[KO]  "

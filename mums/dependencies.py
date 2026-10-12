@@ -20,7 +20,7 @@ The core walks a module and its utils recursively (utils first, each once).
 Installation runs every `install`, then the full check, so a failed
 installation shows up immediately. The script runs from the module directory,
 in the caller's environment unchanged (the same as the modules' actions: the
-core does not assume any virtual environment), plus BENCHMARK_UTILS_PATH.
+core does not assume any virtual environment), plus MUMS_UTILS_PATH.
 """
 
 from __future__ import annotations
@@ -34,8 +34,8 @@ from typing import Any
 
 import yaml
 
-from benchmark_platform.discovery import UTILS_PATH_ENV, DiscoveryError, ModuleIndex
-from benchmark_platform.warn import warn_unknown
+from mums.discovery import UTILS_PATH_ENV, DiscoveryError, ModuleIndex
+from mums.warn import warn_unknown
 
 DEPENDENCY_KEYS = frozenset({"entrypoint", "commands", "utils"})
 UTIL_KEYS = frozenset({"name", "dependencies", "description"})
@@ -127,7 +127,7 @@ def resolve(index: ModuleIndex, names: list[str]) -> list[Node]:
 
 def _script_env(utils_path: Path) -> dict[str, str]:
     # Same environment as the modules' actions (the caller's, unchanged), plus
-    # BENCHMARK_UTILS_PATH: a check sees exactly what an action will see.
+    # MUMS_UTILS_PATH: a check sees exactly what an action will see.
     env = os.environ.copy()
     env[UTILS_PATH_ENV] = str(utils_path)
     return env
@@ -186,7 +186,7 @@ def check_dependencies(index: ModuleIndex, names: list[str], utils_path: Path) -
         for name, problems in missing.items():
             lines.append(f"  {name}:")
             lines.extend(f"    - {problem}" for problem in problems)
-            lines.append(f"    install: benchmark-platform deps install {name}")
+            lines.append(f"    install: mums deps install {name}")
         raise DependencyError("\n".join(lines))
 
 

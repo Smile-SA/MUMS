@@ -17,22 +17,22 @@ should differ between the scenarios.
 Check a scenario before running it:
 
 ```bash
-benchmark-platform validate configs/my-scenario.yaml
+mums validate configs/my-scenario.yaml
 ```
 
 ## Install what it needs
 
 ```bash
-benchmark-platform deps install --scenario configs/my-scenario.yaml
+mums deps install --scenario configs/my-scenario.yaml
 ```
 
 This installs the dependencies of the scenario's modules and of their utils, then
-checks them. `benchmark-platform doctor` shows the state of every module found.
+checks them. `mums doctor` shows the state of every module found.
 
 ## Run it
 
 ```bash
-benchmark-platform run configs/my-scenario.yaml
+mums run configs/my-scenario.yaml
 ```
 
 The run's directory is printed first; the steps follow. Keep the machine otherwise
@@ -52,7 +52,7 @@ shuffled in each round, with the round's seed (the scenario's seed + the round's
 index), and puts all the runs in one directory:
 
 ```bash
-benchmark-platform exec -- python3 scripts/campaign.py -n 5 \
+mums exec -- python3 scripts/campaign.py -n 5 \
     configs/baseline-online-boutique-15min.yaml \
     configs/koordinator-online-boutique-15min.yaml
 ```
@@ -66,7 +66,7 @@ From their summaries (written by evaluation modules such as `basic-evaluation`).
 Groups of repetitions, the first one being the reference:
 
 ```bash
-benchmark-platform compare -m report.md \
+mums compare -m report.md \
     -g baseline 'output/campaign-…/baseline-online-boutique-15min-*' \
     -g koordinator 'output/campaign-…/koordinator-online-boutique-15min-*'
 ```
@@ -76,7 +76,7 @@ the change of medians against the reference, and ✓ / ✗ only when the differe
 significant (two-sided Mann-Whitney U test, p < 0.05, `--alpha` to change it); `~`
 otherwise. With 3 runs per group, nothing can be significant: run at least 5.
 
-Single runs can be compared too (`benchmark-platform compare <run> <run>...`, the
+Single runs can be compared too (`mums compare <run> <run>...`, the
 first one being the reference), without any significance test: a small change
 between two single runs means nothing.
 
@@ -94,8 +94,8 @@ post-processing:
 ## Keep an environment
 
 To inspect the cluster after a run, set `output.cleanup_environment: false`. The
-environment then stays registered: list it with `benchmark-platform env list`, and
-destroy it with `benchmark-platform env clean <id>` once done.
+environment then stays registered: list it with `mums env list`, and
+destroy it with `mums env clean <id>` once done.
 
 ## Check what ran
 

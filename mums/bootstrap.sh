@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Installs the benchmark platform (its core) into a Python virtual environment
+# Installs mums (its core) into a Python virtual environment
 # (created if missing), or into the active Python environment (--no-venv).
-# Module dependencies are installed separately: benchmark-platform deps install <module>
+# Module dependencies are installed separately: mums deps install <module>
 #
 # Usage: bootstrap.sh [--no-venv] [--venv-dir DIR] [--dev] [--no-shell-profile] [--help]
 #   --no-venv           install into the active Python environment, without a venv
@@ -14,11 +14,11 @@
 # --no-venv, to install into; default: python3).
 #
 # Writes the settings to the configuration file of this installation, in its
-# Python environment (<venv>/benchmark-platform.yaml): module_paths, utils_path,
+# Python environment (<venv>/mums.yaml): module_paths, utils_path,
 # and with a venv env (its activate script, sourced by the core at the start of
 # every command), unless already in the file (then kept); see
-# `benchmark-platform config`. With a venv, also links
-# ~/.local/bin/benchmark-platform to it, and puts ~/.local/bin on PATH in the
+# `mums config`. With a venv, also links
+# ~/.local/bin/mums to it, and puts ~/.local/bin on PATH in the
 # shell's profile if needed.
 set -euo pipefail
 
@@ -67,20 +67,20 @@ fi
 echo
 echo "=== Installing the platform ==="
 "${PY}" -m pip install --upgrade pip
-# The core is declared in benchmark_platform/pyproject.toml; [dev] adds the
+# The core is declared in mums/pyproject.toml; [dev] adds the
 # development tools.
 if [[ "${INSTALL_DEV}" == "true" ]]; then
-  "${PY}" -m pip install -e "benchmark_platform[dev]"
+  "${PY}" -m pip install -e "mums[dev]"
 else
-  "${PY}" -m pip install -e benchmark_platform
+  "${PY}" -m pip install -e mums
 fi
 
 # Settings (where modules and utils are, the environment everything runs in),
 # in the configuration file of this installation, in its Python environment
-# (<venv>/benchmark-platform.yaml; see `benchmark-platform config`). A
+# (<venv>/mums.yaml; see `mums config`). A
 # setting already in the file is kept as is (an environment variable only
 # overrides it for one command: it is not taken into account here).
-cli() { "${PY}" -c 'import sys; from benchmark_platform.cli import main; sys.exit(main(sys.argv[1:]))' "$@"; }
+cli() { "${PY}" -c 'import sys; from mums.cli import main; sys.exit(main(sys.argv[1:]))' "$@"; }
 
 echo
 SETTINGS=("module_paths=${ROOT_DIR}/modules" "utils_path=${ROOT_DIR}/utils")
@@ -90,7 +90,7 @@ if [[ "${USE_VENV}" == "true" ]]; then
   SETTINGS+=("env=${VENV_DIR}/bin/activate")
 fi
 # Looked up in the file itself (environment variables are only overrides).
-CONFIG_FILE="${BENCHMARK_CONFIG:-$("${PY}" -c 'import sys; print(sys.prefix)')/benchmark-platform.yaml}"
+CONFIG_FILE="${MUMS_CONFIG:-$("${PY}" -c 'import sys; print(sys.prefix)')/mums.yaml}"
 for pair in "${SETTINGS[@]}"; do
   key="${pair%%=*}"
   if [[ -f "${CONFIG_FILE}" ]] && grep -q "^${key}:" "${CONFIG_FILE}"; then
@@ -103,15 +103,15 @@ done
 # The CLI, callable from anywhere without activating the venv.
 if [[ "${USE_VENV}" == "true" ]]; then
   mkdir -p "${HOME}/.local/bin"
-  ln -sf "${VENV_DIR}/bin/benchmark-platform" "${HOME}/.local/bin/benchmark-platform"
-  echo "Command linked: ${HOME}/.local/bin/benchmark-platform -> ${VENV_DIR}/bin/benchmark-platform"
+  ln -sf "${VENV_DIR}/bin/mums" "${HOME}/.local/bin/mums"
+  echo "Command linked: ${HOME}/.local/bin/mums -> ${VENV_DIR}/bin/mums"
 fi
 
 # ~/.local/bin on PATH (like `pipx ensurepath`), in a marked block of the shell's
 # profile, replaced on each run (an older block of this script is removed).
 # --no-shell-profile only prints what to add.
-BEGIN_MARK="# >>> benchmark-platform >>>"
-END_MARK="# <<< benchmark-platform <<<"
+BEGIN_MARK="# >>> mums >>>"
+END_MARK="# <<< mums <<<"
 case "$(basename "${SHELL:-bash}")" in
   zsh) PROFILE="${HOME}/.zshrc" ;;
   *)   PROFILE="${HOME}/.bashrc" ;;
@@ -143,6 +143,6 @@ fi
 
 echo
 echo "Setup complete. Open a new terminal, then check:"
-echo "    benchmark-platform config      # module_paths, utils_path, env"
-echo "    benchmark-platform doctor"
-echo "Then install the dependencies of the modules you use, e.g.: benchmark-platform deps install kind"
+echo "    mums config      # module_paths, utils_path, env"
+echo "    mums doctor"
+echo "Then install the dependencies of the modules you use, e.g.: mums deps install kind"

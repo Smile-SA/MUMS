@@ -67,7 +67,7 @@ then (lines commented out), install them in the platform's environment first, e.
 from local checkouts while developing HOTS:
 
 ```bash
-benchmark-platform exec -- python3 -m pip install \
+mums exec -- python3 -m pip install \
     -e "../hots[kafka]" -e "../hots-connector[kafka,kubernetes,docker]"
 ```
 

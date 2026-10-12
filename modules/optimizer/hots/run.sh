@@ -17,7 +17,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-UTILS_DIR="${BENCHMARK_UTILS_PATH:?BENCHMARK_UTILS_PATH is not set}"
+UTILS_DIR="${MUMS_UTILS_PATH:?MUMS_UTILS_PATH is not set}"
 
 TOPIC_DATA="hots_data"
 TOPIC_MOVES="hots_moves"

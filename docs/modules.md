@@ -27,7 +27,7 @@ actions, arguments, data and known limitations.
 | [`helm`](../utils/helm/README.md) | fetches Helm charts at a given version into a local repository, and installs them |
 | [`metallb`](../utils/metallb/README.md) | installs MetalLB in a cluster, so that `LoadBalancer` services get an IP |
 | [`kafka`](../utils/kafka/README.md) | a single-node Kafka broker in Docker, on the host |
-| [`compare`](../utils/compare/README.md) | compares runs from their summaries (also run by `benchmark-platform compare`) |
+| [`compare`](../utils/compare/README.md) | compares runs from their summaries (also run by `mums compare`) |
 
 ## Scenarios
 

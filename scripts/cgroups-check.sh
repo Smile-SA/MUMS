@@ -14,7 +14,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 MODULE="${ROOT}/modules/environment/kind"
-export BENCHMARK_UTILS_PATH="${BENCHMARK_UTILS_PATH:-${ROOT}/utils}"
+export MUMS_UTILS_PATH="${MUMS_UTILS_PATH:-${ROOT}/utils}"
 WORKERS="${WORKERS:-{\"count\":2,\"cpu\":\"2\",\"memory\":\"4Gi\"\}}"
 WORK="$(mktemp -d)"
 

@@ -6,10 +6,10 @@ from typing import Any
 
 import yaml
 
-from benchmark_platform.dependencies import dependency_problems
-from benchmark_platform.discovery import ModuleIndex
-from benchmark_platform.schema import arg_schema_problems
-from benchmark_platform.warn import warn_unknown
+from mums.dependencies import dependency_problems
+from mums.discovery import ModuleIndex
+from mums.schema import arg_schema_problems
+from mums.warn import warn_unknown
 
 CONTRACT_VERSION = 1
 DESCRIPTOR_KEYS = frozenset(

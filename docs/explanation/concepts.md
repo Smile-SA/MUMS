@@ -1,6 +1,7 @@
 # Concepts
 
-The benchmark platform checks whether a Kubernetes optimizer (a scheduler, a
+mums (Microservices Unified Measurement Simulation) is a benchmark platform: it
+checks whether a Kubernetes optimizer (a scheduler, a
 descheduler, an autoscaler...) works **in a real cluster**: a real application,
 real traffic, real metrics, observed while the system runs. It compares tools as
 an operator would deploy them, on operational measures: latency, errors, node

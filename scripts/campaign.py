@@ -5,18 +5,18 @@ Each round runs every scenario once, in an order shuffled with a fixed seed (so 
 no scenario always runs first, after the machine warmed up, etc.), with the round's
 seed: the scenario's own seed + round index, the same for every scenario of a round.
 All runs of the campaign go to one directory, so that each scenario's repetitions
-are one glob pattern for `benchmark-platform compare -g`.
+are one glob pattern for `mums compare -g`.
 
 A failed run does not stop the campaign: it is reported at the end, and in
 campaign.csv. Run it in the platform's environment:
 
-  benchmark-platform exec -- python3 scripts/campaign.py -n 5 \\
+  mums exec -- python3 scripts/campaign.py -n 5 \\
       configs/baseline-online-boutique-15min.yaml \\
       configs/koordinator-online-boutique-15min.yaml
 
 Then compare (the command is printed at the end):
 
-  benchmark-platform compare -m report.md -c report.csv \\
+  mums compare -m report.md -c report.csv \\
       -g baseline 'output/campaign-<time>/baseline-online-boutique-15min-*' \\
       -g koordinator 'output/campaign-<time>/koordinator-online-boutique-15min-*'
 """
@@ -88,7 +88,7 @@ def main() -> int:
                   f"seed {seed} ===", flush=True)
             run_dir = ""
             process = subprocess.Popen(
-                [sys.executable, "-m", "benchmark_platform.cli", "run", str(copy)],
+                [sys.executable, "-m", "mums.cli", "run", str(copy)],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
             )
             assert process.stdout is not None
@@ -114,7 +114,7 @@ def main() -> int:
     for r in failed:
         print(f"  FAILED: {r[1]} round {r[0]} seed {r[2]} (exit {r[3]}): {r[4]}")
     groups = " ".join(f"\\\n    -g {name} '{output}/{name}-*'" for name in names)
-    print(f"\nCompare:\n  benchmark-platform compare -m report.md -c report.csv {groups}")
+    print(f"\nCompare:\n  mums compare -m report.md -c report.csv {groups}")
     return 1 if failed else 0
 
 

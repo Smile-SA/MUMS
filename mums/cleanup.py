@@ -12,8 +12,8 @@ in both cases the environment does not exist, and the entry is simply
 deleted, without calling `destroy`.
 
 The registry lives outside run outputs, in a per-user state directory
-(`$XDG_STATE_HOME/benchmark-platform/environments/`, by default
-`~/.local/state/benchmark-platform/environments/`), so deleting run outputs
+(`$XDG_STATE_HOME/mums/environments/`, by default
+`~/.local/state/mums/environments/`), so deleting run outputs
 never loses track of an environment. Each entry holds what is needed to call
 the environment module's own `destroy <id>`: the core knows nothing about what
 an environment is made of.
@@ -29,15 +29,15 @@ from typing import Any
 
 import yaml
 
-from benchmark_platform.dependencies import UTILS_PATH_ENV
-from benchmark_platform.manifest import utc_now_iso
-from benchmark_platform.modules import ModuleSpec, load_module_at
-from benchmark_platform.shell import run_command
+from mums.dependencies import UTILS_PATH_ENV
+from mums.manifest import utc_now_iso
+from mums.modules import ModuleSpec, load_module_at
+from mums.shell import run_command
 
 
 def default_state_dir() -> Path:
     base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local" / "state")
-    return Path(base) / "benchmark-platform"
+    return Path(base) / "mums"
 
 
 @dataclass(frozen=True)

@@ -2,7 +2,7 @@
 
 Problems with the platform itself. A module's own problems are in its README.
 
-## `benchmark-platform: command not found`
+## `mums: command not found`
 
 The command is linked into `~/.local/bin`, which must be on `PATH`. Open a new
 terminal after installing; if it is still missing, check that your shell's profile
@@ -11,22 +11,22 @@ was given).
 
 ## `… is not set` / settings missing
 
-The installation's settings are missing: run `./benchmark_platform/bootstrap.sh`
-again, or set them with `benchmark-platform config set`. `benchmark-platform
+The installation's settings are missing: run `./mums/bootstrap.sh`
+again, or set them with `mums config set`. `mums
 config` shows each setting and where it comes from: an environment variable
 overrides the file, possibly without you knowing.
 
 ## Missing dependencies
 
-`benchmark-platform validate` or `run` stops with `[DEPENDENCY ERROR]` and the
+`mums validate` or `run` stops with `[DEPENDENCY ERROR]` and the
 command to run:
 
 ```bash
-benchmark-platform deps install --scenario <scenario.yaml>
+mums deps install --scenario <scenario.yaml>
 ```
 
 If the installation fails, the message says what to install by hand.
-`benchmark-platform doctor` shows the state of every module and util.
+`mums doctor` shows the state of every module and util.
 
 ## A run failed
 
@@ -43,8 +43,8 @@ Run the scenario again with `-v` to see the modules' output as it goes.
 An interrupted run, or one whose destruction failed, leaves its environment:
 
 ```bash
-benchmark-platform env list
-benchmark-platform env clean <id>        # or: env clean-all
+mums env list
+mums env clean <id>        # or: env clean-all
 ```
 
 ## `[WARNING] Unknown field(s)`

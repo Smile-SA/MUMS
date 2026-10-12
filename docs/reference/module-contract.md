@@ -98,7 +98,7 @@ What each action must do:
 - **`environment destroy <id>`** removes everything that exists for `<id>`, whatever
   is left (a complete, partial or absent environment): it never fails because
   something is missing. It may be called long after the run, by
-  `benchmark-platform env clean`.
+  `mums env clean`.
 - **`start` / `deploy`** launch the module and return once it is running. Anything
   the module leaves running afterwards (a process on the machine) runs in the
   background.
@@ -123,7 +123,7 @@ For example: `run.sh start /path/kubeconfig 42 /path/data --shape day_profile`.
 - **Directory**: the module's own directory. Paths given by the platform are
   absolute.
 - **Environment**: the platform's (with its `env` setting applied), plus
-  `BENCHMARK_UTILS_PATH`, the directory of the utils.
+  `MUMS_UTILS_PATH`, the directory of the utils.
 - **Output**: everything the action prints (standard output and error) goes to
   `logs/<module>/<action>.log` in the run; with `run -v`, also to the terminal.
 - **Exit code**: `0` for success, anything else for failure. A failure of a
@@ -199,7 +199,7 @@ The dependency script:
 - **`check`** verifies that everything is in place, quickly and without changing
   anything; it exits with a non-zero code and says what is missing otherwise.
 - Both run from the module's directory, in the platform's environment, with
-  `BENCHMARK_UTILS_PATH`.
+  `MUMS_UTILS_PATH`.
 
 A command needed only in some configurations of the module (e.g. a tool found on
 `PATH` in one mode, installed locally in another) is not declared in `commands`:
@@ -207,13 +207,13 @@ the `check`, which knows the configuration, verifies it.
 
 Before a run, the platform checks the dependencies of every module of the
 scenario and of their utils, recursively, and stops if anything is missing:
-`benchmark-platform deps install` installs them.
+`mums deps install` installs them.
 
 ## Utils
 
 A util is a directory holding a `util.yaml` and scripts that modules (or the
 platform) call. Utils are searched in the installation's utils directory only;
-modules call them as `$BENCHMARK_UTILS_PATH/<util>/<script>`.
+modules call them as `$MUMS_UTILS_PATH/<util>/<script>`.
 
 ```yaml
 name: helm

@@ -86,7 +86,7 @@ instead of the output, and never fails the run.
 ## Environments left behind
 
 A run registers its environment before creating it, and unregisters it once it is
-destroyed, in `~/.local/state/benchmark-platform/environments/` (or
-`$XDG_STATE_HOME/benchmark-platform/environments/`). An environment left by an
-interrupted run, or kept on purpose, is listed by `benchmark-platform env list`
-and destroyed by `benchmark-platform env clean`.
+destroyed, in `~/.local/state/mums/environments/` (or
+`$XDG_STATE_HOME/mums/environments/`). An environment left by an
+interrupted run, or kept on purpose, is listed by `mums env list`
+and destroyed by `mums env clean`.

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-# dataset_bridge.py belongs to this module, not to the benchmark_platform
+# dataset_bridge.py belongs to this module, not to the mums
 # package (module code stays in its own directory): load it from there.
 _MODULE_PATH = Path(__file__).resolve().parent.parent / "dataset_bridge.py"
 _spec = importlib.util.spec_from_file_location("dataset_bridge", _MODULE_PATH)

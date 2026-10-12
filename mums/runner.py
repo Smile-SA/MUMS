@@ -12,22 +12,22 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from benchmark_platform import provenance
-from benchmark_platform.cleanup import EnvironmentRegistry
-from benchmark_platform.config import ScenarioConfig, post_processing_sections
-from benchmark_platform.dependencies import (
+from mums import provenance
+from mums.cleanup import EnvironmentRegistry
+from mums.config import ScenarioConfig, post_processing_sections
+from mums.dependencies import (
     UTILS_PATH_ENV,
     DependencyError,
     check_dependencies,
     resolve,
 )
-from benchmark_platform.discovery import ModuleIndex, discover, utils_path
-from benchmark_platform.manifest import RunManifest, utc_now_iso
-from benchmark_platform.modules import STOP_ACTIONS, ModuleSpec, load_module
-from benchmark_platform.paths import RunPaths
-from benchmark_platform.schema import resolve_args, to_cli_args
-from benchmark_platform.shell import run_command
-from benchmark_platform.warn import warn
+from mums.discovery import ModuleIndex, discover, utils_path
+from mums.manifest import RunManifest, utc_now_iso
+from mums.modules import STOP_ACTIONS, ModuleSpec, load_module
+from mums.paths import RunPaths
+from mums.schema import resolve_args, to_cli_args
+from mums.shell import run_command
+from mums.warn import warn
 
 # Scenario sections, one module each. `post-processing` is optional.
 REQUIRED_COMPONENTS = (

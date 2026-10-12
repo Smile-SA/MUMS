@@ -7,19 +7,19 @@ import subprocess
 import sys
 from pathlib import Path
 
-from benchmark_platform import settings
-from benchmark_platform.cleanup import EnvironmentRegistry, clean_environments
-from benchmark_platform.config import ConfigError, load_config
-from benchmark_platform.dependencies import (
+from mums import settings
+from mums.cleanup import EnvironmentRegistry, clean_environments
+from mums.config import ConfigError, load_config
+from mums.dependencies import (
     DependencyError,
     check_dependencies,
     install_dependencies,
 )
-from benchmark_platform.discovery import DiscoveryError, discover
-from benchmark_platform.doctor import run_doctor
-from benchmark_platform.modules import ModuleError
-from benchmark_platform.paths import RunPaths
-from benchmark_platform.runner import (
+from mums.discovery import DiscoveryError, discover
+from mums.doctor import run_doctor
+from mums.modules import ModuleError
+from mums.paths import RunPaths
+from mums.runner import (
     RunnerInterrupted,
     prepare_scenario,
     run_scenario,
@@ -29,7 +29,7 @@ from benchmark_platform.runner import (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="benchmark-platform")
+    parser = argparse.ArgumentParser(prog="mums")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     validate = subparsers.add_parser(
@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
     exec_parser = subparsers.add_parser(
         "exec",
         help="Run a command in the platform's environment (settings applied), "
-        "e.g. benchmark-platform exec -- python3 -m pytest.",
+        "e.g. mums exec -- python3 -m pytest.",
     )
     exec_parser.add_argument("command_line", nargs=argparse.REMAINDER)
 
@@ -211,7 +211,7 @@ def _compare_command(args: argparse.Namespace) -> int:
         arguments += ["-g", name, *data_dirs]
     utils = discover().utils
     if "compare" not in utils or not (utils["compare"] / "compare.py").is_file():
-        print("[ERROR] util compare not found (see 'benchmark-platform config')",
+        print("[ERROR] util compare not found (see 'mums config')",
               file=sys.stderr)
         return 1
     tool = utils["compare"] / "compare.py"
@@ -247,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "exec":
         command = args.command_line[1:] if args.command_line[:1] == ["--"] else args.command_line
         if not command:
-            parser.error("exec: give a command, e.g. benchmark-platform exec -- python3 -m pytest")
+            parser.error("exec: give a command, e.g. mums exec -- python3 -m pytest")
         try:
             os.execvp(command[0], command)
         except FileNotFoundError:

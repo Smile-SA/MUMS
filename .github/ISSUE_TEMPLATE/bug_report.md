@@ -11,7 +11,7 @@ labels: bug
 ## Steps to reproduce
 
 ```
-benchmark-platform run configs/...
+mums run configs/...
 ```
 
 1.
@@ -33,4 +33,4 @@ benchmark-platform run configs/...
 - `kubectl version --client`:
 - `helm version`:
 - `python3 --version`:
-- benchmark-platform version / git SHA:
+- mums version / git SHA:

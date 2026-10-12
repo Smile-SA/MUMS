@@ -6,7 +6,7 @@ choices, each with its reason: a reminder of why things are the way they are.
 **Modules and utils are designated by name, never by path.** A scenario or a
 dependency does not depend on where files are. Modules are searched in the
 installation's module directories, utils only in its utils directory: a module
-calls a util through `BENCHMARK_UTILS_PATH`, so a util elsewhere would be
+calls a util through `MUMS_UTILS_PATH`, so a util elsewhere would be
 unreachable.
 
 **Settings belong to each installation.** Where modules and utils are, and the
@@ -48,7 +48,7 @@ the cluster's state at the end of the wait, before anything stops, when it is st
 in the measured state.
 
 **Comparison: a util, a command, a module.** The util `compare` knows only the
-`summary` format and takes data directories; `benchmark-platform compare` takes run
+`summary` format and takes data directories; `mums compare` takes run
 directories (the platform knows their layout) and calls it; the module
 `reference-comparison` compares a run with a reference, within the run. *Why*: each
 knows only what belongs to it.

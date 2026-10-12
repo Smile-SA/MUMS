@@ -17,7 +17,7 @@ default:
   before_script:
     - apt-get update -qq
     - apt-get install -y -qq --no-install-recommends make git > /dev/null
-    - ./benchmark_platform/bootstrap.sh --dev --no-shell-profile
+    - ./mums/bootstrap.sh --dev --no-shell-profile
     - export PATH="$HOME/.local/bin:$PATH"
 
 check:

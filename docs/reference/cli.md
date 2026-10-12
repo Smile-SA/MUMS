@@ -1,4 +1,4 @@
-# Command line: `benchmark-platform`
+# Command line: `mums`
 
 Every command first applies the installation's settings (see
 [settings.md](settings.md)), except `config`, which reads and edits them.
@@ -17,7 +17,7 @@ Every command first applies the installation's settings (see
 ## `run`
 
 ```text
-benchmark-platform run <scenario.yaml> [-v | -q]
+mums run <scenario.yaml> [-v | -q]
 ```
 
 Validates the scenario (as [`validate`](#validate) does), then runs it and prints
@@ -32,7 +32,7 @@ its directory. The steps are shown as they go; see
 ## `validate`
 
 ```text
-benchmark-platform validate <scenario.yaml>
+mums validate <scenario.yaml>
 ```
 
 Checks a scenario without running anything: the platform's own prerequisites
@@ -44,8 +44,8 @@ are reported as warnings.
 ## `deps`
 
 ```text
-benchmark-platform deps install <name>... | --all | --scenario <scenario.yaml>
-benchmark-platform deps check   <name>... | --all | --scenario <scenario.yaml>
+mums deps install <name>... | --all | --scenario <scenario.yaml>
+mums deps check   <name>... | --all | --scenario <scenario.yaml>
 ```
 
 Installs or checks the dependencies of modules and utils, recursively: a
@@ -61,8 +61,8 @@ module's utils first, each one once. `install` runs every dependency script's
 ## `compare`
 
 ```text
-benchmark-platform compare <run>... [-v] [-m [FILE]] [-c [FILE]]
-benchmark-platform compare -g <name> <run>... -g <name> <run>... [--alpha A] [-v] [-m [FILE]] [-c [FILE]]
+mums compare <run>... [-v] [-m [FILE]] [-c [FILE]]
+mums compare -g <name> <run>... -g <name> <run>... [--alpha A] [-v] [-m [FILE]] [-c [FILE]]
 ```
 
 Compares runs from their summaries. Takes run directories (glob patterns accepted)
@@ -85,9 +85,9 @@ report.
 ## `env`
 
 ```text
-benchmark-platform env list
-benchmark-platform env clean <environment_id> [-v]
-benchmark-platform env clean-all [-v]
+mums env list
+mums env clean <environment_id> [-v]
+mums env clean-all [-v]
 ```
 
 A run registers its environment before creating it, and unregisters it once
@@ -104,7 +104,7 @@ destruction failed.
 ## `doctor`
 
 ```text
-benchmark-platform doctor
+mums doctor
 ```
 
 Informative overview, checks nothing: the Python interpreter, the core's
@@ -114,13 +114,13 @@ the dependencies of every module and util found, the registered environments.
 ## `config`
 
 ```text
-benchmark-platform config [show]
-benchmark-platform config path
-benchmark-platform config get <setting>
-benchmark-platform config set <setting> <value>...
-benchmark-platform config add module_paths <path>...
-benchmark-platform config remove module_paths <path>...
-benchmark-platform config unset <setting>
+mums config [show]
+mums config path
+mums config get <setting>
+mums config set <setting> <value>...
+mums config add module_paths <path>...
+mums config remove module_paths <path>...
+mums config unset <setting>
 ```
 
 Shows or changes the settings `module_paths`, `utils_path` and `env`; see
@@ -139,11 +139,11 @@ Shows or changes the settings `module_paths`, `utils_path` and `env`; see
 ## `exec`
 
 ```text
-benchmark-platform exec -- <command> [<argument>...]
+mums exec -- <command> [<argument>...]
 ```
 
 Runs a command in the platform's environment, with its settings applied, as the
-platform runs modules (e.g. `benchmark-platform exec -- python3 -m pytest`).
+platform runs modules (e.g. `mums exec -- python3 -m pytest`).
 
 ## Exit codes
 

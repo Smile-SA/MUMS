@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from benchmark_platform.warn import warn_unknown
+from mums.warn import warn_unknown
 
 # Fields the core knows; any other is ignored with a warning.
 ROOT_KEYS = frozenset(
@@ -156,7 +156,7 @@ def load_config(path: str | Path) -> ScenarioConfig:
     # (`module`). Module-specific fields (e.g.
     # environment.workers, observability.frequency_seconds, traffic.shape) are
     # opaque to the core and validated by each module's own `args:` schema in
-    # module.yaml — see benchmark_platform.schema.resolve_args.
+    # module.yaml — see mums.schema.resolve_args.
     _validate_component(environment, "environment")
     _validate_component(stack, "stack")
     _validate_component(observability, "observability")

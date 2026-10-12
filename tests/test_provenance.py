@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from benchmark_platform import provenance
+from mums import provenance
 
 
 def test_directory_digest_follows_content_only(tmp_path):

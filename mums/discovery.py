@@ -3,8 +3,8 @@
 Modules and utils are designated by their `name`, never by path.
 
 - Modules (`module.yaml`) are searched in the directories of
-  BENCHMARK_MODULE_PATHS (separated by ':').
-- Utils (`util.yaml`) are searched in the directory BENCHMARK_UTILS_PATH, which
+  MUMS_MODULE_PATHS (separated by ':').
+- Utils (`util.yaml`) are searched in the directory MUMS_UTILS_PATH, which
   modules also receive to call them.
 
 Both come from the settings (settings.py, which exports them at the start of
@@ -26,8 +26,8 @@ from pathlib import Path
 
 import yaml
 
-MODULE_PATHS_ENV = "BENCHMARK_MODULE_PATHS"
-UTILS_PATH_ENV = "BENCHMARK_UTILS_PATH"
+MODULE_PATHS_ENV = "MUMS_MODULE_PATHS"
+UTILS_PATH_ENV = "MUMS_UTILS_PATH"
 
 # Directories never scanned: tooling, outputs, downloaded charts, and the parts
 # of the platform repository that are not modules.
@@ -38,7 +38,7 @@ _SKIPPED_DIRS = frozenset(
         "venv",
         "output",
         "chart-repository",
-        "benchmark_platform",
+        "mums",
         "tests",
         "docs",
         "examples",
@@ -63,7 +63,7 @@ class ModuleIndex:
         raise DiscoveryError(
             f"Unknown module or util '{name}'. Known modules: {', '.join(sorted(self.modules))}. "
             f"Known utils: {', '.join(sorted(self.utils)) or 'none'}. Modules are searched in "
-            "module_paths, utils in utils_path (see 'benchmark-platform config')."
+            "module_paths, utils in utils_path (see 'mums config')."
         )
 
 
@@ -71,19 +71,19 @@ def _required(variable: str) -> str:
     value = os.environ.get(variable, "").strip()
     if not value:
         raise DiscoveryError(
-            f"{variable} is not set: run benchmark_platform/bootstrap.sh, or "
-            "'benchmark-platform config set …'."
+            f"{variable} is not set: run mums/bootstrap.sh, or "
+            "'mums config set …'."
         )
     return value
 
 
 def utils_path() -> Path:
-    """The utils directory (BENCHMARK_UTILS_PATH)."""
+    """The utils directory (MUMS_UTILS_PATH)."""
     return Path(_required(UTILS_PATH_ENV)).expanduser().resolve()
 
 
 def module_roots() -> list[Path]:
-    """The directories where modules are searched (BENCHMARK_MODULE_PATHS)."""
+    """The directories where modules are searched (MUMS_MODULE_PATHS)."""
     return [
         Path(entry).expanduser().resolve()
         for entry in _required(MODULE_PATHS_ENV).split(os.pathsep)

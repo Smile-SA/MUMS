@@ -24,18 +24,18 @@ Other tools are installed by the platform when needed.
 From the repository's directory:
 
 ```bash
-./benchmark_platform/bootstrap.sh
+./mums/bootstrap.sh
 ```
 
 This creates a virtual environment in `.venv`, installs the platform in it, and
 writes its settings. To use another virtual environment, to install into your
 current Python environment instead, or to get the development tools: see
-`./benchmark_platform/bootstrap.sh --help` and
+`./mums/bootstrap.sh --help` and
 [settings and installation](../reference/settings.md). Open **a new terminal**, then check:
 
 ```bash
-benchmark-platform config      # where modules and utils are, the environment used
-benchmark-platform doctor      # the machine, the platform, the state of every module
+mums config      # where modules and utils are, the environment used
+mums doctor      # the machine, the platform, the state of every module
 ```
 
 Nothing needs to be activated: the platform uses its own environment.
@@ -47,8 +47,8 @@ cluster, Prometheus, the Online Boutique demo application, Locust traffic, and
 Kubernetes' default scheduler. Install what it needs, then run it:
 
 ```bash
-benchmark-platform deps install --scenario configs/smoke-test.yaml
-benchmark-platform run configs/smoke-test.yaml
+mums deps install --scenario configs/smoke-test.yaml
+mums run configs/smoke-test.yaml
 ```
 
 The first run downloads images and charts, and takes a few minutes. You should see:
@@ -89,9 +89,9 @@ Both end with an evaluation, `basic-evaluation`, which summarizes each run in a 
 indicators.
 
 ```bash
-benchmark-platform deps install --scenario configs/koordinator-online-boutique-15min.yaml
-benchmark-platform run configs/baseline-online-boutique-15min.yaml
-benchmark-platform run configs/koordinator-online-boutique-15min.yaml
+mums deps install --scenario configs/koordinator-online-boutique-15min.yaml
+mums run configs/baseline-online-boutique-15min.yaml
+mums run configs/koordinator-online-boutique-15min.yaml
 ```
 
 Keep the machine idle while they run: anything else running on it skews the
@@ -100,7 +100,7 @@ measures.
 ## 5. Compare them
 
 ```bash
-benchmark-platform compare output/baseline-online-boutique-15min-* output/koordinator-online-boutique-15min-*
+mums compare output/baseline-online-boutique-15min-* output/koordinator-online-boutique-15min-*
 ```
 
 The first run is the reference. For each indicator (requests, latencies, errors,

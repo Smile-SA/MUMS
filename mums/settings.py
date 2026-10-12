@@ -4,17 +4,17 @@ the start of every command): everything else only sees environment variables.
 
 Each setting is looked up, by priority:
   1. its environment variable (to override for one command, a CI, a test...);
-  2. the configuration file of this installation: <prefix>/benchmark-platform.yaml,
+  2. the configuration file of this installation: <prefix>/mums.yaml,
      where <prefix> is the Python environment the platform runs in (its venv),
-     or $BENCHMARK_CONFIG. Written by bootstrap.sh, edited with
-     `benchmark-platform config`. Each installation (each copy of the repository,
+     or $MUMS_CONFIG. Written by bootstrap.sh, edited with
+     `mums config`. Each installation (each copy of the repository,
      with its venv) thus has its own settings: they cannot mix.
 
-| Setting      | Variable                 | Meaning                                         |
-|--------------|--------------------------|-------------------------------------------------|
-| module_paths | BENCHMARK_MODULE_PATHS   | directories where modules are searched          |
-| utils_path   | BENCHMARK_UTILS_PATH     | directory of the utils (also given to modules)  |
-| env          | BENCHMARK_ENV            | file sourced at start (e.g. a venv's activate)  |
+| Setting      | Variable          | Meaning                                         |
+|--------------|-------------------|-------------------------------------------------|
+| module_paths | MUMS_MODULE_PATHS | directories where modules are searched          |
+| utils_path   | MUMS_UTILS_PATH   | directory of the utils (also given to modules)  |
+| env          | MUMS_ENV          | file sourced at start (e.g. a venv's activate)  |
 
 In a variable, module_paths are separated by ':' (like PATH); in the file, it is
 a list. As with MANPATH, an empty element in the variable stands for the file's
@@ -31,11 +31,11 @@ from pathlib import Path
 
 import yaml
 
-CONFIG_ENV = "BENCHMARK_CONFIG"
+CONFIG_ENV = "MUMS_CONFIG"
 VARIABLES = {
-    "module_paths": "BENCHMARK_MODULE_PATHS",
-    "utils_path": "BENCHMARK_UTILS_PATH",
-    "env": "BENCHMARK_ENV",
+    "module_paths": "MUMS_MODULE_PATHS",
+    "utils_path": "MUMS_UTILS_PATH",
+    "env": "MUMS_ENV",
 }
 
 
@@ -47,14 +47,14 @@ class SettingsError(RuntimeError):
 class Setting:
     key: str
     value: str | list[str] | None
-    source: str  # "variable BENCHMARK_…", "file <path>", or "not set"
+    source: str  # "variable MUMS_…", "file <path>", or "not set"
 
 
 def config_file() -> Path:
     explicit = os.environ.get(CONFIG_ENV, "").strip()
     if explicit:
         return Path(explicit).expanduser()
-    return Path(sys.prefix) / "benchmark-platform.yaml"
+    return Path(sys.prefix) / "mums.yaml"
 
 
 def read_file() -> dict:
@@ -115,8 +115,8 @@ def require(key: str) -> Setting:
     setting = get(key)
     if setting.value is None:
         raise SettingsError(
-            f"Setting '{key}' is not set: run benchmark_platform/bootstrap.sh, or "
-            f"'benchmark-platform config set {key} …' (or set {VARIABLES[key]})."
+            f"Setting '{key}' is not set: run mums/bootstrap.sh, or "
+            f"'mums config set {key} …' (or set {VARIABLES[key]})."
         )
     return setting
 
@@ -179,9 +179,9 @@ _ORIGINS: dict[str, Setting] = {}
 
 def apply() -> None:
     """Applies the settings to this process, for everything it then runs:
-    exports BENCHMARK_MODULE_PATHS and BENCHMARK_UTILS_PATH (a variable already
+    exports MUMS_MODULE_PATHS and MUMS_UTILS_PATH (a variable already
     set keeps precedence), then sources the `env` file, if any (e.g. a venv's
-    activate: its bin/ goes first on PATH). BENCHMARK_ENV itself is not passed on:
+    activate: its bin/ goes first on PATH). MUMS_ENV itself is not passed on:
     once sourced, nothing downstream needs it."""
     _ORIGINS.clear()
     for key in VARIABLES:

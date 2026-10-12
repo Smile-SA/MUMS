@@ -6,10 +6,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 VERSION="$(tr -d '[:space:]' < "${SCRIPT_DIR}/chart-version")"
-CHART_DIR="${BENCHMARK_UTILS_PATH:?}/helm/chart-repository/metallb/${VERSION}"
+CHART_DIR="${MUMS_UTILS_PATH:?}/helm/chart-repository/metallb/${VERSION}"
 
 case "${1:-}" in
-    install) "${BENCHMARK_UTILS_PATH}/helm/pull.sh" https://metallb.github.io/metallb metallb "$VERSION" ;;
+    install) "${MUMS_UTILS_PATH}/helm/pull.sh" https://metallb.github.io/metallb metallb "$VERSION" ;;
     check) [ -d "$CHART_DIR" ] || { echo "Chart metallb ${VERSION} not downloaded ($CHART_DIR)"; exit 1; } ;;
     *) echo "Usage: $0 install|check" >&2; exit 2 ;;
 esac

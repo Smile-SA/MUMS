@@ -1,4 +1,4 @@
-# The platform's core, installed from this directory: `pip install -e .`, or with
+# The core of mums, installed from this directory: `pip install -e .`, or with
 # the development tools, `pip install -e ".[dev]"` (see bootstrap.sh).
 
 [build-system]
@@ -6,9 +6,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "benchmark-platform"
+name = "mums"
 version = "0.1.0"
-description = "Benchmark platform for Kubernetes optimizers (schedulers, deschedulers, autoscalers), in real clusters."
+description = "Microservices Unified Measurement Simulation: a benchmark platform for Kubernetes optimizers (schedulers, deschedulers, autoscalers), in real clusters."
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 authors = [
@@ -38,12 +38,12 @@ dev = [
 ]
 
 [project.scripts]
-benchmark-platform = "benchmark_platform.cli:main"
+mums = "mums.cli:main"
 
 # This directory is the package itself.
 [tool.setuptools]
-package-dir = { "benchmark_platform" = "." }
-packages = ["benchmark_platform"]
+package-dir = { "mums" = "." }
+packages = ["mums"]
 
 # Lint of the whole repository (`make lint` passes this file with --config).
 [tool.ruff]
@@ -61,7 +61,7 @@ select = [
 ignore = []
 
 [tool.ruff.lint.isort]
-known-first-party = ["benchmark_platform", "tests"]
+known-first-party = ["mums", "tests"]
 
 [tool.ruff.format]
 quote-style = "double"

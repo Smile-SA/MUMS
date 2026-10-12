@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a HOTS JSON config for a live benchmark-platform run.
+"""Render a HOTS JSON config for a live mums run.
 
 Queries the cluster for per-node CPU allocatable capacity (used by HOTS's
 Kafka connector as `connector.parameters.node_capacities`) and writes a

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from benchmark_platform.config import ConfigError, load_config
+from mums.config import ConfigError, load_config
 
 
 def test_valid(platform):
@@ -10,7 +10,7 @@ def test_valid(platform):
 
 
 def test_unknown_fields_only_warn(platform, capsys):
-    from benchmark_platform.runner import prepare_scenario
+    from mums.runner import prepare_scenario
 
     platform.scenario["observability"]["type"] = "prometheus"
     platform.scenario["scenario"]["colour"] = "red"

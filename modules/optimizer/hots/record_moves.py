@@ -35,7 +35,7 @@ def main() -> int:
     parser.add_argument("--bootstrap-servers", required=True)
     parser.add_argument("--topic", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--group-id", default="benchmark-platform-moves-recorder")
+    parser.add_argument("--group-id", default="mums-moves-recorder")
     args = parser.parse_args()
 
     signal.signal(signal.SIGTERM, _request_stop)
