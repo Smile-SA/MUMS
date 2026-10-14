@@ -3,10 +3,6 @@
 **M**icroservices **U**nified **M**easurement **S**imulation: a benchmark platform
 for Kubernetes optimizers.
 
-> **A test platform, not secured: its runs hold credentials of the cluster in clear.**
-> Read [Security](docs/explanation/concepts.md#security) before using it on a real
-> cloud account or sharing results.
-
 Checks whether a Kubernetes optimizer (a scheduler, a descheduler, an
 autoscaler...) works **in a real cluster**: a real application, real traffic, real
 metrics, observed while the system runs. It runs experiments in the same conditions,
@@ -52,3 +48,17 @@ mums compare output/baseline-online-boutique-15min-* output/koordinator-online-b
 | **Modules** | [Catalogue](docs/modules.md) |
 
 Contributing to the core: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Credits
+
+Authors:
+
+- Timon Roxard
+- Etienne Leclercq
+- Jonathan Rivalan
+- Smile R&D
+
+## License
+
+This software is provided under the terms of the Apache license, version 2.0, you can read in the
+`LICENSE.txt` file of the repository or the package.
